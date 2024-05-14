@@ -631,6 +631,9 @@ endif(USE_MAN_PAGE)
 
 # POSIX ACLs - these may be used in multiple places
 find_package(LibACL)
+if (NOT HAVE_LIBACL)
+      message(FATAL_ERROR "Can't find libacl")
+endif (NOT HAVE_LIBACL)
 
 # Validate fsal dependencies
 
