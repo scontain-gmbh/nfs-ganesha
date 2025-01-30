@@ -388,7 +388,7 @@ if(USE_GTEST)
 endif(USE_GTEST)
 
 # Enable NFS Over RDMA Support
-option(USE_NFS_RDMA "enable NFS/RDMA support" ON)
+option(USE_NFS_RDMA "enable NFS/RDMA support" OFF)
 
 # Enable 9P Support
 option(USE_9P "enable 9P support" ON)

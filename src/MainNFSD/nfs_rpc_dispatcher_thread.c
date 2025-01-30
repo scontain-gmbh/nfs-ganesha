@@ -518,6 +518,15 @@ static enum xprt_stat nfs_rpc_dispatch_RDMA(SVCXPRT *xprt)
 	LogFullDebug(COMPONENT_DISPATCH,
 		     "RDMA request on SVCXPRT %p fd %d stat %d", xprt,
 		     xprt->xp_fd, SVC_STAT(xprt->xp_parent));
+
+	/* Allocate user-data for the xprt.
+	 *
+	 * Note: Currently, we only associate user-data related to NFS
+	 * operations. This allocation can be later generalized as an alloc
+	 * callback on the xprt, if non-NFS operations require user-data.
+	 */
+	nfs_rpc_alloc_user_data(xprt);
+
 	xprt->xp_dispatch.process_cb = nfs_rpc_valid_NFS_RDMA;
 	return SVC_STAT(xprt->xp_parent);
 }
@@ -592,12 +601,12 @@ void Create_tcp(protos prot)
 #ifdef _USE_NFS_RDMA
 struct rpc_rdma_attr rpc_rdma_xa = {
 	.statistics_prefix = NULL,
-	.node = "::",
+	.node = "0.0.0.0",
 	.port = "20049", /* default port 20049 */
 	.sq_depth = 32, /* default was 50 */
-	.max_send_sge = 32, /* minimum 2 */
+	.max_send_sge = 6, /* minimum 2, Changed value for SoftiWarp */
 	.rq_depth = 32, /* default was 50 */
-	.max_recv_sge = 31, /* minimum 1 */
+	.max_recv_sge = 6, /* minimum 1, Changed value for SoftiWarp */
 	.backlog = 10, /* minimum 2 */
 	.credits = 30, /* default 10 */
 	.destroy_on_disconnect = true,

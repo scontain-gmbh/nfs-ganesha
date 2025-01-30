@@ -641,7 +641,9 @@ nfsstat4 nfs4_export_check_access(struct svc_req *req)
 	if (((xprt_type == XPRT_UDP) &&
 	     ((op_ctx->export_perms.options & EXPORT_OPTION_UDP) == 0)) ||
 	    ((xprt_type == XPRT_TCP) &&
-	     ((op_ctx->export_perms.options & EXPORT_OPTION_TCP) == 0))) {
+	     ((op_ctx->export_perms.options & EXPORT_OPTION_TCP) == 0)) ||
+	    ((xprt_type == XPRT_RDMA) &&
+	     ((op_ctx->export_perms.options & EXPORT_OPTION_RDMA) == 0))) {
 		LogInfoAlt(
 			COMPONENT_NFS_V4, COMPONENT_EXPORT,
 			"NFS4 over %s not allowed on Export_Id %d %s for client %s",

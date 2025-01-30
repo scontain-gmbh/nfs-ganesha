@@ -1298,7 +1298,10 @@ retry_after_drc_suspend:
 		if (((xprt_type == XPRT_UDP) && ((op_ctx->export_perms.options &
 						  EXPORT_OPTION_UDP) == 0)) ||
 		    ((xprt_type == XPRT_TCP) && ((op_ctx->export_perms.options &
-						  EXPORT_OPTION_TCP) == 0))) {
+						  EXPORT_OPTION_TCP) == 0)) ||
+		    ((xprt_type == XPRT_RDMA) &&
+		     ((op_ctx->export_perms.options & EXPORT_OPTION_RDMA) ==
+		      0))) {
 			LogInfoAlt(
 				COMPONENT_DISPATCH, COMPONENT_EXPORT,
 				"%s Version %" PRIu32

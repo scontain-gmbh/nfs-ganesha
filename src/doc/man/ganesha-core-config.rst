@@ -60,8 +60,10 @@ NFS_RDMA_Port (uint16, range 0 to UINT16_MAX, default 20049)
 
 NFS_RDMA_Protocol_Versions(enum list, default [4.0])
     Possible values:
-        (NONE, 3, v3, NFS3, NFSv3, 4.0, v4.0, NFS4.0, NFSv4.0, 4.1, ALL)
-    Supported NFS Version for NFS Over RDMA. By default, NFSv4.0 is enabled.
+        (NONE, 3, v3, NFS3, NFSv3, 4.0, v4.0, NFS4.0, NFSv4.0, 4.1,
+        v4.1, NFS4.1, NFSv4.1, 4.2, v4.2, NFS4.2, NFSv4.2, ALL)
+    Supported NFS Version for NFS Over RDMA. By default, NFSv4.0,
+    NFSv4.1 & NFSv4.2 are enabled.
 
 Monitoring_Port (uint16, range 0 to UINT16_MAX, default 9587)
     Port number used to export monitoring metrics.

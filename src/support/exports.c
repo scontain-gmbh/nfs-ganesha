@@ -502,6 +502,20 @@ static int client_commit(void *node, void *link_mem, void *self_struct,
 				 EXPORT_OPTION_PROTOCOLS);
 		}
 
+		if ((cl_perm_opt & def_opt & EXPORT_OPTION_TRANSPORTS) !=
+		    (cl_perm_opt & EXPORT_OPTION_TRANSPORTS)) {
+			/* There is a protocol bit set in the options that was
+			 * not set by the core param Protocols.
+			 */
+			LogWarn(COMPONENT_CONFIG,
+				"Transport for a CLIENT block, fixing up");
+
+			expcli->client_perms.options =
+				(cl_perm_opt & ~EXPORT_OPTION_TRANSPORTS) |
+				(cl_perm_opt & def_opt &
+				 EXPORT_OPTION_TRANSPORTS);
+		}
+
 		glist_splice_tail(&export->clients, &cli->cle_list);
 	}
 	if (errcnt == 0)
@@ -1070,6 +1084,24 @@ static int export_commit_common(void *node, void *link_mem, void *self_struct,
 			 ~EXPORT_OPTION_PROTOCOLS) |
 			(export->export_perms.options & export_opt.def.options &
 			 EXPORT_OPTION_PROTOCOLS);
+	}
+
+	if ((export->export_perms.options & export_opt.def.options &
+	     export->export_perms.set & EXPORT_OPTION_TRANSPORTS) !=
+	    (export->export_perms.options & export->export_perms.set &
+	     EXPORT_OPTION_TRANSPORTS)) {
+		/* There is a protocol bit set in the options that was not
+		 * set by the core param Protocols.
+		 */
+		LogWarn(COMPONENT_CONFIG,
+			"Transport for export %d is not enabled, fixing up",
+			export->export_id);
+
+		export->export_perms.options =
+			(export->export_perms.options &
+			 ~EXPORT_OPTION_TRANSPORTS) |
+			(export->export_perms.options & export_opt.def.options &
+			 EXPORT_OPTION_TRANSPORTS);
 	}
 
 	/* If we are using mount_path_pseudo = true we MUST have a Pseudo Path.
@@ -1735,7 +1767,11 @@ static struct config_item_list nfs_protocols[] = {
 
 static struct config_item_list transports[] = {
 	CONFIG_LIST_TOK("UDP", EXPORT_OPTION_UDP),
-	CONFIG_LIST_TOK("TCP", EXPORT_OPTION_TCP), CONFIG_LIST_EOL
+	CONFIG_LIST_TOK("TCP", EXPORT_OPTION_TCP),
+#ifdef _USE_NFS_RDMA
+	CONFIG_LIST_TOK("RDMA", EXPORT_OPTION_RDMA),
+#endif
+	CONFIG_LIST_EOL
 };
 
 /**
@@ -2148,7 +2184,7 @@ static void *pseudofs_init(void *link_mem, void *self_struct)
 
 	/*Don't set anonymous uid and gid, they will actually be ignored */
 
-	/* Support only NFS v4 and TCP.
+	/* Support only NFS v4 and TCP & RDMA Transports both.
 	 * Root is allowed
 	 * MD Read Access
 	 * Allow use of default auth types
@@ -2158,7 +2194,7 @@ static void *pseudofs_init(void *link_mem, void *self_struct)
 	export->export_perms.options =
 		EXPORT_OPTION_ROOT | EXPORT_OPTION_MD_READ_ACCESS |
 		EXPORT_OPTION_NFSV4 | EXPORT_OPTION_AUTH_TYPES |
-		EXPORT_OPTION_TCP;
+		EXPORT_OPTION_TCP | EXPORT_OPTION_RDMA;
 
 	export->export_perms.set =
 		EXPORT_OPTION_SQUASH_TYPES | EXPORT_OPTION_ACCESS_MASK |
