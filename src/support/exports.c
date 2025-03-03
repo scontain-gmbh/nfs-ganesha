@@ -1095,7 +1095,11 @@ static inline void copy_gsh_export(struct gsh_export *dest,
 
 uint32_t export_check_options(struct gsh_export *exp)
 {
-	struct export_perms perms;
+	struct export_perms perms = { 0 };
+	struct export_perms clients_perms = { 0 };
+	struct glist_head *glist;
+	struct base_client_entry *client = NULL;
+	char str[1024] = "\0";
 
 	memset(&perms, 0, sizeof(perms));
 
@@ -1116,6 +1120,31 @@ uint32_t export_check_options(struct gsh_export *exp)
 			 ~perms.set;
 
 	perms.set |= export_opt.conf.set;
+
+	glist_for_each(glist, &exp->clients) {
+		client = glist_entry(glist, struct base_client_entry, cle_list);
+		if (client != NULL) {
+			struct export_perms tmp_clients_perms =
+				container_of(client,
+					     struct exportlist_client_entry,
+					     client_entry)
+					->client_perms;
+
+			/* Take client options */
+			clients_perms.options |= tmp_clients_perms.options &
+						 EXPORT_OPTION_PROTOCOLS;
+			clients_perms.set |= tmp_clients_perms.set &
+					     EXPORT_OPTION_PROTOCOLS;
+		}
+	}
+
+	perms.options |= clients_perms.options & EXPORT_OPTION_PROTOCOLS;
+	perms.set |= clients_perms.set & EXPORT_OPTION_PROTOCOLS;
+
+	struct display_buffer dspbuf = { sizeof(str), str, str };
+	(void)StrExportOptions(&dspbuf, &perms);
+	LogMidDebug(COMPONENT_EXPORT, "perms with client perms: (%s)", str);
+	display_reset_buffer(&dspbuf);
 
 	/* And finally take any options not yet set from global defaults */
 	perms.options |= export_opt.def.options & ~perms.set;
@@ -1141,6 +1170,12 @@ uint32_t export_check_options(struct gsh_export *exp)
 		(void)StrExportOptions(&dspbuf, &export_opt.def);
 
 		LogMidDebug(COMPONENT_EXPORT, "default options (%s)", str);
+
+		display_reset_buffer(&dspbuf);
+
+		(void)StrExportOptions(&dspbuf, &clients_perms);
+
+		LogMidDebug(COMPONENT_EXPORT, "client perms:   (%s)", str);
 
 		display_reset_buffer(&dspbuf);
 
@@ -1340,7 +1375,7 @@ static int export_commit_common(void *node, void *link_mem, void *self_struct,
 	     export->export_perms.set & EXPORT_OPTION_TRANSPORTS) !=
 	    (export->export_perms.options & export->export_perms.set &
 	     EXPORT_OPTION_TRANSPORTS)) {
-		/* There is a protocol bit set in the options that was not
+		/* There is a transport bit set in the options that was not
 		 * set by the core param Protocols.
 		 */
 		LogWarn(COMPONENT_CONFIG,

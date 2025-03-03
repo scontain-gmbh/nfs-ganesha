@@ -122,6 +122,18 @@ Clients(client list, empty)
                     getaddrinfo call is made at config parsing time)
         IP address  Match a single client
 
+Any option not set in the client or export block are taken from the EXPORT_DEFAULTS
+block. For example, below are few scenarios:
+1.If protocols=3 set in Export_Defaults block and protocols=4 set
+in CLIENT block of the export, then export can only be mounted via NFSv4 from client
+and not using NFSv3.
+2.If protocols=4 set in Export_Defaults, protocols=3 set in CLIENT block of the export,
+then that client can mount the export using only NFSv3
+3.If protocol=3,4 set in Export_Defaults, protocol=4 set in CLIENT block of the export,
+then that client can mount the export using only NFSv4.
+
+If protocol not set in CLIENT block then export options will be set using
+Export_Defaults protocols.
 
 EXPORT_DEFAULTS {}
 --------------------------------------------------------------------------------
