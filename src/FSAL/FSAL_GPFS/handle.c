@@ -743,6 +743,7 @@ static fsal_status_t listxattrs(struct fsal_obj_handle *obj_hdl,
 						    struct gpfs_fsal_export,
 						    export);
 	int export_fd = exp->export_fd;
+	fsal_status_t status = { 0, 0 };
 
 	val = (char *)entry + la_maxcount;
 	valstart = val;
@@ -770,15 +771,18 @@ static fsal_status_t listxattrs(struct fsal_obj_handle *obj_hdl,
 		errsv = errno;
 		LogDebug(COMPONENT_FSAL, "LISTXATTRS returned rc %d errsv %d",
 			 rc, errsv);
-		gsh_free(buf);
-		if (errsv == ERANGE)
-			return fsalstat(ERR_FSAL_TOOSMALL, 0);
-		return fsalstat(posix2fsal_error(errsv), errsv);
+		if (errsv == ERANGE) {
+			status = fsalstat(ERR_FSAL_TOOSMALL, ERANGE);
+		} else {
+			status = posix2fsal_status(errsv);
+		}
+		goto out;
 	}
 	if (!lxarg.eof) {
 		errsv = ERR_FSAL_SERVERFAULT;
 		LogCrit(COMPONENT_FSAL, "Unable to get xattr.");
-		return fsalstat(posix2fsal_error(errsv), errsv);
+		status = posix2fsal_status(errsv);
+		goto out;
 	}
 	/* Only return names that the caller can read via getxattr */
 	name = buf;
@@ -798,7 +802,6 @@ static fsal_status_t listxattrs(struct fsal_obj_handle *obj_hdl,
 				     sizeof(component4) >
 			     la_maxcount) ||
 			    ((val - valstart) + (next - name) > la_maxcount)) {
-				gsh_free(buf);
 				*lr_eof = false;
 
 				lr_names->xl4_count = entryCount - *la_cookie;
@@ -808,9 +811,12 @@ static fsal_status_t listxattrs(struct fsal_obj_handle *obj_hdl,
 					     (unsigned long long)*la_cookie,
 					     (next - name), *lr_eof);
 
-				if (lr_names->xl4_count == 0)
-					return fsalstat(ERR_FSAL_TOOSMALL, 0);
-				return fsalstat(ERR_FSAL_NO_ERROR, 0);
+				if (lr_names->xl4_count == 0) {
+					status = fsalstat(ERR_FSAL_TOOSMALL, 0);
+				} else {
+					status = fsalstat(ERR_FSAL_NO_ERROR, 0);
+				}
+				goto out;
 			}
 			entry->utf8string_len = next - name;
 			entry->utf8string_val = val;
@@ -835,12 +841,12 @@ static fsal_status_t listxattrs(struct fsal_obj_handle *obj_hdl,
 	*la_cookie = 0;
 	*lr_eof = true;
 
-	gsh_free(buf);
-
 	LogFullDebug(COMPONENT_FSAL, "out2 cookie %llu eof %d",
 		     (unsigned long long)*la_cookie, *lr_eof);
 
-	return fsalstat(ERR_FSAL_NO_ERROR, 0);
+out:
+	gsh_free(buf);
+	return status;
 }
 
 /*
