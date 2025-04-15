@@ -62,6 +62,11 @@
 #include "server_stats_private.h"
 #include "idmapper_monitoring.h"
 
+#include "gsh_lttng/gsh_lttng.h"
+#if defined(USE_LTTNG) && !defined(LTTNG_PARSING)
+#include "gsh_lttng/generated_traces/idmapper.h"
+#endif
+
 struct owner_domain_holder {
 	struct gsh_buffdesc domain;
 	/* Lock to synchronise reads and writes to owner domain */
@@ -562,7 +567,7 @@ static bool xdr_encode_nfs4_princ(XDR *xdrs, uint32_t id, bool group)
 						&pres);
 				now_mono(&e_time);
 				idmapper_monitoring__external_request(
-					IDMAPPING_UID_TO_UIDGID,
+					IDMAPPING_UID_TO_UNAME,
 					IDMAPPING_PWUTILS, rc == 0, &s_time,
 					&e_time);
 
@@ -610,7 +615,7 @@ static bool xdr_encode_nfs4_princ(XDR *xdrs, uint32_t id, bool group)
 			now_mono(&e_time);
 			idmapper_monitoring__external_request(
 				group ? IDMAPPING_GID_TO_GROUP
-				      : IDMAPPING_UID_TO_UIDGID,
+				      : IDMAPPING_UID_TO_UNAME,
 				IDMAPPING_NFSIDMAP, rc == 0, &s_time, &e_time);
 			if (rc == 0) {
 				new_name.len = strlen(namebuff);
@@ -736,9 +741,7 @@ static int name_to_gid(const char *name, gid_t *gid)
 	size_t buflen = sysconf(_SC_GETGR_R_SIZE_MAX);
 	struct timespec s_time, e_time;
 	int err;
-
-	if (buflen == -1)
-		buflen = PWENT_BEST_GUESS_LEN;
+	size_t name_len = strlen(name);
 
 	if (!idmapping_enabled) {
 		LogWarn(COMPONENT_IDMAPPER,
@@ -746,6 +749,8 @@ static int name_to_gid(const char *name, gid_t *gid)
 		/* Return -1 as the pw-functions return >= 0 return codes */
 		return -1;
 	}
+	if (buflen == -1)
+		buflen = PWENT_BEST_GUESS_LEN;
 
 	do {
 		buf = gsh_malloc(buflen);
@@ -757,17 +762,40 @@ static int name_to_gid(const char *name, gid_t *gid)
 			IDMAPPING_GROUPNAME_TO_GROUP, IDMAPPING_PWUTILS,
 			err == 0, &s_time, &e_time);
 
+		GSH_AUTO_TRACEPOINT(idmapper, getgrnam_r_call, TRACE_INFO,
+				    "getgrnam_r returned: {} for name: {}", err,
+				    TP_BYTE_ARR_TRUNCATED(name, name_len));
+
 		if (err == ERANGE) {
+			LogWarn(COMPONENT_IDMAPPER,
+				"getgrnam_r buffer size of: %lu, is too small increasing to %lu.",
+				buflen, buflen * 16);
 			buflen *= 16;
 			gsh_free(buf);
 		}
 	} while (buflen <= GROUP_MAX_SIZE && err == ERANGE);
 
 	if (err == 0) {
-		if (gres == NULL)
+		if (gres == NULL) {
+			LogDebug(
+				COMPONENT_IDMAPPER,
+				"No matching password record found for group name %s",
+				name);
+			GSH_AUTO_TRACEPOINT(
+				idmapper, no_passwd_record3, TRACE_INFO,
+				"No matching password record found for group name {}",
+				TP_BYTE_ARR_TRUNCATED(name, name_len));
 			err = ENOENT;
-		else
+		} else {
 			*gid = gres->gr_gid;
+			LogInfo(COMPONENT_IDMAPPER,
+				"getgrnam_r for gropu name: %s, gid: %d", name,
+				*gid);
+			GSH_AUTO_TRACEPOINT(
+				idmapper, getpwnam_r_call3, TRACE_INFO,
+				"getgrnam_r for group name: {}, gid: {}",
+				TP_BYTE_ARR_TRUNCATED(name, name_len), *gid);
+		}
 	}
 
 	if (err != ERANGE)
@@ -799,6 +827,7 @@ static int name_to_uid(const char *name, uint32_t *uid, gid_t *gid)
 	size_t buflen = sysconf(_SC_GETGR_R_SIZE_MAX);
 	struct timespec s_time, e_time;
 	int err = ERANGE;
+	size_t name_len = strlen(name);
 
 	if (!idmapping_enabled) {
 		LogWarn(COMPONENT_IDMAPPER,
@@ -818,6 +847,9 @@ static int name_to_uid(const char *name, uint32_t *uid, gid_t *gid)
 		idmapper_monitoring__external_request(
 			IDMAPPING_USERNAME_TO_UIDGID, IDMAPPING_PWUTILS,
 			err == 0, &s_time, &e_time);
+		GSH_AUTO_TRACEPOINT(idmapper, getpwnam_r_call2, TRACE_INFO,
+				    "getpwnam_r returned: {} for uname: {}",
+				    err, TP_BYTE_ARR_TRUNCATED(name, name_len));
 
 		/* We don't use any strings from the buffer, so free it */
 		gsh_free(buf);
@@ -827,11 +859,26 @@ static int name_to_uid(const char *name, uint32_t *uid, gid_t *gid)
 	}
 
 	if (err == 0) {
-		if (pres == NULL)
+		if (pres == NULL) {
+			LogDebug(COMPONENT_IDMAPPER,
+				 "No matching password record found for name %s",
+				 name);
+			GSH_AUTO_TRACEPOINT(
+				idmapper, no_passwd_record2, TRACE_INFO,
+				"No matching password record found for name {}",
+				TP_BYTE_ARR_TRUNCATED(name, name_len));
 			err = ENOENT;
-		else {
+		} else {
 			*uid = pres->pw_uid;
 			*gid = pres->pw_gid;
+			LogInfo(COMPONENT_IDMAPPER,
+				"getpwnam_r for uname: %s, uid: %d, gid: %d",
+				name, *uid, *gid);
+			GSH_AUTO_TRACEPOINT(
+				idmapper, getpwnam_r_call4, TRACE_INFO,
+				"getpwnam_r for uname: {}, uid: {}, gid: {}",
+				TP_BYTE_ARR_TRUNCATED(name, name_len), *uid,
+				*gid);
 		}
 	}
 
@@ -1288,7 +1335,7 @@ bool principal2uid(char *principal, uid_t *uid, gid_t *gid)
 
 	if (is_root_principal(&princbuff)) {
 		/* This is a "root" request made from the
-		 * hostbased nfs principal, use root */
+		 * host based NFS principal, use root */
 		*uid = 0;
 		*gid = 0;
 		return true;
@@ -1297,42 +1344,45 @@ bool principal2uid(char *principal, uid_t *uid, gid_t *gid)
 	if (nfs_param.nfsv4_param.use_getpwnam) {
 		bool got_gid = false;
 		char *at = strchr(principal, '@');
+		char *uname = principal;
 
 		LogDebug(COMPONENT_IDMAPPER, "Get uid for %s using pw func",
 			 principal);
 
-		if (nfs_param.directory_services_param
-			    .pwutils_use_fully_qualified_names) {
-			success = pwentname2id(principal, &gss_uid, false,
-					       &gss_gid, &got_gid, at);
-		} else {
-			char *uname;
+		if (!nfs_param.directory_services_param
+			     .pwutils_use_fully_qualified_names) {
+			/* Strip the realm from the principal for pwnam lookup */
 			int uname_len = principal_len;
-
-			/* Strip off realm from principal for pwnam lookup */
 			if (at != NULL)
 				uname_len = at - principal;
-
+			at = NULL;
 			uname = alloca(uname_len + 1);
 			memcpy(uname, principal, uname_len);
 			uname[uname_len] = '\0';
-
-			success = pwentname2id(uname, &gss_uid, false, &gss_gid,
-					       &got_gid, NULL);
 		}
 
+		success = pwentname2id(uname, &gss_uid, false, &gss_gid,
+				       &got_gid, at);
+
 		if (!success) {
-			idmapper_monitoring__failure(
+			idmapper_monitoring__resolution(
 				IDMAPPING_PRINCIPAL_TO_UIDGID,
-				IDMAPPING_PWUTILS);
+				IDMAPPING_PWUTILS, IDMAPPING_STATUS_FAILURE);
 			goto principal_not_found;
 		}
 
 		if (!got_gid) {
 			LogWarn(COMPONENT_IDMAPPER,
 				"Gid resolution failed for %s", principal);
+			idmapper_monitoring__resolution(
+				IDMAPPING_PRINCIPAL_TO_UIDGID,
+				IDMAPPING_PWUTILS, IDMAPPING_STATUS_FAILURE);
 			goto principal_not_found;
 		}
+
+		idmapper_monitoring__resolution(IDMAPPING_PRINCIPAL_TO_UIDGID,
+						IDMAPPING_PWUTILS,
+						IDMAPPING_STATUS_SUCCESS);
 		goto principal_found;
 
 	} else {
@@ -1356,9 +1406,9 @@ bool principal2uid(char *principal, uid_t *uid, gid_t *gid)
 			LogWarn(COMPONENT_IDMAPPER,
 				"Could not resolve %s to uid using nfsidmap, err: %d",
 				principal, err);
-			idmapper_monitoring__failure(
+			idmapper_monitoring__resolution(
 				IDMAPPING_PRINCIPAL_TO_UIDGID,
-				IDMAPPING_NFSIDMAP);
+				IDMAPPING_NFSIDMAP, IDMAPPING_STATUS_FAILURE);
 
 #ifdef _MSPAC_SUPPORT
 			bool stats = nfs_param.core_param.enable_AUTHSTATS;
@@ -1434,6 +1484,9 @@ bool principal2uid(char *principal, uid_t *uid, gid_t *gid)
 
 			goto principal_not_found;
 		}
+		idmapper_monitoring__resolution(IDMAPPING_PRINCIPAL_TO_UIDGID,
+						IDMAPPING_NFSIDMAP,
+						IDMAPPING_STATUS_SUCCESS);
 		goto principal_found;
 
 #else /* !USE_NFSIDMAP */

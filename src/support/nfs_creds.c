@@ -60,6 +60,11 @@
 #include "client_mgr.h"
 #include "idmapper_monitoring.h"
 
+#include "gsh_lttng/gsh_lttng.h"
+#if defined(USE_LTTNG) && !defined(LTTNG_PARSING)
+#include "gsh_lttng/generated_traces/nfs_creds.h"
+#endif
+
 /* Export permissions for root op context */
 uint32_t root_op_export_options =
 	EXPORT_OPTION_ROOT | EXPORT_OPTION_ACCESS_MASK |
@@ -242,43 +247,67 @@ static void set_extended_groups(void)
 	/****************************************************************/
 	/* Check if we have manage_gids.				*/
 	/****************************************************************/
-	if ((op_ctx->cred_flags & MANAGED_GIDS) != 0) {
-		/* Fetch the group data if required */
-		if (op_ctx->caller_gdata == NULL &&
-		    !uid2grp(op_ctx->original_creds.caller_uid,
-			     &op_ctx->caller_gdata)) {
-			LogInfo(COMPONENT_DISPATCH,
-				"Attempt to fetch managed_gids failed");
-			idmapper_monitoring__failure(IDMAPPING_UID_TO_GROUPLIST,
-						     IDMAPPING_PWUTILS);
-			/** @todo: do we really want to bail here? */
-			if (nfs_param.core_param.enable_rpc_cred_fallback) {
-				LogInfo(COMPONENT_DISPATCH,
-					"Attempt to fetch managed_gids failed for uid=%u, using cred info from rpc request",
-					op_ctx->original_creds.caller_uid);
-				/* Use the original_creds group list */
-				op_ctx->creds.caller_glen =
-					op_ctx->original_creds.caller_glen;
-				op_ctx->creds.caller_garray =
-					op_ctx->original_creds.caller_garray;
+	/* Fetch the group data only if required */
+	if (op_ctx->caller_gdata != NULL) {
+		op_ctx->creds.caller_glen = op_ctx->caller_gdata->nbgroups;
+		op_ctx->creds.caller_garray = op_ctx->caller_gdata->groups;
+		return;
+	}
 
-			} else {
-				LogInfo(COMPONENT_DISPATCH,
-					"Attempt to fetch managed_gids failed for uid=%u",
-					op_ctx->original_creds.caller_uid);
-				op_ctx->creds.caller_glen = 0;
-			}
-		} else {
-			op_ctx->creds.caller_glen =
-				op_ctx->caller_gdata->nbgroups;
-			op_ctx->creds.caller_garray =
-				op_ctx->caller_gdata->groups;
-		}
-	} else {
-		/* Use the original_creds group list */
+	/* Use the original_creds group list */
+	if ((op_ctx->cred_flags & MANAGED_GIDS) == 0) {
 		op_ctx->creds.caller_glen = op_ctx->original_creds.caller_glen;
 		op_ctx->creds.caller_garray =
 			op_ctx->original_creds.caller_garray;
+		return;
+	}
+
+	/* Fetch the group data */
+	if (!uid2grp(op_ctx->original_creds.caller_uid,
+		     &op_ctx->caller_gdata)) {
+		LogInfo(COMPONENT_DISPATCH,
+			"Attempt to fetch managed_gids for uid: %d failed",
+			op_ctx->original_creds.caller_uid);
+		GSH_AUTO_TRACEPOINT(nfs_creds,
+				    failed_attempt_fetch_managed_gids,
+				    TRACE_INFO,
+				    "Failed to fetch managed_gids for uid={}",
+				    op_ctx->original_creds.caller_uid);
+		idmapper_monitoring__resolution(IDMAPPING_UID_TO_GROUPLIST,
+						IDMAPPING_PWUTILS,
+						IDMAPPING_STATUS_FAILURE);
+		/** @todo: do we really want to bail here? */
+		if (nfs_param.core_param.enable_rpc_cred_fallback) {
+			LogInfo(COMPONENT_DISPATCH,
+				"Attempt to fetch managed_gids failed for uid=%u, using cred info from rpc request",
+				op_ctx->original_creds.caller_uid);
+			GSH_AUTO_TRACEPOINT(
+				nfs_creds, use_rpc_cred_fallback, TRACE_INFO,
+				"Attempt to fetch managed_gids failed for uid={}, using cred info from rpc request",
+				op_ctx->original_creds.caller_uid);
+			/* Use the original_creds group list */
+			op_ctx->creds.caller_glen =
+				op_ctx->original_creds.caller_glen;
+			op_ctx->creds.caller_garray =
+				op_ctx->original_creds.caller_garray;
+
+		} else {
+			LogInfo(COMPONENT_DISPATCH,
+				"Attempt to fetch managed_gids failed for uid=%u",
+				op_ctx->original_creds.caller_uid);
+			GSH_AUTO_TRACEPOINT(
+				nfs_creds, failed_fetch_managed_gids,
+				TRACE_INFO,
+				"Attempt to fetch managed_gids failed for uid={}",
+				op_ctx->original_creds.caller_uid);
+			op_ctx->creds.caller_glen = 0;
+		}
+	} else {
+		op_ctx->creds.caller_glen = op_ctx->caller_gdata->nbgroups;
+		op_ctx->creds.caller_garray = op_ctx->caller_gdata->groups;
+		idmapper_monitoring__resolution(IDMAPPING_UID_TO_GROUPLIST,
+						IDMAPPING_PWUTILS,
+						IDMAPPING_STATUS_SUCCESS);
 	}
 }
 
@@ -294,10 +323,15 @@ static void rpcsec_gss_fetch_managed_groups(char *principal)
 			     &op_ctx->caller_gdata)) {
 			LogInfo(COMPONENT_DISPATCH,
 				"Attempt to fetch managed groups failed");
-			idmapper_monitoring__failure(IDMAPPING_UID_TO_GROUPLIST,
-						     IDMAPPING_PWUTILS);
+			idmapper_monitoring__resolution(
+				IDMAPPING_UID_TO_GROUPLIST, IDMAPPING_PWUTILS,
+				IDMAPPING_STATUS_FAILURE);
 			op_ctx->creds.caller_glen = 0;
+			return;
 		}
+		idmapper_monitoring__resolution(IDMAPPING_UID_TO_GROUPLIST,
+						IDMAPPING_PWUTILS,
+						IDMAPPING_STATUS_SUCCESS);
 	} else {
 #ifdef USE_NFSIDMAP
 		if (!principal2grp(principal, &op_ctx->caller_gdata,
@@ -305,11 +339,15 @@ static void rpcsec_gss_fetch_managed_groups(char *principal)
 				   op_ctx->original_creds.caller_gid)) {
 			LogInfo(COMPONENT_DISPATCH,
 				"Attempt to fetch managed groups failed");
-			idmapper_monitoring__failure(
+			idmapper_monitoring__resolution(
 				IDMAPPING_PRINCIPAL_TO_GROUPLIST,
-				IDMAPPING_NFSIDMAP);
+				IDMAPPING_NFSIDMAP, IDMAPPING_STATUS_FAILURE);
 			op_ctx->creds.caller_glen = 0;
+			return;
 		}
+		idmapper_monitoring__resolution(IDMAPPING_PRINCIPAL_TO_GROUPLIST,
+					     IDMAPPING_NFSIDMAP,
+					     IDMAPPING_STATUS_SUCCESS);
 #else
 		LogWarn(COMPONENT_DISPATCH,
 			"Unsupported code path for principal %s", principal);
@@ -433,6 +471,7 @@ nfsstat4 nfs_req_creds(struct svc_req *req)
 #ifdef _HAVE_GSSAPI
 	struct svc_rpc_gss_data *gd = NULL;
 	char principal[MAXNAMLEN + 1];
+	size_t principal_len;
 #endif
 
 	/* Make sure we clear out all the cred_flags except CREDS_LOADED and
@@ -477,8 +516,14 @@ nfsstat4 nfs_req_creds(struct svc_req *req)
 	case RPCSEC_GSS:
 		/* Get the gss data to process them */
 		gd = SVCAUTH_PRIVATE(req->rq_auth);
-		memcpy(principal, gd->cname.value, gd->cname.length);
-		principal[gd->cname.length] = 0;
+
+		principal_len = MIN(gd->cname.length, sizeof(principal));
+		memcpy(principal, gd->cname.value, principal_len);
+		principal[principal_len] = 0;
+		if (gd->cname.length >= sizeof(principal))
+			LogWarn(COMPONENT_IDMAPPER,
+				"Got principal: %s with length: %luw that is longer than %lu.",
+				principal, gd->cname.length, sizeof(principal));
 
 		if (op_ctx->cred_flags & CREDS_LOADED) {
 			/* Creds are already loaded, get auth_label using
@@ -499,13 +544,16 @@ nfsstat4 nfs_req_creds(struct svc_req *req)
 		if (!principal2uid(principal,
 				   &op_ctx->original_creds.caller_uid,
 				   &op_ctx->original_creds.caller_gid, gd)) {
-			idmapper_monitoring__failure(
+			idmapper_monitoring__resolution(
 				IDMAPPING_PRINCIPAL_TO_UIDGID,
-				IDMAPPING_WINBIND);
+				IDMAPPING_WINBIND, IDMAPPING_STATUS_FAILURE);
 #else
 		if (!principal2uid(principal,
 				   &op_ctx->original_creds.caller_uid,
 				   &op_ctx->original_creds.caller_gid)) {
+			idmapper_monitoring__resolution(
+				IDMAPPING_PRINCIPAL_TO_UIDGID,
+				IDMAPPING_PWUTILS, IDMAPPING_STATUS_FAILURE);
 #endif
 			LogInfo(COMPONENT_IDMAPPER,
 				"Could not map principal %s to uid", principal);
@@ -517,6 +565,18 @@ nfsstat4 nfs_req_creds(struct svc_req *req)
 			auth_label = "RPCSEC_GSS (no mapping)";
 			break;
 		}
+		LogMidDebug(COMPONENT_DISPATCH,
+			    "Mapped RPCSEC_GSS principal %s to uid/gid: %d / %d",
+			    principal, op_ctx->original_creds.caller_uid,
+			    op_ctx->original_creds.caller_gid);
+
+		idmapper_monitoring__resolution(IDMAPPING_PRINCIPAL_TO_UIDGID,
+#if _MSPAC_SUPPORT
+						IDMAPPING_WINBIND,
+#else
+						IDMAPPING_PWUTILS,
+#endif
+						IDMAPPING_STATUS_SUCCESS);
 
 		op_ctx->cred_flags |= CREDS_LOADED | MANAGED_GIDS;
 		auth_label = "RPCSEC_GSS";
@@ -556,6 +616,23 @@ nfsstat4 nfs_req_creds(struct svc_req *req)
 			: ((op_ctx->cred_flags & GARRAY_SQUASHED) != 0
 				   ? " (squashed)"
 				   : ""));
+
+	GSH_AUTO_TRACEPOINT(
+		nfs_creds, req_creds, TRACE_INFO,
+		"{} creds mapped to uid={} (squshed={}), gid={} (squashed={})",
+		req->rq_msg.cb_cred.oa_flavor, op_ctx->creds.caller_uid,
+		(op_ctx->cred_flags & UID_SQUASHED) != 0,
+		op_ctx->creds.caller_gid,
+		(op_ctx->cred_flags & GID_SQUASHED) != 0);
+
+	GSH_AUTO_TRACEPOINT(
+		nfs_creds, req_creds_groups, TRACE_INFO,
+		"extended groups={} (managed={}, squashed={}, anon={})",
+		TP_INT_ARR_TRUNCATED(op_ctx->creds.caller_garray,
+				     op_ctx->creds.caller_glen),
+		(op_ctx->cred_flags & MANAGED_GIDS) != 0,
+		(op_ctx->cred_flags & GARRAY_SQUASHED) != 0,
+		(op_ctx->cred_flags & CREDS_ANON) != 0);
 
 	return NFS4_OK;
 }

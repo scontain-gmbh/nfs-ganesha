@@ -114,6 +114,10 @@ static inline void gsh_empty_function(const char *unused, ...)
 #define TP_BYTE_ARR_TRUNCATED(data, len) \
 	TP_BYTE_ARR((data), MIN((len), TP_CHARS_LIMIT))
 
+#define TP_INT_LIMIT 32 /* Avoid copying too many ints */
+#define TP_INT_ARR_TRUNCATED(data, len) \
+	TP_INT_ARR((data), MIN((len), TP_INT_LIMIT))
+
 #define TP_CINFO_FORMAT "atomic={} before={} after={}"
 #define TP_CINFO_ARGS_EXPAND(cinfo) \
 	(cinfo).atomic, (cinfo).before, (cinfo).after

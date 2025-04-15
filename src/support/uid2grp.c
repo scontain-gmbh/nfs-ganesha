@@ -53,6 +53,11 @@
 #endif
 #include "idmapper_monitoring.h"
 
+#include "gsh_lttng/gsh_lttng.h"
+#if defined(USE_LTTNG) && !defined(LTTNG_PARSING)
+#include "gsh_lttng/generated_traces/uid2grp.h"
+#endif
+
 /* Switch to enable or disable idmapping */
 extern bool idmapping_enabled;
 
@@ -91,8 +96,10 @@ void uid2grp_release_group_data(struct group_data *gdata)
 		gsh_free(gdata->groups);
 		gsh_free(gdata);
 	} else if (refcount == (unsigned int)-1) {
-		LogAlways(COMPONENT_IDMAPPER, "negative refcount on gdata: %p",
-			  gdata);
+		LogCrit(COMPONENT_IDMAPPER, "negative refcount on gdata: %p",
+			gdata);
+		GSH_AUTO_TRACEPOINT(uid2grp, negative_refcount, TRACE_ERR,
+				    "negative refcount on gdata");
 	}
 }
 
@@ -129,10 +136,16 @@ static bool my_getgrouplist_alloc(char *user, gid_t gid,
 	idmapper_monitoring__external_request(IDMAPPING_USERNAME_TO_GROUPLIST,
 					      IDMAPPING_PWUTILS, ret != -1,
 					      &s_time, &e_time);
+	GSH_AUTO_TRACEPOINT(uid2grp, getgrouplist_call, TRACE_INFO,
+			    "getgrouplist returned {}, ngroups={} ", ret,
+			    ngroups);
 
 	if (ret == -1) {
 		LogEvent(COMPONENT_IDMAPPER,
-			 "getgrouplist for user: %s failed retrying", user);
+			 "getgrouplist for user: %s failed, retrying", user);
+		GSH_AUTO_TRACEPOINT(uid2grp, getgrouplist_failed, TRACE_INFO,
+				    "getgrouplist for user: {} failed, retrying",
+				    TP_STR(user));
 
 		gsh_free(groups);
 
@@ -151,6 +164,11 @@ static bool my_getgrouplist_alloc(char *user, gid_t gid,
 			LogWarn(COMPONENT_IDMAPPER,
 				"getgrouplist for user:%s failed, ngroups: %d",
 				user, ngroups);
+			GSH_AUTO_TRACEPOINT(
+				uid2grp, getgrouplist_retry_failed,
+				TRACE_WARNING,
+				"getgrouplist for user:{} failed, ngroups: {}",
+				TP_STR(user), ngroups);
 			gsh_free(groups);
 			return false;
 		}
@@ -162,6 +180,12 @@ static bool my_getgrouplist_alloc(char *user, gid_t gid,
 	}
 
 	idmapper_monitoring__user_groups(ngroups);
+	LogInfo(COMPONENT_IDMAPPER,
+		"getgrouplist for uname: %s, returned %d groups", user,
+		ngroups);
+	GSH_AUTO_TRACEPOINT(uid2grp, getgrouplist_result, TRACE_INFO,
+			    "getgrouplist for user: {} returned groups: {}",
+			    TP_STR(user), TP_INT_ARR(groups, ngroups));
 
 	if (ngroups != 0) {
 		/* Resize the buffer, if it fails, gsh_realloc will
@@ -194,6 +218,7 @@ uid2grp_allocate_by_name(const struct gsh_buffdesc *name)
 	size_t buff_size;
 	int retval;
 	struct timespec s_time, e_time;
+	size_t uname_len;
 
 	memcpy(namebuff, name->addr, name->len);
 	*(namebuff + name->len) = '\0';
@@ -212,6 +237,10 @@ uid2grp_allocate_by_name(const struct gsh_buffdesc *name)
 		idmapper_monitoring__external_request(
 			IDMAPPING_USERNAME_TO_UIDGID, IDMAPPING_PWUTILS,
 			retval == 0, &s_time, &e_time);
+		GSH_AUTO_TRACEPOINT(
+			uid2grp, getpwnam_r_call, TRACE_INFO,
+			"getpwnam_r returned: {} for uname: {}", retval,
+			TP_BYTE_ARR_TRUNCATED(name->addr, name->len));
 
 		if (retval != ERANGE)
 			break;
@@ -223,6 +252,10 @@ uid2grp_allocate_by_name(const struct gsh_buffdesc *name)
 		LogWarn(COMPONENT_IDMAPPER,
 			"Received ERANGE when fetching pw-entry from name: %s",
 			namebuff);
+		GSH_AUTO_TRACEPOINT(
+			uid2grp, getpwnam_r_failed, TRACE_INFO,
+			"getpwnam_r for uname={} failed with ERANGE",
+			TP_BYTE_ARR_TRUNCATED(name->addr, name->len));
 		return NULL;
 	}
 
@@ -230,18 +263,33 @@ uid2grp_allocate_by_name(const struct gsh_buffdesc *name)
 		LogEvent(COMPONENT_IDMAPPER,
 			 "getpwnam_r for %s failed, error %d", namebuff,
 			 retval);
+		GSH_AUTO_TRACEPOINT(
+			uid2grp, getpwnam_r_failed1, TRACE_INFO,
+			"getpwnam_r for uname={} failed, retval={}",
+			TP_BYTE_ARR_TRUNCATED(name->addr, name->len), retval);
 		goto out;
 	}
 	if (pp == NULL) {
 		LogEvent(COMPONENT_IDMAPPER,
 			 "No matching password record found for name %s",
 			 namebuff);
+		GSH_AUTO_TRACEPOINT(
+			uid2grp, no_passwd_record, TRACE_INFO,
+			"No matching password record found for uname {}",
+			TP_BYTE_ARR_TRUNCATED(name->addr, name->len));
 		goto out;
 	}
 
-	gdata = gsh_malloc(sizeof(struct group_data) + strlen(p.pw_name));
+	uname_len = strlen(p.pw_name);
+	LogInfo(COMPONENT_IDMAPPER, "getpwnam_r for uname: %s, uid: %d gid: %d",
+		namebuff, p.pw_uid, p.pw_gid);
+	GSH_AUTO_TRACEPOINT(uid2grp, getpwnam_r_call1, TRACE_INFO,
+			    "getpwnam_r for uid: {}, gid: {}, uname: {}",
+			    p.pw_uid, p.pw_gid,
+			    TP_BYTE_ARR_TRUNCATED(p.pw_name, uname_len));
 
-	gdata->uname.len = strlen(p.pw_name);
+	gdata = gsh_malloc(sizeof(struct group_data) + uname_len);
+	gdata->uname.len = uname_len;
 	gdata->uname.addr = (char *)gdata + sizeof(struct group_data);
 	memcpy(gdata->uname.addr, p.pw_name, gdata->uname.len);
 	gdata->uid = p.pw_uid;
@@ -281,6 +329,7 @@ static struct group_data *uid2grp_allocate_by_uid(uid_t uid)
 	size_t buff_size;
 	int retval;
 	struct timespec s_time, e_time;
+	size_t uname_len;
 
 	buff_size = sysconf(_SC_GETPW_R_SIZE_MAX);
 	if (buff_size == -1) {
@@ -293,10 +342,14 @@ static struct group_data *uid2grp_allocate_by_uid(uid_t uid)
 		now_mono(&s_time);
 		retval = getpwuid_r(uid, &p, buff, buff_size, &pp);
 		now_mono(&e_time);
-		idmapper_monitoring__external_request(IDMAPPING_UID_TO_UIDGID,
+		idmapper_monitoring__external_request(IDMAPPING_UID_TO_UNAME,
 						      IDMAPPING_PWUTILS,
 						      retval == 0, &s_time,
 						      &e_time);
+
+		GSH_AUTO_TRACEPOINT(uid2grp, getpwuid_r_call, TRACE_INFO,
+				    "getpwuid_r returned: {} for uid: {}",
+				    retval, uid);
 
 		if (retval != ERANGE)
 			break;
@@ -308,23 +361,40 @@ static struct group_data *uid2grp_allocate_by_uid(uid_t uid)
 		LogWarn(COMPONENT_IDMAPPER,
 			"Received ERANGE when fetching pw-entry from uid: %u",
 			uid);
+		GSH_AUTO_TRACEPOINT(uid2grp, getpwuid_r_failed, TRACE_INFO,
+				    "getpwuid_r for uid={} failed with ERANGE",
+				    uid);
 		return NULL;
 	}
 
 	if (retval != 0) {
 		LogEvent(COMPONENT_IDMAPPER,
 			 "getpwuid_r for uid %u failed, error %d", uid, retval);
+		GSH_AUTO_TRACEPOINT(uid2grp, getpwuid_r_failed1, TRACE_INFO,
+				    "getpwuid_r for uid={} failed, retval={}",
+				    uid, retval);
 		goto out;
 	}
 	if (pp == NULL) {
 		LogInfo(COMPONENT_IDMAPPER,
 			"No matching password record found for uid %u", uid);
+		GSH_AUTO_TRACEPOINT(
+			uid2grp, no_passwd_record1, TRACE_INFO,
+			"No matching password record found for uid {}", uid);
 		goto out;
 	}
 
-	gdata = gsh_malloc(sizeof(struct group_data) + strlen(p.pw_name));
+	uname_len = strlen(p.pw_name);
+	LogInfo(COMPONENT_IDMAPPER,
+		"getpwuid_r for uid: %d, gid: %d, uname: %s", p.pw_uid,
+		p.pw_gid, p.pw_name);
+	GSH_AUTO_TRACEPOINT(uid2grp, getpwuid_r_call1, TRACE_INFO,
+			    "getpwuid_r for uid: {}, gid: {}, uname: {}", uid,
+			    p.pw_gid,
+			    TP_BYTE_ARR_TRUNCATED(p.pw_name, uname_len));
 
-	gdata->uname.len = strlen(p.pw_name);
+	gdata = gsh_malloc(sizeof(struct group_data) + uname_len);
+	gdata->uname.len = uname_len;
 	gdata->uname.addr = (char *)gdata + sizeof(struct group_data);
 	memcpy(gdata->uname.addr, p.pw_name, gdata->uname.len);
 	gdata->uid = p.pw_uid;
@@ -376,6 +446,7 @@ static struct group_data *uid2grp_allocate_by_principal(char *principal,
 	gid_t *groups = NULL;
 	int ret;
 	struct timespec s_time, e_time;
+	size_t principal_len;
 
 #ifdef _MSPAC_SUPPORT
 	/* TODO */
@@ -442,9 +513,10 @@ static struct group_data *uid2grp_allocate_by_principal(char *principal,
 		groups = gsh_realloc(groups, ngroups * sizeof(gid_t));
 	}
 
-	grpdata = gsh_malloc(sizeof(struct group_data) + strlen(principal) + 1);
+	principal_len = strlen(principal);
+	grpdata = gsh_malloc(sizeof(struct group_data) + principal_len + 1);
 	/* We populate principal as the uname here */
-	grpdata->uname.len = strlen(principal);
+	grpdata->uname.len = principal_len;
 	grpdata->uname.addr = (char *)grpdata + sizeof(struct group_data);
 	memcpy(grpdata->uname.addr, principal, grpdata->uname.len);
 	/* Null-terminate the uname string */
@@ -480,7 +552,7 @@ static void add_user_groups_to_cache(struct group_data **gdata)
 
 	PTHREAD_RWLOCK_wrlock(&uid2grp_user_lock);
 
-	/* Recheck if idmapping is enabled because it is possible that after
+	/* Re-check if idmapping is enabled because it is possible that after
 	 * cache cleanup completes (resulting from the disabling of idmapping),
 	 * there are waiting requests with older idmapping data that might end
 	 * up writing their data to the cache. We need to stop them.
@@ -504,9 +576,10 @@ static void add_user_groups_to_cache(struct group_data **gdata)
  *
  * @return true if successful, false otherwise
  */
-bool name2grp(const struct gsh_buffdesc *name, struct group_data **gdata)
+bool uname2grp(const struct gsh_buffdesc *name, struct group_data **gdata)
 {
 	bool success = false;
+	bool is_cache_hit = false;
 	uid_t uid = -1;
 
 	if (!idmapping_enabled) {
@@ -517,12 +590,15 @@ bool name2grp(const struct gsh_buffdesc *name, struct group_data **gdata)
 
 	PTHREAD_RWLOCK_rdlock(&uid2grp_user_lock);
 	success = uid2grp_lookup_by_uname(name, &uid, gdata);
+	is_cache_hit = success && !uid2grp_is_group_data_expired(*gdata);
+	idmapper_monitoring__cache_usage(IDMAPPING_USER_GROUPS_CACHE,
+					 is_cache_hit);
 
-	/* Return success if we find non-expired group-data in cache */
-	if (success && !uid2grp_is_group_data_expired(*gdata)) {
+	if (is_cache_hit) {
+		/* Return success if we find non-expired group-data in cache */
 		uid2grp_hold_group_data(*gdata);
 		PTHREAD_RWLOCK_unlock(&uid2grp_user_lock);
-		return success;
+		return true;
 	}
 	PTHREAD_RWLOCK_unlock(&uid2grp_user_lock);
 
@@ -559,6 +635,7 @@ bool name2grp(const struct gsh_buffdesc *name, struct group_data **gdata)
 bool uid2grp(uid_t uid, struct group_data **gdata)
 {
 	bool success = false;
+	bool is_cache_hit = false;
 
 	if (!idmapping_enabled) {
 		LogWarn(COMPONENT_IDMAPPER,
@@ -568,12 +645,15 @@ bool uid2grp(uid_t uid, struct group_data **gdata)
 
 	PTHREAD_RWLOCK_rdlock(&uid2grp_user_lock);
 	success = uid2grp_lookup_by_uid(uid, gdata);
+	is_cache_hit = success && !uid2grp_is_group_data_expired(*gdata);
+	idmapper_monitoring__cache_usage(IDMAPPING_USER_GROUPS_CACHE,
+					 is_cache_hit);
 
-	/* Return success if we find non-expired group-data in cache */
-	if (success && !uid2grp_is_group_data_expired(*gdata)) {
+	if (is_cache_hit) {
+		/* Return success if we find non-expired group-data in cache */
 		uid2grp_hold_group_data(*gdata);
 		PTHREAD_RWLOCK_unlock(&uid2grp_user_lock);
-		return success;
+		return true;
 	}
 	PTHREAD_RWLOCK_unlock(&uid2grp_user_lock);
 
@@ -615,6 +695,7 @@ bool principal2grp(char *principal, struct group_data **gdata, const uid_t uid,
 		   const gid_t gid)
 {
 	bool success = false;
+	bool is_cache_hit = false;
 	uid_t unused_cached_uid = -1;
 	struct gsh_buffdesc princbuff = { .addr = principal,
 					  .len = strlen(principal) };
@@ -630,9 +711,12 @@ bool principal2grp(char *principal, struct group_data **gdata, const uid_t uid,
 	PTHREAD_RWLOCK_rdlock(&uid2grp_user_lock);
 	success =
 		uid2grp_lookup_by_uname(&princbuff, &unused_cached_uid, gdata);
+	is_cache_hit = success && !uid2grp_is_group_data_expired(*gdata);
+	idmapper_monitoring__cache_usage(IDMAPPING_USER_GROUPS_CACHE,
+					 is_cache_hit);
 
-	/* Return success if we find non-expired group-data in cache */
-	if (success && !uid2grp_is_group_data_expired(*gdata)) {
+	if (is_cache_hit) {
+		/* Return success if we find non-expired group-data in cache */
 		uid2grp_hold_group_data(*gdata);
 		PTHREAD_RWLOCK_unlock(&uid2grp_user_lock);
 		return true;

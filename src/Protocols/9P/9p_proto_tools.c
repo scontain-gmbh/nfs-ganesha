@@ -183,7 +183,7 @@ int _9p_tools_get_req_context_by_name(int uname_len, char *uname_str,
 	struct gsh_buffdesc name = { .addr = uname_str, .len = uname_len };
 	struct group_data *grpdata;
 
-	if (!name2grp(&name, &grpdata))
+	if (!uname2grp(&name, &grpdata))
 		return -ENOENT;
 
 	pfid->ucred = new_9p_user_creds();

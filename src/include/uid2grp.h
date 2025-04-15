@@ -82,7 +82,7 @@ void uid2grp_clear_cache(void);
 void uid2grp_cache_reap(void);
 
 bool uid2grp(uid_t uid, struct group_data **);
-bool name2grp(const struct gsh_buffdesc *name, struct group_data **gdata);
+bool uname2grp(const struct gsh_buffdesc *name, struct group_data **gdata);
 bool principal2grp(char *principal, struct group_data **, const uid_t,
 		   const gid_t);
 void uid2grp_unref(struct group_data *gdata);

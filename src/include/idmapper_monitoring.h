@@ -52,7 +52,7 @@ typedef enum idmapping_utility {
 } idmapping_utility_t;
 
 typedef enum idmapping_op {
-	IDMAPPING_UID_TO_UIDGID = 0,
+	IDMAPPING_UID_TO_UNAME = 0,
 	IDMAPPING_UID_TO_GROUPLIST,
 	IDMAPPING_USERNAME_TO_UIDGID,
 	IDMAPPING_USERNAME_TO_GROUPLIST,
@@ -71,8 +71,9 @@ typedef enum idmapping_cache {
 	IDMAPPING_GSSPRINC_TO_USER_CACHE,
 	IDMAPPING_GID_TO_GROUP_CACHE,
 	IDMAPPING_GROUPNAME_TO_GROUP_CACHE,
-	IDMAPPING_UID_TO_GROUPLIST_CACHE,
-	IDMAPPING_USERNAME_TO_GROUPLIST_CACHE,
+	IDMAPPING_USER_GROUPS_CACHE,
+	IDMAPPING_NEGATIVE_USERNAME_TO_USER_CACHE,
+	IDMAPPING_NEGATIVE_GROUPNAME_TO_GROUP_CACHE,
 	IDMAPPING_CACHE_COUNT,
 } idmapping_cache_t;
 
@@ -84,6 +85,12 @@ typedef enum idmapping_cache_entity {
 	IDMAPPING_CACHE_ENTITY_NEGATIVE_GROUP,
 	IDMAPPING_CACHE_ENTITY_COUNT,
 } idmapping_cache_entity_t;
+
+typedef enum idmapping_status {
+	IDMAPPING_STATUS_SUCCESS = 0,
+	IDMAPPING_STATUS_FAILURE,
+	IDMAPPING_STATUS_COUNT,
+} idmapping_status_t;
 
 /**
  * @brief Registers all idmapping metrics
@@ -104,9 +111,10 @@ void idmapper_monitoring__external_request(idmapping_op_t, idmapping_utility_t,
 void idmapper_monitoring__cache_usage(idmapping_cache_t, bool is_cache_hit);
 
 /**
- * @brief Updates idmapping failure metric
+ * @brief Updates idmapping metric
  */
-void idmapper_monitoring__failure(idmapping_op_t, idmapping_utility_t);
+void idmapper_monitoring__resolution(idmapping_op_t, idmapping_utility_t,
+				     idmapping_status_t);
 
 /**
  * @brief Updates idmapping metric to count user groups
@@ -119,6 +127,17 @@ void idmapper_monitoring__user_groups(int num_groups);
  */
 void idmapper_monitoring__evicted_cache_entity(idmapping_cache_entity_t,
 					       time_t cached_duration_in_sec);
+
+/**
+ * @brief Updates idmapping reapped cache entries
+ */
+void idmapper_monitoring__reaped_cache_entity(idmapping_cache_entity_t);
+
+/**
+ * @brief Updates idmapping cache entries count
+ */
+void idmapper_monitoring__cache_entries_total_set(idmapping_cache_entity_t,
+						  int64_t val);
 
 #endif /* IDMAPPER_MONITORING_H */
 /** @} */

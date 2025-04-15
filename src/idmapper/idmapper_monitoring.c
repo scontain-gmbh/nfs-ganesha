@@ -37,12 +37,6 @@
 #include "idmapper_monitoring.h"
 #include "monitoring.h"
 
-typedef enum idmapping_status {
-	IDMAPPING_STATUS_SUCCESS = 0,
-	IDMAPPING_STATUS_FAILURE,
-	IDMAPPING_STATUS_COUNT,
-} idmapping_status_t;
-
 /* ID Mapping metrics */
 static histogram_metric_handle_t idmapping_user_groups_total;
 static histogram_metric_handle_t idmapping_external_request_latency
@@ -51,7 +45,11 @@ static counter_metric_handle_t
 	idmapping_cache_uses_total[IDMAPPING_CACHE_COUNT]
 				  [IDMAPPING_STATUS_COUNT];
 static counter_metric_handle_t
-	idmapping_failures_total[IDMAPPING_OP_COUNT][IDMAPPING_UTILITY_COUNT];
+	idmapping_resolutions_total[IDMAPPING_OP_COUNT][IDMAPPING_UTILITY_COUNT]
+				   [IDMAPPING_STATUS_COUNT];
+static counter_metric_handle_t
+	cache_entries_reaped_total[IDMAPPING_CACHE_ENTITY_COUNT];
+static gauge_metric_handle_t cache_entries_total[IDMAPPING_CACHE_ENTITY_COUNT];
 
 /* Distribution of cached-duration of the cache-evicted entries */
 static histogram_metric_handle_t
@@ -60,6 +58,8 @@ static histogram_metric_handle_t
 /* 8 buckets in increasing powers of 2 */
 static const int64_t groups_buckets[] = { 0,  1,  2,   4,   8,	 16,
 					  32, 64, 128, 256, 512, 1024 };
+
+static bool is_inited;
 
 /* Get status string */
 static const char *get_status_name(idmapping_status_t status)
@@ -79,8 +79,8 @@ static const char *get_status_name(idmapping_status_t status)
 static const char *get_op_name(idmapping_op_t op)
 {
 	switch (op) {
-	case IDMAPPING_UID_TO_UIDGID:
-		return "uid_to_uidgid";
+	case IDMAPPING_UID_TO_UNAME:
+		return "uid_to_uname";
 	case IDMAPPING_UID_TO_GROUPLIST:
 		return "uid_to_grouplist";
 	case IDMAPPING_USERNAME_TO_UIDGID:
@@ -133,10 +133,12 @@ static const char *get_cache_name(idmapping_cache_t idmapping_cache)
 		return "gid_to_group";
 	case IDMAPPING_GROUPNAME_TO_GROUP_CACHE:
 		return "groupname_to_group";
-	case IDMAPPING_UID_TO_GROUPLIST_CACHE:
-		return "uid_to_grouplist";
-	case IDMAPPING_USERNAME_TO_GROUPLIST_CACHE:
-		return "username_to_grouplist";
+	case IDMAPPING_USER_GROUPS_CACHE:
+		return "user_to_groups";
+	case IDMAPPING_NEGATIVE_USERNAME_TO_USER_CACHE:
+		return "negative_username_to_user";
+	case IDMAPPING_NEGATIVE_GROUPNAME_TO_GROUP_CACHE:
+		return "negative_groupname_to_user";
 	default:
 		LogFatal(COMPONENT_IDMAPPER, "Unsupported idmapping cache");
 	}
@@ -225,21 +227,26 @@ static void register_cache_uses_total_metrics(void)
 	}
 }
 
-static void register_failure_total_metrics(void)
+static void register_idmapping_total_metrics(void)
 {
 	for (int i = 0; i < IDMAPPING_OP_COUNT; i++) {
 		for (int j = 0; j < IDMAPPING_UTILITY_COUNT; j++) {
-			const metric_label_t labels[] = {
-				METRIC_LABEL("op", get_op_name(i)),
-				METRIC_LABEL("utility", get_utility_name(j))
-			};
-			idmapping_failures_total[i][j] =
-				monitoring__register_counter(
-					"idmapping__failures_total",
-					METRIC_METADATA(
-						"Total idmapping failures",
-						METRIC_UNIT_NONE),
-					labels, ARRAY_SIZE(labels));
+			for (int k = 0; k < IDMAPPING_STATUS_COUNT; k++) {
+				const metric_label_t labels[] = {
+					METRIC_LABEL("op", get_op_name(i)),
+					METRIC_LABEL("utility",
+						     get_utility_name(j)),
+					METRIC_LABEL("status",
+						     get_status_name(k))
+				};
+				idmapping_resolutions_total[i][j][k] =
+					monitoring__register_counter(
+						"idmapping__resolutions_total",
+						METRIC_METADATA(
+							"Total idmapping resolutions",
+							METRIC_UNIT_NONE),
+						labels, ARRAY_SIZE(labels));
+			}
 		}
 	}
 }
@@ -263,13 +270,44 @@ static void register_evicted_entries_cache_duration_metrics(void)
 	}
 }
 
+static void register_cache_entries_reaped_metrics(void)
+{
+	for (int i = 0; i < IDMAPPING_CACHE_ENTITY_COUNT; i++) {
+		const metric_label_t labels[] = {
+			METRIC_LABEL("cache_entity", get_cache_entity_name(i))
+		};
+		cache_entries_reaped_total[i] = monitoring__register_counter(
+			"idmapping__cache_entries_reaped_total",
+			METRIC_METADATA("Total cache entries that were reaped",
+					METRIC_UNIT_NONE),
+			labels, ARRAY_SIZE(labels));
+	}
+}
+
+static void register_cache_entries_total_metrics(void)
+{
+	for (int i = 0; i < IDMAPPING_CACHE_ENTITY_COUNT; i++) {
+		const metric_label_t labels[] = {
+			METRIC_LABEL("cache_entity", get_cache_entity_name(i))
+		};
+		cache_entries_total[i] = monitoring__register_gauge(
+			"idmapping__cache_entries_total",
+			METRIC_METADATA("Total cache entries",
+					METRIC_UNIT_NONE),
+			labels, ARRAY_SIZE(labels));
+	}
+}
+
 void idmapper_monitoring__init(void)
 {
 	register_user_groups_metric();
 	register_external_request_latency_metrics();
 	register_cache_uses_total_metrics();
-	register_failure_total_metrics();
+	register_idmapping_total_metrics();
 	register_evicted_entries_cache_duration_metrics();
+	register_cache_entries_reaped_metrics();
+	register_cache_entries_total_metrics();
+	is_inited = true;
 }
 
 void idmapper_monitoring__cache_usage(idmapping_cache_t idmapping_cache,
@@ -278,6 +316,9 @@ void idmapper_monitoring__cache_usage(idmapping_cache_t idmapping_cache,
 	const idmapping_status_t idmapping_status =
 		is_cache_hit ? IDMAPPING_STATUS_SUCCESS
 			     : IDMAPPING_STATUS_FAILURE;
+	if (!is_inited)
+		return;
+
 	monitoring__counter_inc(
 		idmapping_cache_uses_total[idmapping_cache][idmapping_status],
 		1);
@@ -294,6 +335,9 @@ void idmapper_monitoring__external_request(
 			   : IDMAPPING_STATUS_FAILURE;
 	const int64_t resp_time_ms = resp_time_ns / NS_PER_MSEC;
 
+	if (!is_inited)
+		return;
+
 	monitoring__histogram_observe(
 		idmapping_external_request_latency[idmapping_op]
 						  [idmapping_utility]
@@ -307,21 +351,50 @@ void idmapper_monitoring__evicted_cache_entity(
 {
 	const time_t cached_duration_in_min = cached_duration_in_sec / 60;
 
+	if (!is_inited)
+		return;
+
 	monitoring__histogram_observe(
 		evicted_entries_cached_duration[idmapping_cache_entity],
 		cached_duration_in_min);
 }
 
-void idmapper_monitoring__failure(idmapping_op_t idmapping_op,
-				  idmapping_utility_t idmapping_utility)
+void idmapper_monitoring__reaped_cache_entity(
+	idmapping_cache_entity_t idmapping_cache_entity)
 {
+	if (!is_inited)
+		return;
+
 	monitoring__counter_inc(
-		idmapping_failures_total[idmapping_op][idmapping_utility], 1);
+		cache_entries_reaped_total[idmapping_cache_entity], 1);
+}
+
+void idmapper_monitoring__resolution(idmapping_op_t idmapping_op,
+				     idmapping_utility_t idmapping_utility,
+				     idmapping_status_t status)
+{
+	if (!is_inited)
+		return;
+
+	monitoring__counter_inc(
+		idmapping_resolutions_total[idmapping_op][idmapping_utility]
+					   [status],
+		1);
 }
 
 void idmapper_monitoring__user_groups(int num_groups)
 {
+	if (!is_inited)
+		return;
+
 	monitoring__histogram_observe(idmapping_user_groups_total, num_groups);
 }
 
-/** @} */
+void idmapper_monitoring__cache_entries_total_set(
+	idmapping_cache_entity_t idmapping_cache_entity, int64_t val)
+{
+	if (!is_inited)
+		return;
+
+	monitoring__gauge_set(cache_entries_total[idmapping_cache_entity], val);
+}

@@ -188,6 +188,9 @@ static void uid2grp_remove_user(struct cache_info *info)
 	 */
 	uid2grp_release_group_data(info->gdata);
 	gsh_free(info);
+	idmapper_monitoring__cache_entries_total_set(
+		IDMAPPING_CACHE_ENTITY_USER_GROUPS,
+		(int64_t)avltree_size(&uname_tree));
 }
 
 /**
@@ -208,6 +211,8 @@ void uid2grp_cache_reap(void)
 		if (!uid2grp_is_group_data_expired(groups->gdata))
 			break;
 		uid2grp_remove_user(groups);
+		idmapper_monitoring__reaped_cache_entity(
+			IDMAPPING_CACHE_ENTITY_USER_GROUPS);
 		groups = TAILQ_FIRST(&groups_fifo_queue);
 	}
 	PTHREAD_RWLOCK_unlock(&uid2grp_user_lock);
@@ -300,6 +305,9 @@ void uid2grp_add_user(struct group_data *gdata)
 		idmapper_monitoring__evicted_cache_entity(
 			IDMAPPING_CACHE_ENTITY_USER_GROUPS, cached_duration);
 	}
+	idmapper_monitoring__cache_entries_total_set(
+		IDMAPPING_CACHE_ENTITY_USER_GROUPS,
+		(int64_t)avltree_size(&uname_tree));
 
 	if (name_node && id_node)
 		LogWarn(COMPONENT_IDMAPPER, "shouldn't happen, internal error");

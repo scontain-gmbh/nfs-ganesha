@@ -278,6 +278,9 @@ static void remove_cache_user(struct cache_user *user)
 	}
 	/* Remove from users fifo queue */
 	TAILQ_REMOVE(&user_fifo_queue, user, queue_entry);
+	idmapper_monitoring__cache_entries_total_set(
+		IDMAPPING_CACHE_ENTITY_USER,
+		(int64_t)avltree_size(&uname_tree));
 	gsh_free(user);
 }
 
@@ -293,6 +296,9 @@ static void remove_cache_group(struct cache_group *group)
 	avltree_remove(&group->gname_node, &gname_tree);
 	/* Remove from groups fifo queue */
 	TAILQ_REMOVE(&group_fifo_queue, group, queue_entry);
+	idmapper_monitoring__cache_entries_total_set(
+		IDMAPPING_CACHE_ENTITY_GROUP,
+		(int64_t)avltree_size(&gname_tree));
 	gsh_free(group);
 }
 
@@ -315,6 +321,8 @@ static void reap_users_cache(void)
 		if (!user_expired(user))
 			break;
 		remove_cache_user(user);
+		idmapper_monitoring__reaped_cache_entity(
+			IDMAPPING_CACHE_ENTITY_USER);
 		user = TAILQ_FIRST(&user_fifo_queue);
 	}
 	PTHREAD_RWLOCK_unlock(&idmapper_user_lock);
@@ -341,6 +349,8 @@ static void reap_groups_cache(void)
 		if (!group_expired(group))
 			break;
 		remove_cache_group(group);
+		idmapper_monitoring__reaped_cache_entity(
+			IDMAPPING_CACHE_ENTITY_GROUP);
 		group = TAILQ_FIRST(&group_fifo_queue);
 	}
 	PTHREAD_RWLOCK_unlock(&idmapper_group_lock);
@@ -495,6 +505,10 @@ add_to_queue:
 		idmapper_monitoring__evicted_cache_entity(
 			IDMAPPING_CACHE_ENTITY_USER, cached_duration);
 	}
+
+	idmapper_monitoring__cache_entries_total_set(
+		IDMAPPING_CACHE_ENTITY_USER,
+		(int64_t)avltree_size(&uname_tree));
 	return true;
 }
 
@@ -573,6 +587,9 @@ bool idmapper_add_group(const struct gsh_buffdesc *name, const gid_t gid)
 		idmapper_monitoring__evicted_cache_entity(
 			IDMAPPING_CACHE_ENTITY_GROUP, cached_duration);
 	}
+	idmapper_monitoring__cache_entries_total_set(
+		IDMAPPING_CACHE_ENTITY_GROUP,
+		(int64_t)avltree_size(&gname_tree));
 	return true;
 }
 
@@ -626,7 +643,10 @@ bool idmapper_lookup_by_uname(const struct gsh_buffdesc *name, uid_t *uid,
 	if (unlikely(gid))
 		*gid = (found_user->gid_set ? &found_user->gid : NULL);
 
-	return user_expired(found_user) ? false : true;
+	const bool is_cache_hit = user_expired(found_user) ? false : true;
+	idmapper_monitoring__cache_usage(IDMAPPING_USERNAME_TO_USER_CACHE,
+					 is_cache_hit);
+	return is_cache_hit;
 }
 
 /**
@@ -677,7 +697,10 @@ bool idmapper_lookup_by_uid(const uid_t uid, const struct gsh_buffdesc **name,
 	if (gid)
 		*gid = (found_user->gid_set ? &found_user->gid : NULL);
 
-	return user_expired(found_user) ? false : true;
+	const bool is_cache_hit = user_expired(found_user) ? false : true;
+	idmapper_monitoring__cache_usage(IDMAPPING_UID_TO_USER_CACHE,
+					 is_cache_hit);
+	return is_cache_hit;
 }
 
 /**
@@ -721,7 +744,10 @@ bool idmapper_lookup_by_gname(const struct gsh_buffdesc *name, uid_t *gid)
 	else
 		LogDebug(COMPONENT_IDMAPPER, "Caller is being weird.");
 
-	return group_expired(found_group) ? false : true;
+	const bool is_cache_hit = group_expired(found_group) ? false : true;
+	idmapper_monitoring__cache_usage(IDMAPPING_GROUPNAME_TO_GROUP_CACHE,
+					 is_cache_hit);
+	return is_cache_hit;
 }
 
 /**
@@ -769,7 +795,10 @@ bool idmapper_lookup_by_gid(const gid_t gid, const struct gsh_buffdesc **name)
 	else
 		LogDebug(COMPONENT_IDMAPPER, "Caller is being weird.");
 
-	return group_expired(found_group) ? false : true;
+	const bool is_cache_hit = group_expired(found_group) ? false : true;
+	idmapper_monitoring__cache_usage(IDMAPPING_GID_TO_GROUP_CACHE,
+					 is_cache_hit);
+	return is_cache_hit;
 }
 
 /**
