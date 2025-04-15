@@ -112,6 +112,7 @@ bool principal2uid(char *, uid_t *, gid_t *);
 #ifdef USE_DBUS
 extern struct gsh_dbus_method cachemgr_show_idmapper_users;
 extern struct gsh_dbus_method cachemgr_show_idmapper_groups;
+extern struct gsh_dbus_method cachemgr_show_uid2grp;
 extern struct gsh_dbus_method auth_statistics;
 #endif
 

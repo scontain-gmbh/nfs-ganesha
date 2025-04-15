@@ -493,6 +493,28 @@ class CacheMgr():
             ids.append(entry1)
         return True, "Done", [ts_, ids]
 
+    def ShowIdmapperUid2grp(self):
+        show_id_method = self.dbusobj.get_dbus_method("showidmapper_uid2grp",
+                                                      self.dbus_interface)
+        try:
+            reply = show_id_method()
+        except dbus.exceptions.DBusException as ex:
+            return False, ex, []
+
+        time = reply[0]
+        id_array = reply[1]
+
+        ts_ = (time[0], time[1])
+
+        ids = []
+        for entry in id_array:
+            entry1 = IDMapper(Name=str(entry[0]),
+                              UID=entry[1],
+                              HasGID=entry[2],
+                              GID=entry[3])
+            ids.append(entry1)
+        return True, "Done", [ts_, ids]
+
 LOGGER_PROPS = 'org.ganesha.nfsd.log.component'
 
 class LogManager():

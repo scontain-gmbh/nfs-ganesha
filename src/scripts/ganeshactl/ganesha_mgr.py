@@ -287,6 +287,16 @@ class ManageCache():
         else:
             self.status_message(status, errormsg)
 
+    def showidmapper_uid2grp(self):
+        print("Show idmapper uid2grp cache")
+        status, errormsg, reply = self.cachemgr.ShowIdmapperUid2grp()
+        if status == True:
+            _ts = reply[0]
+            ids = reply[1]
+            self.proc_id(_ts, ids)
+        else:
+            self.status_message(status, errormsg
+
     def proc_id(self, _ts, ids):
         print("Timestamp: ", time.ctime(_ts[0]), _ts[1], " nsecs")
         if len(ids) == 0:
@@ -394,6 +404,7 @@ COMMANDS
       exports: Displays all current exports
       idmapper_users: Displays the idmapper users cache
       idmapper_groups: Displays the idmapper groups cache
+      idmapper_uid2grp: Displays the idmapper uid to groups cache
    grace:
       ipaddr: Begins grace for the given IP
    trim:
@@ -411,6 +422,7 @@ COMMANDS
    shutdown: Shuts down the ganesha nfs server
 
 """
+
     if len(sys.argv) < 2:
         exit_try_help("Too few arguments")
 
@@ -493,6 +505,8 @@ COMMANDS
             cachemgr.showidmapper_users()
         elif sys.argv[2] == "idmapper_groups":
             cachemgr.showidmapper_groups()
+        elif sys.argv[2] == "idmapper_uid2grp":
+            cachemgr.showidmapper_uid2grp()
         else:
             exit_option_not_supported("show")
 

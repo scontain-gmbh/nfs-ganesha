@@ -48,7 +48,10 @@
 #include "nfs_core.h"
 #include <misc/queue.h>
 #include "idmapper_monitoring.h"
-
+#ifdef USE_DBUS
+#include "gsh_dbus.h"
+#endif
+#include "server_stats_private.h"
 /**
  * @brief User entry in the uid2grp cache
  */
@@ -525,5 +528,64 @@ void uid2grp_clear_cache(void)
 		 "Total group-data cache entries removed: %d",
 		 removed_group_data_entries);
 }
+
+#ifdef USE_DBUS
+
+/**
+ *@brief Dbus method for showing uid2grp cache
+ *
+ *@param[in]  args
+ *@param[out] reply
+ */
+static bool show_uid2grp(DBusMessageIter *args, DBusMessage *reply,
+			 DBusError *error)
+{
+	struct timespec timestamp;
+	struct avltree_node *node;
+	uint32_t val;
+	DBusMessageIter iter, sub_iter, id_iter;
+	char *namebuff = gsh_malloc(256);
+
+	dbus_message_iter_init_append(reply, &iter);
+	now(&timestamp);
+	gsh_dbus_append_timestamp(&iter, &timestamp);
+	dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, "(su)",
+					 &sub_iter);
+	PTHREAD_RWLOCK_rdlock(&uid2grp_user_lock);
+	/* Traverse idmapper cache */
+	for (node = avltree_first(&uname_tree); node != NULL;
+	     node = avltree_next(node)) {
+		LogWarn(COMPONENT_IDMAPPER, "saw user");
+		struct cache_info *info;
+
+		info = avltree_container_of(node, struct cache_info,
+					    uname_node);
+		dbus_message_iter_open_container(&sub_iter, DBUS_TYPE_STRUCT,
+						 NULL, &id_iter);
+		snprintf(namebuff, MIN(info->uname.len + 1, 256), "%s",
+			 (char *)info->uname.addr);
+		dbus_message_iter_append_basic(&id_iter, DBUS_TYPE_STRING,
+					       &namebuff);
+		val = info->uid;
+		dbus_message_iter_append_basic(&id_iter, DBUS_TYPE_UINT32,
+					       &val);
+
+		dbus_message_iter_close_container(&sub_iter, &id_iter);
+	}
+
+	PTHREAD_RWLOCK_unlock(&uid2grp_user_lock);
+	free(namebuff);
+	dbus_message_iter_close_container(&iter, &sub_iter);
+	return true;
+}
+
+struct gsh_dbus_method cachemgr_show_uid2grp = {
+	.name = "show_uid2grp",
+	.method = show_uid2grp,
+	.args = { TIMESTAMP_REPLY,
+		  { .name = "ids", .type = "a(su)", .direction = "out" },
+		  END_ARG_LIST }
+};
+#endif
 
 /** @} */
