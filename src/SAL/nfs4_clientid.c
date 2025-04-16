@@ -344,9 +344,6 @@ void free_client_id(nfs_client_id_t *clientid)
 
 	assert(atomic_fetch_int32_t(&clientid->cid_refcount) == 0);
 
-	/* This is where we finally let go of the client record. */
-	dec_client_record_ref(clientid->cid_client_record);
-
 #ifdef _HAVE_GSSAPI
 	if (clientid->cid_credential.flavor == RPCSEC_GSS) {
 		struct svc_rpc_gss_data *gd;
@@ -376,6 +373,9 @@ void free_client_id(nfs_client_id_t *clientid)
 			}
 		}
 	}
+
+	/* This is where we finally let go of the client record. */
+	dec_client_record_ref(clientid->cid_client_record);
 
 	gsh_free(clientid->cid_recov_tag);
 	clientid->cid_recov_tag = NULL;
