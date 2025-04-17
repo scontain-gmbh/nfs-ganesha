@@ -301,7 +301,7 @@ int nfs_start_grace(nfs_grace_start_t *gsp)
 		 * flag and nothing else. If not, then clear the change req
 		 * flag and flip the active bit.
 		 */
-		if ((old & GRACE_STATUS_COUNT_MASK) &
+		if ((old & GRACE_STATUS_COUNT_MASK) &&
 		    nfs_param.nfsv4_param.sticky_grace) {
 			pro = old | GRACE_STATUS_CHANGE_REQ;
 		} else {
