@@ -159,7 +159,7 @@ enum condition_wait_t {
 static inline enum condition_wait_t condition_timedwait(
 	connection_manager__client_t *client, struct timespec timeout)
 {
-	const int rc = pthread_cond_timedwait(&client->cond_change,
+	const int rc = PTHREAD_COND_timedwait(&client->cond_change,
 					      &client->mutex, &timeout);
 	switch (rc) {
 	case 0:

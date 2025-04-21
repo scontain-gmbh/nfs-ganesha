@@ -1325,7 +1325,7 @@ void nfs_init_complete(void)
 {
 	PTHREAD_MUTEX_lock(&nfs_init.init_mutex);
 	nfs_init.init_complete = true;
-	pthread_cond_broadcast(&nfs_init.init_cond);
+	PTHREAD_COND_broadcast(&nfs_init.init_cond);
 	PTHREAD_MUTEX_unlock(&nfs_init.init_mutex);
 }
 
@@ -1333,7 +1333,7 @@ void nfs_init_wait(void)
 {
 	PTHREAD_MUTEX_lock(&nfs_init.init_mutex);
 	while (!nfs_init.init_complete) {
-		pthread_cond_wait(&nfs_init.init_cond, &nfs_init.init_mutex);
+		PTHREAD_COND_wait(&nfs_init.init_cond, &nfs_init.init_mutex);
 	}
 	PTHREAD_MUTEX_unlock(&nfs_init.init_mutex);
 }
@@ -1348,7 +1348,7 @@ int nfs_init_wait_timeout(int timeout)
 
 		ts.tv_sec = time(NULL) + timeout;
 		ts.tv_nsec = 0;
-		rc = pthread_cond_timedwait(&nfs_init.init_cond,
+		rc = PTHREAD_COND_timedwait(&nfs_init.init_cond,
 					    &nfs_init.init_mutex, &ts);
 	}
 	PTHREAD_MUTEX_unlock(&nfs_init.init_mutex);

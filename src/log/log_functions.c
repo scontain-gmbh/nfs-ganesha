@@ -2934,7 +2934,7 @@ bool _ratelimit(struct ratelimit_state *rs, int *missed)
 		rs->missed++;
 		ret = false;
 	}
-	(void)pthread_mutex_unlock(&rs->mutex);
+	PTHREAD_MUTEX_unlock(&rs->mutex);
 
 	return ret;
 }

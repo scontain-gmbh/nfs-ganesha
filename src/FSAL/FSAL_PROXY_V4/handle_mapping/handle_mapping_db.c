@@ -614,7 +614,7 @@ static int dbop_push(flusher_queue_t *p_queue, db_op_item_t *p_op)
 	}
 
 	/* there now some work available */
-	pthread_cond_signal(&p_queue->work_avail_condition);
+	PTHREAD_COND_signal(&p_queue->work_avail_condition);
 
 	PTHREAD_MUTEX_unlock(&p_queue->queues_mutex);
 
@@ -658,7 +658,7 @@ static void *database_worker_thread(void *arg)
 		       p_info->work_queue.lowprio_first == NULL) {
 			to_be_done = NULL;
 			p_info->work_queue.status = IDLE;
-			pthread_cond_signal(
+			PTHREAD_COND_signal(
 				&p_info->work_queue.work_done_condition);
 
 			/* if termination is requested, exit */
@@ -670,7 +670,7 @@ static void *database_worker_thread(void *arg)
 			}
 
 			/* else, wait for something to do */
-			pthread_cond_wait(
+			PTHREAD_COND_wait(
 				&p_info->work_queue.work_avail_condition,
 				&p_info->work_queue.queues_mutex);
 		}
@@ -895,7 +895,7 @@ static void wait_thread_jobs_finished(db_thread_info_t *p_thr_info)
 	while (p_thr_info->work_queue.highprio_first != NULL ||
 	       p_thr_info->work_queue.lowprio_first != NULL ||
 	       p_thr_info->work_queue.status == WORKING)
-		pthread_cond_wait(&p_thr_info->work_queue.work_done_condition,
+		PTHREAD_COND_wait(&p_thr_info->work_queue.work_done_condition,
 				  &p_thr_info->work_queue.queues_mutex);
 
 	PTHREAD_MUTEX_unlock(&p_thr_info->work_queue.queues_mutex);

@@ -808,7 +808,7 @@ out:
 void gsh_dbus_wake_thread(uint32_t flags)
 {
 	if (thread_state.flags & GSH_DBUS_SLEEPING)
-		pthread_cond_signal(&thread_state.we.wq_cv);
+		PTHREAD_COND_signal(&thread_state.we.wq_cv);
 }
 
 /*

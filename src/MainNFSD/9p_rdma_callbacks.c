@@ -61,7 +61,7 @@ void _9p_rdma_callback_send(msk_trans_t *trans, msk_data_t *data, void *arg)
 	PTHREAD_MUTEX_lock(&priv->outqueue->oq_lock);
 	data->next = priv->outqueue->data;
 	priv->outqueue->data = data;
-	pthread_cond_signal(&priv->outqueue->oq_cond);
+	PTHREAD_cond_signal(&priv->outqueue->oq_cond);
 	PTHREAD_MUTEX_unlock(&priv->outqueue->oq_lock);
 
 	server_stats_transport_done(priv->pconn->client, 0, 0, 0, data->size, 1,
@@ -80,7 +80,7 @@ void _9p_rdma_callback_send_err(msk_trans_t *trans, msk_data_t *data, void *arg)
 		PTHREAD_MUTEX_lock(&priv->outqueue->oq_lock);
 		data->next = priv->outqueue->data;
 		priv->outqueue->data = data;
-		pthread_cond_signal(&priv->outqueue->oq_cond);
+		PTHREAD_COND_signal(&priv->outqueue->oq_cond);
 		PTHREAD_MUTEX_unlock(&priv->outqueue->oq_lock);
 	}
 	if (priv && priv->pconn && priv->pconn->client)
@@ -122,7 +122,7 @@ void _9p_rdma_process_request(struct _9p_request_data *req9p)
 	while (priv->outqueue->data == NULL) {
 		LogDebug(COMPONENT_9P,
 			 "Waiting for outqueue buffer on trans %p\n", trans);
-		pthread_cond_wait(&priv->outqueue->oq_cond,
+		PTHREAD_COND_wait(&priv->outqueue->oq_cond,
 				  &priv->outqueue->oq_lock);
 	}
 
@@ -176,7 +176,7 @@ void _9p_rdma_process_request(struct _9p_request_data *req9p)
 			PTHREAD_MUTEX_lock(&priv->outqueue->oq_lock);
 			dataout->next = priv->outqueue->data;
 			priv->outqueue->data = dataout;
-			pthread_cond_signal(&priv->outqueue->oq_cond);
+			PTHREAD_COND_signal(&priv->outqueue->oq_cond);
 			PTHREAD_MUTEX_unlock(&priv->outqueue->oq_lock);
 		}
 	}

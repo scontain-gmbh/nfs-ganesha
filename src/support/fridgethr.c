@@ -204,7 +204,7 @@ static void fridgethr_finish_transition(struct fridgethr *fr, bool locked)
 		fr->cb_func(fr->cb_arg);
 
 	if (fr->cb_cv)
-		pthread_cond_broadcast(fr->cb_cv);
+		PTHREAD_COND_broadcast(fr->cb_cv);
 
 	if (fr->cb_mtx && !locked)
 		PTHREAD_MUTEX_unlock(fr->cb_mtx);
@@ -358,22 +358,21 @@ restart:
 				clock_gettime(CLOCK_REALTIME, &fe->timeout);
 				fe->timeout.tv_sec += fr->p.thread_delay;
 				PTHREAD_MUTEX_unlock(&fr->frt_mtx);
-				rc = pthread_cond_timedwait(&fe->ctx.fre_cv,
+				rc = PTHREAD_COND_timedwait(&fe->ctx.fre_cv,
 							    &fe->ctx.fre_mtx,
 							    &fe->timeout);
+				if (rc == ETIMEDOUT)
+					fe->ctx.woke = false;
+				else
+					fe->ctx.woke = true;
 			} else {
 				PTHREAD_MUTEX_unlock(&fr->frt_mtx);
-				rc = pthread_cond_wait(&fe->ctx.fre_cv,
-						       &fe->ctx.fre_mtx);
+				PTHREAD_COND_wait(&fe->ctx.fre_cv,
+						  &fe->ctx.fre_mtx);
+				fe->ctx.woke = true;
 			}
 			fre_mtx_locked = false;
 		}
-
-		if (rc == ETIMEDOUT)
-			fe->ctx.woke = false;
-		else
-			fe->ctx.woke = true;
-
 		/* Clear this while we have the lock, we can set it
 		   again before continuing */
 		fe->frozen = false;
@@ -651,7 +650,7 @@ static bool fridgethr_dispatch(struct fridgethr *fr,
 			fe->ctx.arg = arg;
 			fe->frozen = false;
 			fe->flags |= fridgethr_flag_dispatched;
-			pthread_cond_signal(&fe->ctx.fre_cv);
+			PTHREAD_COND_signal(&fe->ctx.fre_cv);
 			PTHREAD_MUTEX_unlock(&fe->ctx.fre_mtx);
 			dispatched = true;
 			break;
@@ -770,7 +769,7 @@ int fridgethr_wake(struct fridgethr *fr)
 		struct fridgethr_entry *fe =
 			container_of(g, struct fridgethr_entry, idle_link);
 		PTHREAD_MUTEX_lock(&fe->ctx.fre_mtx);
-		pthread_cond_signal(&fe->ctx.fre_cv);
+		PTHREAD_COND_signal(&fe->ctx.fre_cv);
 		PTHREAD_MUTEX_unlock(&fe->ctx.fre_mtx);
 	}
 
@@ -939,7 +938,7 @@ int fridgethr_stop(struct fridgethr *fr, pthread_mutex_t *pmtx,
 			/* We don't dispatch or anything, just wake
 			   them all up and let them grab work off the
 			   queue or terminate. */
-			pthread_cond_signal(&fe->ctx.fre_cv);
+			PTHREAD_COND_signal(&fe->ctx.fre_cv);
 			PTHREAD_MUTEX_unlock(&fe->ctx.fre_mtx);
 
 			if (fr->p.wake_threads != NULL)
@@ -1038,7 +1037,7 @@ int fridgethr_start(struct fridgethr *fr, pthread_mutex_t *pmtx,
 			/* We don't dispatch or anything, just wake
 			   them all up and let them grab work off the
 			   queue or terminate. */
-			pthread_cond_signal(&fe->ctx.fre_cv);
+			PTHREAD_COND_signal(&fe->ctx.fre_cv);
 			PTHREAD_MUTEX_unlock(&fe->ctx.fre_mtx);
 		}
 	}
@@ -1145,10 +1144,10 @@ int fridgethr_sync_command(struct fridgethr *fr, fridgethr_comm_t command,
 
 	while (!done) {
 		if (timeout == 0) {
-			rc = pthread_cond_wait(&fsc_cv, &fsc_mtx);
+			PTHREAD_COND_wait(&fsc_cv, &fsc_mtx);
 			assert(rc == 0);
 		} else {
-			rc = pthread_cond_timedwait(&fsc_cv, &fsc_mtx, &ts);
+			rc = PTHREAD_COND_timedwait(&fsc_cv, &fsc_mtx, &ts);
 			if (rc == ETIMEDOUT) {
 				LogMajor(COMPONENT_THREAD,
 					 "Sync command seems to be stalled");

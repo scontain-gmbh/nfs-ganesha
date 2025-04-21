@@ -1993,7 +1993,7 @@ static void sync_cb(struct fsal_obj_handle *obj, fsal_status_t ret, void *args,
 
 	data->done = true;
 
-	pthread_cond_signal(data->fsa_cond);
+	PTHREAD_COND_signal(data->fsa_cond);
 
 	PTHREAD_MUTEX_unlock(data->fsa_mutex);
 }

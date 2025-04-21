@@ -62,7 +62,6 @@
 #include "9p.h"
 #include <stdbool.h>
 #include <urcu-bp.h>
-
 #define P_FAMILY AF_INET6
 
 static struct fridgethr *_9p_worker_fridge;
@@ -203,7 +202,7 @@ retry_deq:
 		while (!(wqe->flags & Wqe_LFlag_SyncDone)) {
 			timeout.tv_sec = time(NULL) + 5;
 			timeout.tv_nsec = 0;
-			pthread_cond_timedwait(&wqe->lwe.wq_cv,
+			PTHREAD_COND_timedwait(&wqe->lwe.wq_cv,
 					       &wqe->lwe.wq_mtx, &timeout);
 			if (fridgethr_you_should_break(ctx)) {
 				/* We are returning;
@@ -289,7 +288,7 @@ static void _9p_enqueue_req(struct _9p_request_data *reqdata)
 			/* XXX reliable handoff */
 			wqe->flags |= Wqe_LFlag_SyncDone;
 			if (wqe->flags & Wqe_LFlag_WaitSync)
-				pthread_cond_signal(&wqe->lwe.wq_cv);
+				PTHREAD_COND_signal(&wqe->lwe.wq_cv);
 			PTHREAD_MUTEX_unlock(&wqe->lwe.wq_mtx);
 		} else
 			/* ! SPIN LOCKED */

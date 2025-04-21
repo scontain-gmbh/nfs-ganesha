@@ -552,29 +552,41 @@ static inline int PTHREAD_create(pthread_t *thread, pthread_attr_t *attr,
 /* clang-format on */
 
 static inline int PTHREAD_mutex_trylock(pthread_mutex_t *mtx,
-					const char *mtx_name)
+					const char *mtx_name,
+					const char *filename,
+					const char *fun_name, const int line)
 {
 	int rc;
 
 	rc = pthread_mutex_trylock(mtx);
 	if (rc == 0) {
-		LogFullDebug(COMPONENT_RW_LOCK,
-			     "Acquired mutex %p (%s) at %s:%d", mtx, mtx_name,
-			     __FILE__, __LINE__);
+		if (unlikely(component_log_level[COMPONENT_RW_LOCK] >=
+			     NIV_FULL_DEBUG))
+			DisplayLogComponentLevel(COMPONENT_RW_LOCK, filename,
+						 line, fun_name, NIV_FULL_DEBUG,
+						 "Acquired mutex %p (%s)", mtx,
+						 mtx_name);
 	} else if (rc == EBUSY) {
-		LogFullDebug(COMPONENT_RW_LOCK, "Busy mutex %p (%s) at %s:%d",
-			     mtx, mtx_name, __FILE__, __LINE__);
+		if (unlikely(component_log_level[COMPONENT_RW_LOCK] >=
+			     NIV_FULL_DEBUG))
+			DisplayLogComponentLevel(COMPONENT_RW_LOCK, filename,
+						 line, fun_name, NIV_FULL_DEBUG,
+						 "Busy mutex %p (%s)", mtx,
+						 mtx_name);
 	} else {
-		LogCrit(COMPONENT_RW_LOCK,
-			"Error %d, acquiring mutex %p (%s) at %s:%d", rc, mtx,
-			mtx_name, __FILE__, __LINE__);
+		if (likely(component_log_level[COMPONENT_RW_LOCK] >= NIV_CRIT))
+			DisplayLogComponentLevel(
+				COMPONENT_RW_LOCK, filename, line, fun_name,
+				NIV_CRIT, "Error %d, acquiring mutex %p (%s)",
+				rc, mtx, mtx_name);
 		abort();
 	}
 
 	return rc;
 }
 
-#define PTHREAD_MUTEX_trylock(_mtx) PTHREAD_mutex_trylock(_mtx, #_mtx)
+#define PTHREAD_MUTEX_trylock(_mtx) \
+	PTHREAD_mutex_trylock(_mtx, #_mtx, __FILE__, __func__, __LINE__)
 
 /**
  * @brief Logging mutex unlock
@@ -819,6 +831,50 @@ static inline int PTHREAD_mutex_trylock(pthread_mutex_t *mtx,
 		}                                                         \
 	} while (0)
 
+/* clang-format on */
+
+static inline int PTHREAD_cond_timedwait(pthread_cond_t *cond,
+					 pthread_mutex_t *mtx,
+					 const struct timespec *abstime,
+					 const char *cond_name,
+					 const char *filename,
+					 const char *fun_name, const int line)
+{
+	int rc;
+
+	rc = pthread_cond_timedwait(cond, mtx, abstime);
+	if (rc == 0) {
+		if (unlikely(component_log_level[COMPONENT_RW_LOCK] >=
+			     NIV_FULL_DEBUG))
+			DisplayLogComponentLevel(
+				COMPONENT_RW_LOCK, filename, line, fun_name,
+				NIV_FULL_DEBUG,
+				"Wait cond %p, abstime: %ld.%09ld", cond,
+				abstime->tv_sec, abstime->tv_nsec);
+	} else if (rc == ETIMEDOUT) {
+		if (unlikely(component_log_level[COMPONENT_RW_LOCK] >=
+			     NIV_FULL_DEBUG))
+			DisplayLogComponentLevel(
+				COMPONENT_RW_LOCK, filename, line, fun_name,
+				NIV_FULL_DEBUG,
+				"Error %d, Wait cond %p, abstime: %ld.%09ld",
+				rc, cond, abstime->tv_sec, abstime->tv_nsec);
+	} else {
+		if (likely(component_log_level[COMPONENT_RW_LOCK] >= NIV_CRIT))
+			DisplayLogComponentLevel(
+				COMPONENT_RW_LOCK, filename, line, fun_name,
+				NIV_CRIT,
+				"Error %d, Wait cond %p, abstime: %ld.%09ld",
+				rc, cond, abstime->tv_sec, abstime->tv_nsec);
+		abort();
+	}
+	return rc;
+}
+
+#define PTHREAD_COND_timedwait(_cond, _mutex, _abstime)                   \
+	PTHREAD_cond_timedwait(_cond, _mutex, _abstime, #_cond, __FILE__, \
+			       __func__, __LINE__)
+
 /**
  * @brief Logging condition variable signal
  *
@@ -831,7 +887,6 @@ static inline int PTHREAD_mutex_trylock(pthread_mutex_t *mtx,
 #define PTHREAD_COND_signal(_cond)                                          \
 	do {                                                                \
 		int rc;                                                     \
-									    \
 		rc = pthread_cond_signal(_cond);                            \
 		if (rc == 0) {                                              \
 			LogFullDebug(COMPONENT_RW_LOCK,                     \
@@ -858,7 +913,6 @@ static inline int PTHREAD_mutex_trylock(pthread_mutex_t *mtx,
 #define PTHREAD_COND_broadcast(_cond)                                          \
 	do {                                                                   \
 		int rc;                                                        \
-									       \
 		rc = pthread_cond_broadcast(_cond);                            \
 		if (rc == 0) {                                                 \
 			LogFullDebug(COMPONENT_RW_LOCK,                        \

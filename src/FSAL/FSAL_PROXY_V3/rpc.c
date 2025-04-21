@@ -193,22 +193,12 @@ static int proxyv3_openfd(const struct sockaddr *host, const socklen_t socklen,
 	 * rpcLock, so we can use that one.
 	 */
 
-	if (pthread_mutex_lock(&rpcLock) != 0) {
-		LogCrit(COMPONENT_FSAL, "pthread_mutex_lock failed %d %s",
-			errno, strerror(errno));
-		close(fd);
-		return -1;
-	}
+	PTHREAD_MUTEX_lock(&rpcLock);
 
 	rc = bindresvport_sa(fd, NULL);
 
 	/* Unlock the rpclock before we exit, even if bindresvport_sa failed */
-	if (pthread_mutex_unlock(&rpcLock) != 0) {
-		LogCrit(COMPONENT_FSAL, "pthread_mutex_unlock failed %d %s",
-			errno, strerror(errno));
-		close(fd);
-		return -1;
-	}
+	PTHREAD_MUTEX_unlock(&rpcLock);
 
 	if (rc < 0) {
 		LogCrit(COMPONENT_FSAL,
@@ -352,11 +342,7 @@ static struct fd_entry *proxyv3_getfdentry(const struct sockaddr *host,
 	/* In case we fail catastrophically, don't suggest a retry. */
 	*retry = false;
 
-	if (pthread_mutex_lock(&rpcLock) != 0) {
-		LogCrit(COMPONENT_FSAL, "pthread_mutex_lock failed %d %s",
-			errno, strerror(errno));
-		return NULL;
-	}
+	PTHREAD_MUTEX_lock(&rpcLock);
 
 	LogFullDebug(COMPONENT_FSAL,
 		     "Looking for an open socket for port %" PRIu16, port);
@@ -407,12 +393,7 @@ static struct fd_entry *proxyv3_getfdentry(const struct sockaddr *host,
 		LogFullDebug(COMPONENT_FSAL,
 			     "No available sockets. Tell the caller to wait");
 
-		if (pthread_mutex_unlock(&rpcLock) != 0) {
-			LogCrit(COMPONENT_FSAL,
-				"pthread_mutex_unlock failed %d %s", errno,
-				strerror(errno));
-			return NULL;
-		}
+		PTHREAD_MUTEX_unlock(&rpcLock);
 
 		*retry = true;
 		return NULL;
@@ -423,16 +404,7 @@ static struct fd_entry *proxyv3_getfdentry(const struct sockaddr *host,
 	result->in_use = true;
 
 	/* Release the lock now that we got our entry. */
-	if (pthread_mutex_unlock(&rpcLock) != 0) {
-		LogCrit(COMPONENT_FSAL, "pthread_mutex_unlock failed %d %s",
-			errno, strerror(errno));
-		/*
-		 * Return the entry to the list, since we aren't going to end up
-		 * using it.
-		 */
-		result->in_use = false;
-		return NULL;
-	}
+	PTHREAD_MUTEX_unlock(&rpcLock);
 
 	/* If we already got one, return it, if it's still open. */
 	if (first_open != NULL && proxyv3_fd_is_open(result->fd)) {
@@ -591,11 +563,7 @@ static bool proxyv3_release_fdentry(struct fd_entry *entry, bool force_close)
 		     "Releasing fd %d back into the pool (close = %s)",
 		     entry->fd, (force_close) ? "T" : "F");
 
-	if (pthread_mutex_lock(&rpcLock) != 0) {
-		LogCrit(COMPONENT_FSAL, "pthread_mutex_lock failed %d %s",
-			errno, strerror(errno));
-		return false;
-	}
+	PTHREAD_MUTEX_lock(&rpcLock);
 
 	if (entry->in_use != true) {
 		LogCrit(COMPONENT_FSAL,
@@ -621,11 +589,7 @@ static bool proxyv3_release_fdentry(struct fd_entry *entry, bool force_close)
 		}
 	}
 
-	if (pthread_mutex_unlock(&rpcLock) != 0) {
-		LogCrit(COMPONENT_FSAL, "pthread_mutex_unlock failed %d %s",
-			errno, strerror(errno));
-		return false;
-	}
+	PTHREAD_MUTEX_unlock(&rpcLock);
 
 	return true;
 }

@@ -825,7 +825,7 @@ void admin_halt(void)
 
 	if (!admin_shutdown) {
 		admin_shutdown = true;
-		pthread_cond_broadcast(&admin_control_cv);
+		PTHREAD_COND_broadcast(&admin_control_cv);
 	}
 
 	PTHREAD_MUTEX_unlock(&admin_control_mtx);
@@ -948,7 +948,7 @@ void *admin_thread(void *UnusedArg)
 
 	while (!admin_shutdown) {
 		/* Wait for shutdown indication. */
-		pthread_cond_wait(&admin_control_cv, &admin_control_mtx);
+		PTHREAD_COND_wait(&admin_control_cv, &admin_control_mtx);
 	}
 
 	PTHREAD_MUTEX_unlock(&admin_control_mtx);

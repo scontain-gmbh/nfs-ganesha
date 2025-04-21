@@ -230,11 +230,11 @@ void *delayed_thread(void *arg)
 
 		switch (delayed_get_work(&then, &func, &farg)) {
 		case delayed_unemployed:
-			pthread_cond_wait(&dle_cv, &dle_mtx);
+			PTHREAD_COND_wait(&dle_cv, &dle_mtx);
 			break;
 
 		case delayed_on_break:
-			pthread_cond_timedwait(&dle_cv, &dle_mtx, &then);
+			PTHREAD_COND_timedwait(&dle_cv, &dle_mtx, &then);
 			break;
 
 		case delayed_employed:
@@ -246,7 +246,7 @@ void *delayed_thread(void *arg)
 	}
 	LIST_REMOVE(thr, link);
 	if (LIST_EMPTY(&thread_list))
-		pthread_cond_broadcast(&dle_cv);
+		PTHREAD_COND_broadcast(&dle_cv);
 
 	PTHREAD_MUTEX_unlock(&dle_mtx);
 	gsh_free(thr);
@@ -314,9 +314,9 @@ void delayed_shutdown(void)
 
 	PTHREAD_MUTEX_lock(&dle_mtx);
 	delayed_state = delayed_stopping;
-	pthread_cond_broadcast(&dle_cv);
+	PTHREAD_COND_broadcast(&dle_cv);
 	while ((rc != ETIMEDOUT) && !LIST_EMPTY(&thread_list))
-		rc = pthread_cond_timedwait(&dle_cv, &dle_mtx, &then);
+		rc = PTHREAD_COND_timedwait(&dle_cv, &dle_mtx, &then);
 
 	if (!LIST_EMPTY(&thread_list)) {
 		struct delayed_thread *thr;
@@ -375,7 +375,7 @@ int delayed_submit(void (*func)(void *), void *arg, nsecs_elapsed_t delay)
 	task->arg = arg;
 	LIST_INSERT_HEAD(&mul->list, task, link);
 	if (!first || comparator(&mul->node, first) < 0)
-		pthread_cond_broadcast(&dle_cv);
+		PTHREAD_COND_broadcast(&dle_cv);
 
 	PTHREAD_MUTEX_unlock(&dle_mtx);
 

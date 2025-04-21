@@ -388,7 +388,7 @@ int nlm_send_async(int proc, state_nlm_client_t *host, void *inarg, void *key)
 		while (resp_key != NULL && now.tv_sec < (start.tv_sec + 5)) {
 			int rc;
 
-			rc = pthread_cond_timedwait(&nlm_async_resp_cond,
+			rc = PTHREAD_COND_timedwait(&nlm_async_resp_cond,
 						    &nlm_async_resp_mutex,
 						    &timeout);
 			LogFullDebug(COMPONENT_NLM,
@@ -409,7 +409,7 @@ void nlm_signal_async_resp(void *key)
 
 	if (resp_key == key) {
 		resp_key = NULL;
-		pthread_cond_signal(&nlm_async_resp_cond);
+		PTHREAD_COND_signal(&nlm_async_resp_cond);
 		LogFullDebug(COMPONENT_NLM, "Signaled condition variable");
 	} else {
 		LogFullDebug(COMPONENT_NLM, "Didn't signal condition variable");

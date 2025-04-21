@@ -383,7 +383,7 @@ static int proxyv4_got_rpc_reply(struct proxyv4_rpc_io_context *ctx, int sock,
 	}
 	ctx->iodone = true;
 	size = ctx->ioresult;
-	pthread_cond_signal(&ctx->iowait);
+	PTHREAD_COND_signal(&ctx->iowait);
 	PTHREAD_MUTEX_unlock(&ctx->iolock);
 	return size;
 }
@@ -461,13 +461,13 @@ static void proxyv4_new_socket_ready(struct proxyv4_export *proxyv4_exp)
 		PTHREAD_MUTEX_lock(&ctx->iolock);
 		ctx->iodone = true;
 		ctx->ioresult = -EAGAIN;
-		pthread_cond_signal(&ctx->iowait);
+		PTHREAD_COND_signal(&ctx->iowait);
 		PTHREAD_MUTEX_unlock(&ctx->iolock);
 	}
 
 	/* If there is anyone waiting for the socket then tell them
 	 * it's ready */
-	pthread_cond_broadcast(&rpc->sockless);
+	PTHREAD_COND_broadcast(&rpc->sockless);
 }
 
 /* called with listlock */
@@ -629,7 +629,7 @@ static enum clnt_stat proxyv4_process_reply(struct proxyv4_rpc_io_context *ctx,
 	ts.tv_nsec = 0;
 
 	while (!ctx->iodone) {
-		int w = pthread_cond_timedwait(&ctx->iowait, &ctx->iolock, &ts);
+		int w = PTHREAD_COND_timedwait(&ctx->iowait, &ctx->iolock, &ts);
 
 		if (w == ETIMEDOUT) {
 			PTHREAD_MUTEX_unlock(&ctx->iolock);
@@ -708,7 +708,7 @@ static inline int proxyv4_rpc_need_sock(struct proxyv4_export *proxyv4_exp)
 
 	PTHREAD_MUTEX_lock(&rpc->listlock);
 	while (rpc->rpc_sock < 0 && !rpc->close_thread)
-		pthread_cond_wait(&rpc->sockless, &rpc->listlock);
+		PTHREAD_COND_wait(&rpc->sockless, &rpc->listlock);
 	PTHREAD_MUTEX_unlock(&rpc->listlock);
 	return rpc->close_thread;
 }
@@ -724,7 +724,7 @@ static inline int proxyv4_rpc_renewer_wait(int timeout,
 	ts.tv_sec = time(NULL) + timeout;
 	ts.tv_nsec = 0;
 
-	rc = pthread_cond_timedwait(&rpc->sockless, &rpc->listlock, &ts);
+	rc = PTHREAD_COND_timedwait(&rpc->sockless, &rpc->listlock, &ts);
 	PTHREAD_MUTEX_unlock(&rpc->listlock);
 	return (rc == ETIMEDOUT);
 }
@@ -842,7 +842,7 @@ int proxyv4_compoundv4_execute(const char *caller,
 
 	PTHREAD_MUTEX_lock(&rpc->context_lock);
 	while (glist_empty(&rpc->free_contexts))
-		pthread_cond_wait(&rpc->need_context, &rpc->context_lock);
+		PTHREAD_COND_wait(&rpc->need_context, &rpc->context_lock);
 	ctx = glist_first_entry(&rpc->free_contexts,
 				struct proxyv4_rpc_io_context, calls);
 	glist_del(&ctx->calls);
@@ -872,7 +872,7 @@ int proxyv4_compoundv4_execute(const char *caller,
 		 (rc == RPC_CANTSEND));
 
 	PTHREAD_MUTEX_lock(&rpc->context_lock);
-	pthread_cond_signal(&rpc->need_context);
+	PTHREAD_COND_signal(&rpc->need_context);
 	glist_add(&rpc->free_contexts, &ctx->calls);
 	PTHREAD_MUTEX_unlock(&rpc->context_lock);
 
@@ -910,7 +910,7 @@ static inline void proxyv4_get_client_sessionid(sessionid4 ret)
 
 	PTHREAD_MUTEX_lock(&rpc->proxyv4_clientid_mutex);
 	while (rpc->no_sessionid)
-		pthread_cond_wait(&rpc->cond_sessionid,
+		PTHREAD_COND_wait(&rpc->cond_sessionid,
 				  &rpc->proxyv4_clientid_mutex);
 	memcpy(ret, rpc->proxyv4_client_sessionid, sizeof(sessionid4));
 	PTHREAD_MUTEX_unlock(&rpc->proxyv4_clientid_mutex);
@@ -923,7 +923,7 @@ static inline void proxyv4_get_client_sessionid_export(
 
 	PTHREAD_MUTEX_lock(&rpc->proxyv4_clientid_mutex);
 	while (rpc->no_sessionid)
-		pthread_cond_wait(&rpc->cond_sessionid,
+		PTHREAD_COND_wait(&rpc->cond_sessionid,
 				  &rpc->proxyv4_clientid_mutex);
 	memcpy(ret, rpc->proxyv4_client_sessionid, sizeof(sessionid4));
 	PTHREAD_MUTEX_unlock(&rpc->proxyv4_clientid_mutex);
@@ -1186,7 +1186,7 @@ static void *proxyv4_clientid_renewer(void *arg)
 				memcpy(rpc->proxyv4_client_sessionid,
 				       new_sessionid, sizeof(sessionid4));
 				rpc->no_sessionid = false;
-				pthread_cond_broadcast(&rpc->cond_sessionid);
+				PTHREAD_COND_broadcast(&rpc->cond_sessionid);
 				/*
 				 * We finish our create session request next
 				 * one will use the next client sequence id.
@@ -1245,7 +1245,7 @@ void proxyv4_close_thread(struct proxyv4_export *proxyv4_exp)
 	 */
 
 	PTHREAD_MUTEX_lock(&rpc->listlock);
-	pthread_cond_broadcast(&rpc->sockless);
+	PTHREAD_COND_broadcast(&rpc->sockless);
 	close(rpc->rpc_sock);
 	PTHREAD_MUTEX_unlock(&rpc->listlock);
 

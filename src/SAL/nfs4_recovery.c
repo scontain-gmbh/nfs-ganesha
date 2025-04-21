@@ -633,28 +633,28 @@ void nfs_wait_for_grace_enforcement(void)
 {
 	nfs_grace_start_t gsp = { .event = EVENT_JUST_GRACE };
 
-	pthread_mutex_lock(&enforcing_mutex);
+	PTHREAD_MUTEX_lock(&enforcing_mutex);
 	nfs_try_lift_grace();
 	while (nfs_in_grace() && !nfs_grace_enforcing()) {
 		struct timespec timeo = { .tv_sec = time(NULL) + 5,
 					  .tv_nsec = 0 };
 
-		pthread_cond_timedwait(&enforcing_cond, &enforcing_mutex,
+		PTHREAD_COND_timedwait(&enforcing_cond, &enforcing_mutex,
 				       &timeo);
 
-		pthread_mutex_unlock(&enforcing_mutex);
+		PTHREAD_MUTEX_unlock(&enforcing_mutex);
 		nfs_start_grace(&gsp);
 		nfs_try_lift_grace();
-		pthread_mutex_lock(&enforcing_mutex);
+		PTHREAD_MUTEX_lock(&enforcing_mutex);
 	}
-	pthread_mutex_unlock(&enforcing_mutex);
+	PTHREAD_MUTEX_unlock(&enforcing_mutex);
 }
 
 void nfs_notify_grace_waiters(void)
 {
-	pthread_mutex_lock(&enforcing_mutex);
-	pthread_cond_broadcast(&enforcing_cond);
-	pthread_mutex_unlock(&enforcing_mutex);
+	PTHREAD_MUTEX_lock(&enforcing_mutex);
+	PTHREAD_COND_broadcast(&enforcing_cond);
+	PTHREAD_MUTEX_unlock(&enforcing_mutex);
 }
 
 static pthread_cond_t norefs_cond;
@@ -662,18 +662,18 @@ static pthread_mutex_t norefs_mutex;
 
 void nfs_wait_for_grace_norefs(void)
 {
-	pthread_mutex_lock(&norefs_mutex);
+	PTHREAD_MUTEX_lock(&norefs_mutex);
 	struct timespec timeo = { .tv_sec = time(NULL) + 5, .tv_nsec = 0 };
 
-	pthread_cond_timedwait(&norefs_cond, &norefs_mutex, &timeo);
-	pthread_mutex_unlock(&norefs_mutex);
+	PTHREAD_COND_timedwait(&norefs_cond, &norefs_mutex, &timeo);
+	PTHREAD_MUTEX_unlock(&norefs_mutex);
 }
 
 void nfs_notify_grace_norefs_waiters(void)
 {
-	pthread_mutex_lock(&norefs_mutex);
-	pthread_cond_broadcast(&norefs_cond);
-	pthread_mutex_unlock(&norefs_mutex);
+	PTHREAD_MUTEX_lock(&norefs_mutex);
+	PTHREAD_COND_broadcast(&norefs_cond);
+	PTHREAD_MUTEX_unlock(&norefs_mutex);
 }
 
 /**

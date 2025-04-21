@@ -2175,7 +2175,7 @@ int destroy_all_client_connections(const struct gsh_client *gsh_client)
 
 			struct glist_head *curr_node, *next_node;
 
-			pthread_mutex_lock(&clientid->cid_mutex);
+			PTHREAD_MUTEX_lock(&clientid->cid_mutex);
 
 			glist_for_each_safe(
 				curr_node, next_node,
@@ -2188,7 +2188,7 @@ int destroy_all_client_connections(const struct gsh_client *gsh_client)
 					nfs41_Session_Destroy_All_Connections(
 						session);
 			}
-			pthread_mutex_unlock(&clientid->cid_mutex);
+			PTHREAD_MUTEX_unlock(&clientid->cid_mutex);
 		}
 		PTHREAD_RWLOCK_unlock(&(ht->partitions[i].ht_lock));
 	}

@@ -910,7 +910,7 @@ rpc_call_channel_t *nfs_rpc_get_chan(nfs_client_id_t *clientid, uint32_t flags)
 
 	/* Get the first working back channel we have */
 	chan = NULL;
-	pthread_mutex_lock(&clientid->cid_mutex);
+	PTHREAD_MUTEX_lock(&clientid->cid_mutex);
 	glist_for_each(glist, &clientid->cid_cb.v41.cb_session_list) {
 		session = glist_entry(glist, nfs41_session_t, session_link);
 		if (atomic_fetch_uint32_t(&session->flags) & session_bc_up) {
@@ -918,7 +918,7 @@ rpc_call_channel_t *nfs_rpc_get_chan(nfs_client_id_t *clientid, uint32_t flags)
 			break;
 		}
 	}
-	pthread_mutex_unlock(&clientid->cid_mutex);
+	PTHREAD_MUTEX_unlock(&clientid->cid_mutex);
 
 	return chan;
 }
@@ -1224,7 +1224,7 @@ retry:
 		clock_gettime(CLOCK_REALTIME, &ts);
 		timespec_addms(&ts, 100);
 
-		woke = (pthread_cond_timedwait(&session->cb_cond,
+		woke = (PTHREAD_COND_timedwait(&session->cb_cond,
 					       &session->cb_mutex,
 					       &ts) != ETIMEDOUT);
 		if (woke) {
@@ -1257,7 +1257,7 @@ static void release_cb_slot(nfs41_session_t *session, slotid4 slot, bool sent)
 	session->bc_slots[slot].in_use = false;
 	if (!sent)
 		--session->bc_slots[slot].sequence;
-	pthread_cond_broadcast(&session->cb_cond);
+	PTHREAD_COND_broadcast(&session->cb_cond);
 	PTHREAD_MUTEX_unlock(&session->cb_mutex);
 }
 
@@ -1277,7 +1277,7 @@ static int nfs_rpc_v41_single(nfs_client_id_t *clientid, nfs_cb_argop4 *op,
 	}
 
 restart:
-	pthread_mutex_lock(&clientid->cid_mutex);
+	PTHREAD_MUTEX_lock(&clientid->cid_mutex);
 	glist_for_each(glist, &clientid->cid_cb.v41.cb_session_list) {
 		nfs41_session_t *scur, *session;
 		slotid4 slot = 0;
@@ -1322,7 +1322,7 @@ restart:
 		assert(session == scur);
 
 		/* Drop mutex since we have a session ref */
-		pthread_mutex_unlock(&clientid->cid_mutex);
+		PTHREAD_MUTEX_unlock(&clientid->cid_mutex);
 
 		call = construct_v41(session, op, refer, slot, highest_slot);
 
@@ -1346,7 +1346,7 @@ restart:
 		dec_session_ref(session);
 		goto restart;
 	}
-	pthread_mutex_unlock(&clientid->cid_mutex);
+	PTHREAD_MUTEX_unlock(&clientid->cid_mutex);
 
 	/* If it didn't work, then try again and wait on a slot */
 	if (ret && !wait) {
