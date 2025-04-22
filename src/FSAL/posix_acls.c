@@ -185,7 +185,7 @@ acl_entry_t get_entry(acl_t acl, acl_tag_t tag, unsigned int id)
  * @param[in]  ace		Stores the starting of fsal_acl_t
  * @param[out] ace		Stores last ace entry in fsal_acl_t
  *
- * @returns no of entries on success and -1 on failure
+ * @returns no of entries in the list
  */
 
 int posix_acl_2_fsal_acl(acl_t p_posixacl, bool is_dir, bool is_inherit,
@@ -200,9 +200,6 @@ int posix_acl_2_fsal_acl(acl_t p_posixacl, bool is_dir, bool is_inherit,
 	bool readmask = true, readother = false, readcurrent = true;
 	bool writemask = true, writeother = false, writecurrent = true;
 	bool executemask = true, executeother = false, executecurrent = true;
-
-	if (!p_posixacl)
-		return -1;
 
 	pace_deny = *ace;
 	pace_allow = (pace_deny + 1);
