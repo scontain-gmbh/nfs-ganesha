@@ -448,6 +448,9 @@ Cache_Reaping_Interval(int64, range 0 to 3650*86400, default 0)
     Its default value is set to 0, which basically means that
     the cache-reaping is disabled.
 
+Max_Groups_Membership (uint32, range 0 to INT32_MAX, default 2000)
+    Max number of groups we allow a user to be a member of.
+
 Pwutils_Use_Fully_Qualified_Names(bool, default false)
     Whether to use fully qualified names for idmapping with pw-utils
 

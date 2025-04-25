@@ -107,7 +107,9 @@ void uid2grp_release_group_data(struct group_data *gdata)
 static bool my_getgrouplist_alloc(char *user, gid_t gid,
 				  struct group_data *gdata)
 {
-	int ngroups = 1000;
+	const int max_groups_membership =
+		nfs_param.directory_services_param.max_groups_membership;
+	int ngroups = MIN(1000, max_groups_membership);
 	gid_t *groups = NULL;
 	struct timespec s_time, e_time;
 	bool stats = nfs_param.core_param.enable_AUTHSTATS;
@@ -151,6 +153,7 @@ static bool my_getgrouplist_alloc(char *user, gid_t gid,
 
 		/* Try with the actual ngroups if user is part of more than 1000
 		 * groups. */
+		ngroups = MIN(ngroups, max_groups_membership);
 		groups = gsh_malloc(ngroups * sizeof(gid_t));
 
 		now(&s_time);
@@ -187,6 +190,7 @@ static bool my_getgrouplist_alloc(char *user, gid_t gid,
 			    "getgrouplist for user: {} returned groups: {}",
 			    TP_STR(user), TP_INT_ARR(groups, ngroups));
 
+	/* Resize or free the buffer as appropriate */
 	if (ngroups != 0) {
 		/* Resize the buffer, if it fails, gsh_realloc will
 		 * abort.
@@ -442,7 +446,9 @@ static struct group_data *uid2grp_allocate_by_principal(char *principal,
 #ifdef USE_NFSIDMAP
 	struct group_data *grpdata = NULL;
 	const int default_ngroups = 1000;
-	int ngroups = default_ngroups;
+	const int max_groups_membership =
+		nfs_param.directory_services_param.max_groups_membership;
+	int ngroups = MIN(default_ngroups, max_groups_membership);
 	gid_t *groups = NULL;
 	int ret;
 	struct timespec s_time, e_time;
@@ -476,6 +482,7 @@ static struct group_data *uid2grp_allocate_by_principal(char *principal,
 		 * 1000 groups
 		 */
 		gsh_free(groups);
+		ngroups = MIN(ngroups, max_groups_membership);
 		groups = gsh_malloc(ngroups * sizeof(gid_t));
 
 		now_mono(&s_time);
@@ -486,9 +493,15 @@ static struct group_data *uid2grp_allocate_by_principal(char *principal,
 			IDMAPPING_PRINCIPAL_TO_GROUPLIST, IDMAPPING_NFSIDMAP,
 			ret == 0, &s_time, &e_time);
 		if (ret) {
-			LogWarn(COMPONENT_IDMAPPER,
-				"Could not re-resolve principal %s to groups using nfsidmap, err: %d",
-				principal, ret);
+			if (ret == -ERANGE) {
+				LogWarn(COMPONENT_IDMAPPER,
+					"Could not re-resolve principal %s to groups using nfsidmap, user has more groups than the allowed limit",
+					principal);
+			} else {
+				LogWarn(COMPONENT_IDMAPPER,
+					"Could not re-resolve principal %s to groups using nfsidmap, err: %d",
+					principal, ret);
+			}
 			gsh_free(groups);
 			return NULL;
 		}
@@ -506,11 +519,15 @@ static struct group_data *uid2grp_allocate_by_principal(char *principal,
 	idmapper_monitoring__user_groups(ngroups);
 
 	/* Resize or free the buffer as appropriate */
-	if (ngroups == 0) {
+	if (ngroups != 0) {
+		/* Resize the buffer, if it fails, gsh_realloc will
+		 * abort.
+		 */
+		groups = gsh_realloc(groups, ngroups * sizeof(gid_t));
+	} else {
+		/* We need to free groups because later code may not. */
 		gsh_free(groups);
 		groups = NULL;
-	} else if (ngroups < default_ngroups) {
-		groups = gsh_realloc(groups, ngroups * sizeof(gid_t));
 	}
 
 	principal_len = strlen(principal);
