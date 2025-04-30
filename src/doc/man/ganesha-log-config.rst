@@ -46,6 +46,15 @@ RPC_Debug_Flags(uint32, range 0 to UINT32_MAX, default 7)
 Display_UTC_Timestamp(bool, default false)
     Flag to enable displaying UTC date/time in log messages instead of localtime.
 
+Match_Policy(token, default MATCH_ANY)
+    Specifies how conditional logging rules are evaluated when Clients and/or
+    Exports are configured.
+
+    MATCH_ANY
+        Enable conditional logging if either the client OR the export matches.
+    MATCH_ALL
+        Enable conditional logging only if both the client AND the export match.
+
 LOG { COMPONENTS {} }
 --------------------------------------------------------------------------------
 **Default_log_level(token,default EVENT)**
@@ -108,6 +117,108 @@ LOG { COMPONENTS {} }
         DEBUG or MID_DEBUG: RPC_Debug_Flags
 
         FULL_DEBUG: 0xffffffff
+
+LOG { CONDITIONAL {} }
+----------------------
+Conditional logging allows selective override of log levels for specific
+clients or exports, while all other traffic continues to use the global
+COMPONENTS settings. This mechanism is useful for debugging targeted
+activity without increasing verbosity system-wide.
+
+How It Works
+
+Global Filtering (COMPONENTS block)
+All requests are first evaluated against the log levels defined in the top-level
+COMPONENTS block.These levels serve as the default for all clients and exports.
+
+Conditional Overrides (Conditional block)
+The Conditional block provides a way to override component
+log levels only for the clients or exports explicitly listed.
+
+If a request matches a client and/or export mentioned in the Conditional block:
+→ Logging levels defined inside Conditional apply.
+
+If a request does not match any entry in the Conditional block:
+→ Logging uses only the global COMPONENTS settings.
+
+This behavior ensures that only selected traffic receives more or less verbose
+logging, while all remaining traffic follows the normal log-level configuration.
+
+Example::
+
+    LOG {
+      COMPONENTS {
+        FSAL = WARN;
+        NFS4 = CRIT;
+      }
+
+      Match_Policy = MATCH_ANY;
+
+      Conditional {
+        Clients = 192.0.2.25;
+        Exports = 101;
+
+        COMPONENT_ALL = EVENT;
+        NFS4 = DEBUG;
+      }
+    }
+
+Explanation::
+
+  * Requests originating from client/export inside the Conditional block
+    are logged strictly according to conditional components (e.g. NFS4 = DEBUG,
+    ALL = EVENT).
+  * Requests from all other clients or exports are logged strictly according to
+    the top-level COMPONENTS block (e.g., FSAL = WARN, NFS4 = CRIT).
+
+**Clients(client list, default: empty)**
+
+    * Client list entries can take on one of the following forms. This
+      parameter may be repeated to extend the list.
+
+    * x.x.x.x  IPv6 addresses are only allowed
+
+**Exports(Export list, default: empty)**
+    * Export list entries can take list of Export_IDs.
+
+**COMPONENT = LEVEL**
+    The components are:
+
+                ALL, LOG, MEMLEAKS, FSAL, NFSPROTO,
+                NFS_V4, EXPORT, FILEHANDLE, DISPATCH, MDCACHE,
+                MDCACHE_LRU, HASHTABLE, HASHTABLE_CACHE, DUPREQ,
+                INIT, MAIN, IDMAPPER, NFS_READDIR, NFS_V4_LOCK,
+                CONFIG, CLIENTID, SESSIONS, PNFS, RW_LOCK, NLM,
+                TIRPC, NFS_CB, THREAD, NFS_V4_ACL, STATE, 9P,
+                9P_DISPATCH, FSAL_UP, DBUS, NFS_MSK, XPRT
+
+    Some synonyms are:
+
+    FH = FILEHANDLE
+    HT = HASHTABLE
+    CACHE_INODE_LRU = MDCAHCE_LRU
+    CACHE_INODE = MDCACHE
+    INODE_LRU = MDCAHCE_LRU
+    INODE = MDCACHE
+    DISP = DISPATCH
+    LEAKS = MEMLEAKS
+    NFS3 = NFSPROTO
+    NFS4 = NFS_V4
+    HT_CACHE = HASHTABLE_CACHE
+    NFS_STARTUP = INIT
+    NFS4_LOCK = NFS_V4_LOCK
+    NFS4_ACL = NFS_V4_ACL
+    9P_DISP = 9P_DISPATCH
+
+    The log levels are:
+                NULL, FATAL, MAJ, CRIT, WARN, EVENT,
+                INFO, DEBUG, MID_DEBUG, M_DBG,
+                FULL_DEBUG, F_DBG], default FULL_DEBUG
+
+    ALL is a special component that when set, sets all components to the
+    specified value, overriding any that are explicitly set. default is
+    set to FULL_DEBUG. COMPONENT_ALL in Conditional acts as fallback
+    for any unspecified components.
 
 LOG { FACILITY {} }
 --------------------------------------------------------------------------------

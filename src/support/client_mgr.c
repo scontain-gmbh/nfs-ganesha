@@ -313,7 +313,7 @@ int foreach_gsh_client(bool (*cb)(struct gsh_client *cl, void *state),
 /* parse the ipaddr string in args
  */
 
-static bool arg_ipaddr(DBusMessageIter *args, sockaddr_t *sp, char **errormsg)
+bool arg_ipaddr(DBusMessageIter *args, sockaddr_t *sp, char **errormsg)
 {
 	char *client_addr;
 	unsigned char cl_addrbuf[sizeof(struct in6_addr)];
@@ -363,6 +363,7 @@ struct gsh_client *lookup_client(DBusMessageIter *args, char **errormsg)
 		if (client == NULL)
 			*errormsg = "Client IP address not found";
 	}
+
 	return client;
 }
 
@@ -1340,6 +1341,63 @@ void *base_client_allocator(void)
 	return gsh_calloc(1, sizeof(struct base_client_entry));
 }
 
+struct base_client_entry *is_base_client_exact_match(
+	enum log_components component, struct glist_head *client_list,
+	const char *client_tok)
+{
+	struct base_client_entry *cli;
+	struct glist_head *g;
+	CIDR *cidr = NULL;
+
+	/* Try CIDR parse (NETWORK_CLIENT) */
+	cidr = cidr_from_str(client_tok);
+	if (cidr)
+		normalize_v4_mapped_cidr(cidr);
+
+	glist_for_each(g, client_list) {
+		cli = glist_entry(g, struct base_client_entry, cle_list);
+
+		switch (cli->type) {
+		case NETWORK_CLIENT:
+			CIDR cli_cidr = *cli->client.network.cidr;
+
+			normalize_v4_mapped_cidr(&cli_cidr);
+			if (cidr && cidr_equals(&cli_cidr, cidr))
+				goto found;
+			break;
+
+		case MATCH_ANY_CLIENT:
+			if (strcmp(client_tok, "*") == 0)
+				goto found;
+			break;
+
+		case NETGROUP_CLIENT:
+			if (client_tok[0] == '@' &&
+			    strcmp(cli->client.netgroup.netgroupname,
+				   client_tok + 1) == 0)
+				goto found;
+			break;
+
+		case WILDCARDHOST_CLIENT:
+			if (strcmp(cli->client.wildcard.wildcard, client_tok) ==
+			    0)
+				goto found;
+			break;
+
+		default:
+			break;
+		}
+	}
+
+	cli = NULL;
+
+found:
+	if (cidr)
+		cidr_free(cidr);
+
+	return cli;
+}
+
 /**
  * @brief Expand the client name token into one or more client entries
  *
@@ -1367,6 +1425,21 @@ int add_client(enum log_components component, struct glist_head *client_list,
 	CIDR *cidr;
 	int rc;
 	struct base_client_entry *cli;
+
+	/*
+	 * Locking requirements:
+	 * Caller must hold rwlock (read/write lock) before calling.
+	 * No locking is performed internally.
+	 */
+	/* Check if the same Network client already exist */
+	if (is_base_client_exact_match(component, client_list, client_tok)) {
+		config_proc_error(cnode, err_type,
+				  "Duplicate client entry found: %s",
+				  client_tok);
+		err_type->exists = true;
+		errcnt++;
+		goto exit;
+	}
 
 	if (cle_allocator == NULL)
 		cle_allocator = base_client_allocator;
@@ -1545,7 +1618,67 @@ int add_client(enum log_components component, struct glist_head *client_list,
 	cli = NULL;
 out:
 	gsh_free(cli);
+
+exit:
 	return errcnt;
+}
+
+/**
+ * @brief Expand the client name token into one or more client entries
+ *
+ * @param component     [IN]  component for logging
+ * @param client_list   [IN]  the client list
+ * @param client_tok    [IN]  the name string.  We modify it.
+ *
+ * @returns True on success, false if no entry found
+ */
+bool delete_base_client(enum log_components component,
+			struct glist_head *client_list, const char *client_tok)
+{
+	bool deleted = false;
+	struct base_client_entry *cli;
+
+	/*
+	 * Locking requirements:
+	 * Caller must hold rwlock (read/write lock) before calling.
+	 * No locking is performed internally.
+	 */
+	/* Check if the same client already exist */
+	cli = is_base_client_exact_match(component, client_list, client_tok);
+
+	if (cli == NULL) {
+		LogCrit(component, "Matching client entry not found: %s",
+			client_tok);
+		goto out;
+	}
+
+	/* delete the exact match entry only */
+	switch (cli->type) {
+	case NETWORK_CLIENT:
+		cidr_free(cli->client.network.cidr);
+		break;
+	case NETGROUP_CLIENT:
+		gsh_free(cli->client.netgroup.netgroupname);
+		break;
+	case WILDCARDHOST_CLIENT:
+		gsh_free(cli->client.wildcard.wildcard);
+		break;
+	case GSSPRINCIPAL_CLIENT:
+	case PROTO_CLIENT:
+	case MATCH_ANY_CLIENT:
+	case BAD_CLIENT:
+		/* Do nothing for these client types */
+		break;
+	}
+
+	glist_del(&cli->cle_list);
+	gsh_free(cli);
+
+	LogInfo(component, "Removed Base client: (%s)", client_tok);
+	deleted = true;
+
+out:
+	return deleted;
 }
 
 /**

@@ -94,4 +94,10 @@ typedef enum log_components {
 	COMPONENT_COUNT
 } log_components_t;
 
+typedef enum cond_log_match_policies {
+	COND_LOG_MATCH_ANY, /* client OR export */
+	COND_LOG_MATCH_ALL, /* client AND export */
+	COND_LOG_MATCH_MAX
+} cond_log_match_policies_t;
+
 #endif

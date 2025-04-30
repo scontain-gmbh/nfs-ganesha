@@ -72,7 +72,7 @@ int nlm4_Sm_Notify(nfs_arg_t *args, struct svc_req *req, nfs_res_t *res)
 	 * op_ctx->client being NULL will just signal get_nsm_client to use
 	 * caller name instead of the op_ctx->client_addr.
 	 */
-	op_ctx->client = NULL;
+	set_op_context_client(NULL);
 	op_ctx->caller_addr = NULL;
 
 	/* Now find the nsm_client using the provided caller_name */
@@ -84,7 +84,7 @@ int nlm4_Sm_Notify(nfs_arg_t *args, struct svc_req *req, nfs_res_t *res)
 		 * to use, and if it IS non-NULL, we can also fill in
 		 * op_ctx->caller_addr.
 		 */
-		op_ctx->client = nsm_client->ssc_client;
+		set_op_context_client(nsm_client->ssc_client);
 
 		if (op_ctx->client != NULL) {
 			op_ctx->caller_addr = &op_ctx->client->cl_addrbuf;
@@ -111,7 +111,7 @@ int nlm4_Sm_Notify(nfs_arg_t *args, struct svc_req *req, nfs_res_t *res)
 		op_ctx->caller_addr = original_caller_addr;
 
 	if (op_ctx->client != original_client) {
-		op_ctx->client = original_client;
+		set_op_context_client(original_client);
 		SetClientIP(original_client->hostaddr_str);
 	}
 

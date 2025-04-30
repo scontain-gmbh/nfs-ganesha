@@ -878,8 +878,9 @@ static struct gsh_dbus_interface admin_interface = { .name = DBUS_ADMIN_IFACE,
 						     .methods = admin_methods,
 						     .signals = admin_signals };
 
-static struct gsh_dbus_interface *admin_interfaces[] = { &admin_interface,
-							 &log_interface, NULL };
+static struct gsh_dbus_interface *admin_interfaces[] = {
+	&admin_interface, &log_interface, &log_conditional_interface, NULL
+};
 
 #endif /* USE_DBUS */
 

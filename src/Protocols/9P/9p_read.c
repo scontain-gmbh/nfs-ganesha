@@ -133,7 +133,7 @@ int _9p_read(struct _9p_request_data *req9p, u32 *plenout, char *preply)
 		fsal_read(pfid->pentry, true, read_arg, &read_data);
 
 		if (req9p->pconn->client) {
-			op_ctx->client = req9p->pconn->client;
+			set_op_context_client(req9p->pconn->client);
 
 			server_stats_io_done(read_arg->iov[0].iov_len,
 					     read_arg->io_amount,

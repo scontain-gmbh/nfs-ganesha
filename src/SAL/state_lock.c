@@ -2350,13 +2350,13 @@ state_status_t do_lock_op(struct fsal_obj_handle *obj, state_t *state,
 	 * then save the op_ctx->client and switch to owner_client.
 	 */
 	if (owner_client != op_ctx->client && owner_client != NULL)
-		op_ctx->client = owner_client;
+		set_op_context_client(owner_client);
 
 	/* Perform this lock operation using the support_ex lock op. */
 	fsal_status = obj->obj_ops->lock_op2(obj, state, owner, fsal_lock_op,
 					     lock, &conflicting_lock);
 
-	op_ctx->client = saved_client;
+	set_op_context_client(saved_client);
 
 	status = state_error_convert(fsal_status);
 

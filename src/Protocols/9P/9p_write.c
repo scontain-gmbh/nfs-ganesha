@@ -155,7 +155,7 @@ int _9p_write(struct _9p_request_data *req9p, u32 *plenout, char *preply)
 		fsal_write(pfid->pentry, true, write_arg, &write_data);
 
 		if (req9p->pconn->client) {
-			op_ctx->client = req9p->pconn->client;
+			set_op_context_client(req9p->pconn->client);
 
 			server_stats_io_done(write_arg->iov[0].iov_len,
 					     write_arg->io_amount,

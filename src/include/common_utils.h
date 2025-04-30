@@ -45,6 +45,12 @@
 extern pthread_mutexattr_t default_mutex_attr;
 extern pthread_rwlockattr_t default_rwlock_attr;
 
+extern struct base_client_entry *
+conditional_logging_client_match(sockaddr_t *sockaddr);
+struct gsh_export;
+extern struct export_id_list *
+conditional_logging_export_match(uint16_t export_id);
+
 /**
  * BUILD_BUG_ON - break compile if a condition is true.
  * @condition: the condition which the compiler should know is false.
@@ -1204,6 +1210,59 @@ static inline int gsh_getnameinfo(const struct sockaddr *addr,
 		dns_stats_update(&s_time, &e_time);
 	}
 	return ret;
+}
+
+/**
+ * @brief Strictly parse a string into a uint16_t value.
+ *
+ * This helper converts the input string @p token into a 16-bit unsigned
+ * integer using base-10 interpretation. The conversion is considered
+ * successful only if:
+ *
+ *  - The input string is non-NULL and non-empty.
+ *  - At least one digit is parsed.
+ *  - The entire string is consumed (no trailing characters).
+ *  - No overflow occurs.
+ *  - The parsed value fits within the range of uint16_t.
+ *
+ * Unlike strtoull(), this function rejects partial conversions such as
+ * "123abc" and will fail if any non-numeric characters are present.
+ *
+ * @param[in]  token  Null-terminated string containing the numeric value.
+ * @param[out] out    Pointer to store the parsed uint16_t value on success.
+ *
+ * @return true  If the string is a valid base-10 representation of a
+ *               uint16_t value.
+ * @return false If the input is invalid, contains trailing characters,
+ *               or exceeds the uint16_t range.
+ *
+ * @note errno is used internally to detect overflow conditions.
+ */
+static inline bool parse_uint16_from_str(const char *token, uint16_t *out)
+{
+	char *endptr;
+	unsigned long long val;
+
+	if (token == NULL || *token == '\0')
+		return false;
+
+	errno = 0;
+	val = strtoull(token, &endptr, 10);
+
+	/* No digits parsed */
+	if (endptr == token)
+		return false;
+
+	/* Trailing characters present */
+	if (*endptr != '\0')
+		return false;
+
+	/* Overflow or out-of-range */
+	if (errno == ERANGE || val > UINT16_MAX)
+		return false;
+
+	*out = (uint16_t)val;
+	return true;
 }
 
 #endif /* !COMMON_UTILS_H */

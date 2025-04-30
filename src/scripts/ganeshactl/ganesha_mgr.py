@@ -29,6 +29,7 @@ from Ganesha.ganesha_mgr_utils import ExportMgr
 from Ganesha.ganesha_mgr_utils import AdminInterface
 from Ganesha.ganesha_mgr_utils import LogManager
 from Ganesha.ganesha_mgr_utils import CacheMgr
+from Ganesha.ganesha_mgr_utils import CondLogManager
 
 SERVICE = 'org.ganesha.nfsd'
 
@@ -374,6 +375,35 @@ def exit_option_not_supported(action):
     """Exit with error, indicating that option is not supported for action."""
     sys.exit(f'"{prog} {action} {sys.argv[2]}" is not supported')
 
+class ManageCondLogs():
+
+    def __init__(self, parent=None):
+        self.condlogmgr = CondLogManager(SERVICE,
+                                         '/org/ganesha/nfsd/admin',
+                                         'org.freedesktop.DBus.Properties')
+
+    def set(self, prop, value):
+        print("Set log %s to %s" % (prop, value))
+        status, msg = self.condlogmgr.Set(prop, value)
+        self.status_message(status, msg)
+
+    def get(self, prop):
+        print("Get property %s" % (prop))
+        status, msg, level = self.condlogmgr.Get(prop)
+        if status == True:
+            self.show_loglevel(level)
+        else:
+            self.status_message(status, msg)
+
+    def show_loglevel(self, level):
+        print("Log level: %s"% (str(level)))
+
+    def status_message(self, status, errormsg):
+        print("Returns: status = %s, %s" % (str(status), errormsg))
+
+    def print_components(self, properties):
+        for prop in properties:
+           print(str(prop))
 
 # Main
 if __name__ == '__main__':
@@ -382,7 +412,7 @@ if __name__ == '__main__':
     ganesha = ServerAdmin()
     logmgr = ManageLogs()
     cachemgr = ManageCache()
-
+    condlogmgr = ManageCondLogs()
     prog = os.path.basename(sys.argv[0])
 
     USAGE = f"""
@@ -431,11 +461,15 @@ COMMANDS
       status: Get current malloc trim status
    get:
       log component: Gets the log level for the given component
+      log conditional component:
+         Gets the log level for the given conditional component
    set:
       log component level:
          Sets the given log level to the given component
+      log conditional component level:
+         Sets the given log level to the given conditional component
    getall:
-       logs: Prints all log components
+      logs: Prints all log components
    shutdown: Shuts down the ganesha nfs server
 
 """
@@ -555,7 +589,15 @@ COMMANDS
         if len(sys.argv) < 5:
             exit_try_help("set log requires a component and a log level")
         if sys.argv[2] == "log":
-            logmgr.set(sys.argv[3], sys.argv[4])
+            if sys.argv[3] == "conditional":
+                if len(sys.argv) < 6:
+                    msg = 'set log conditional requires '
+                    msg += 'a component and a log level.'
+                    msg += 'Try "ganesha_mgr.py help" for more info'
+                    sys.exit(msg)
+                condlogmgr.set(sys.argv[4], sys.argv[5])
+            else:
+                logmgr.set(sys.argv[3], sys.argv[4])
         else:
             exit_option_not_supported("set")
 
@@ -564,7 +606,14 @@ COMMANDS
         if len(sys.argv) < 4:
             exit_try_help("get log requires a component")
         if sys.argv[2] == "log":
-            logmgr.get(sys.argv[3])
+            if sys.argv[3] == "conditional":
+                if len(sys.argv) < 5:
+                    msg = 'get log conditional requires a component. '
+                    msg += 'Try "ganesha_mgr.py help" for more info'
+                    sys.exit(msg)
+                condlogmgr.get(sys.argv[4])
+            else:
+                logmgr.get(sys.argv[3])
         else:
             exit_option_not_supported("get")
 

@@ -3093,4 +3093,68 @@ void export_pkginit(void)
 	RegisterCleanup(&export_mgr_cleanup_element);
 }
 
+struct export_id_list *is_export_id_match(enum log_components component,
+					  struct glist_head *export_list,
+					  uint16_t export_id)
+{
+	struct export_id_list *expidli = NULL;
+	struct glist_head *g;
+
+	glist_for_each(g, export_list) {
+		expidli =
+			glist_entry(g, struct export_id_list, export_id_glist);
+
+		/* Check if Export ID already exist or not */
+		if (expidli->export_id == export_id)
+			goto out;
+	}
+
+	expidli = NULL;
+
+out:
+	return expidli;
+}
+
+/**
+ * @brief Add the export_id in the list if does not exists
+ *
+ * @param component     [IN]  component for logging
+ * @param export_list   [IN]  the export list this gets linked to in tail order
+ * @param export_id     [IN]  the export_id
+ * @param cnode         [IN]  opaque pointer needed for config_proc_error()
+ * @param err_type      [OUT] error handling ref
+ *
+ * @returns 0 on success, error count on failure
+ */
+
+int add_export_id(enum log_components component, struct glist_head *export_list,
+		  uint16_t export_id, void *cnode,
+		  struct config_error_type *err_type)
+{
+	struct export_id_list *expidli;
+	int errcnt = 0;
+
+	/*
+	 * Locking requirements:
+	 * Caller must hold rwlock (read/write lock) before calling.
+	 * No locking is performed internally.
+	 */
+	/* Check if the same export id already exist */
+	if (is_export_id_match(component, export_list, export_id)) {
+		config_proc_error(cnode, err_type,
+				  "Duplicate export entry found: %d",
+				  export_id);
+		err_type->exists = true;
+		errcnt++;
+		goto exit;
+	}
+
+	expidli = gsh_calloc(1, sizeof(struct export_id_list));
+	expidli->export_id = export_id;
+
+	glist_add_tail(export_list, &expidli->export_id_glist);
+
+exit:
+	return errcnt;
+}
 /** @} */

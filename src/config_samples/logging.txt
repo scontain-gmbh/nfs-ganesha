@@ -114,4 +114,37 @@ LOG {
 	# The default is set for any components not defined in the
 	# components block.
 	default_log_level = EVENT;
+
+	# Match policy for conditional logging
+	# The default policy is MATCH_ANY. You can change it here.
+	# This field is valid if and only if conditional logging feature used.
+	# MATCH_ANY : Enable conditional logging if client OR export matches
+	# MATCH_ALL : Enable conditional logging only if client AND export match
+#	Match_Policy = MATCH_ANY;
+
+	# The conditional block contains one or more logging components
+	# and the setting to be used and export ids list and client ip list
+	conditional {
+	  # The ALL component is special.  When set it defines the level
+	  # for all components and overrides any other setting in this block.
+	  # For convenience, many component names can be specified using two
+	  # different values. One is the #define constant without the
+	  # COMPONENT_ prefix, for example, HASHTABLE_CACHE. The other is
+	  # the string that shows up in the actual log with blank replaced with
+	  # underscore, for example HT_CACHE.
+	  #
+	  # Log levels are:
+	  #
+	  # NULL, FATAL, MAJ, CRIT, WARN, EVENT, INFO, DEBUG, MID_DEBUG,
+	  # FULL_DEBUG
+	  #
+#	  ALL = FULL_DEBUG; # this is the default
+#	  ALL = EVENT;
+#	  INIT = INFO;
+#	  RPC = FULL_DEBUG;
+#	  DBUS = DEBUG;
+#	  Exports = ExportId_1, ExportId_2;
+#	  Clients = Client1_IPv6, Client2_IPv4, Client3_IPSubnet;
+	}
+
 }

@@ -17,6 +17,7 @@ LOG {}
 LOG { COMPONENTS {} }
 LOG { FACILITY {} }
 LOG { FORMAT {} }
+LOG { CONDITIONAL {} }
 _9P {}
 MDCACHE {}
 FSAL_LIST {}
@@ -791,6 +792,24 @@ LOG {}
 		If this is set to true, date and time in ganesha log file will
 		use UTC timezone.
 
+	Match_Policy(token, values [MATCH_ANY, MATCH_ALL], default MATCH_ANY)
+
+		Specifies how conditional logging rules are evaluated when
+		Clients and/or Exports are configured.
+
+		MATCH_ANY
+			Conditional logging is enabled if either the client
+			OR the export matches.
+
+		MATCH_ALL
+			Conditional logging is enabled only if both the client
+			AND the export match.
+
+		This option controls the evaluation policy used by the
+		Conditional logging block.
+
+		If this option is NOT set, MATCH_ANY is used.
+
 LOG { COMPONENTS {} }
 ---------------------
 
@@ -910,6 +929,60 @@ LOG { FORMAT {} }
 
 	CLIENT_REQ_XID(bool, default false)
 
+LOG { CONDITIONAL {} }
+---------------------
+
+    Clients(client list, empty)
+
+    * Client list entries can take on one of the following forms. This
+      parameter may be repeated to extend the list.
+
+        x.x.x.x/y       IPv4 network address, IPv6 addresses are also allowed
+                        but the format is too complex to show here
+        IP address      Match a single client
+
+    Exports(Export list, empty)
+
+    * Export list entries can take list of Export_IDs.
+
+    COMPONENT = LEVEL;
+
+	The components are: ALL, LOG, MEMLEAKS, FSAL, NFSPROTO,
+			    NFS_V4, EXPORT, FILEHANDLE, DISPATCH, MDCACHE,
+			    MDCACHE_LRU, HASHTABLE, HASHTABLE_CACHE, DUPREQ,
+			    INIT, MAIN, IDMAPPER, NFS_READDIR, NFS_V4_LOCK,
+			    CONFIG, CLIENTID, SESSIONS, PNFS, RW_LOCK, NLM,
+			    TIRPC, NFS_CB, THREAD, NFS_V4_ACL, STATE, 9P,
+			    9P_DISPATCH, FSAL_UP, DBUS, NFS_MSK, XPRT
+
+	Some synonyms are:
+
+	FH = FILEHANDLE
+	HT = HASHTABLE
+	CACHE_INODE_LRU = MDCAHCE_LRU
+	CACHE_INODE = MDCACHE
+	INODE_LRU = MDCAHCE_LRU
+	INODE = MDCACHE
+	DISP = DISPATCH
+	LEAKS = MEMLEAKS
+	NFS3 = NFSPROTO
+	NFS4 = NFS_V4
+	HT_CACHE = HASHTABLE_CACHE
+	NFS_STARTUP = INIT
+	NFS4_LOCK = NFS_V4_LOCK
+	NFS4_ACL = NFS_V4_ACL
+	9P_DISP = 9P_DISPATCH
+
+	The log levels are: NULL, FATAL, MAJ, CRIT, WARN, EVENT,
+			    INFO, DEBUG, MID_DEBUG, M_DBG,
+			    FULL_DEBUG, F_DBG], default FULL_DEBUG
+
+	ALL is a special component that when set, sets all components to the
+	specified value, overriding any that are explicitly set. Note that if
+	ALL is then removed from the config and SIGHUP is issued, all components
+	will revert to what is explicitly set, or Default_Log_Level if that is
+	specified, or the original log level from the -N command line option
+	if that was set, or the code default of EVENT.
 
 MDCACHE {}
 ----------

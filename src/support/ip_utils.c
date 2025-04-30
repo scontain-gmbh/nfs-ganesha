@@ -60,11 +60,6 @@
 #include "abstract_mem.h"
 #include "common_utils.h"
 
-struct cidr_addr {
-	sockaddr_t ip_addr;
-	u_int16_t mask;
-};
-
 /**
  * @brief Create a hash value based on the sockaddr_t structure
  *
@@ -762,4 +757,71 @@ int cidr_proto(CIDR *cidr)
 int cidr_version(CIDR *cidr)
 {
 	return 1;
+}
+
+/**
+ * @brief Compare two CIDRs for equality
+ *
+ * @param[in]  a       First CIDR
+ * @param[in]  b       Second CIDR
+ *
+ * Determines whether two CIDR entries represent the same network.
+ * Two CIDRs are considered equal if they belong to the same address
+ * family, have identical network masks, and each CIDR contains the
+ * other's network address.
+ *
+ * This comparison is based on network equivalence rather than pointer
+ * equality, ensuring that differently constructed CIDR objects
+ * representing the same network are treated as equal.
+ *
+ * @return true if both CIDRs represent the same network, otherwise false.
+ */
+bool cidr_equals(CIDR *a, CIDR *b)
+{
+	if (a->ip_addr.ss_family != b->ip_addr.ss_family)
+		return false;
+
+	if (a->mask != b->mask)
+		return false;
+
+	if (sockaddr_cmp(&a->ip_addr, &b->ip_addr, false) == 0)
+		return true;
+
+	return false;
+}
+
+/**
+ * @brief Normalize IPv4-mapped IPv6 CIDR addresses
+ *
+ * This helper normalizes a CIDR that represents an IPv4-mapped IPv6
+ * address into its canonical IPv4 form. The function converts the
+ * address family to AF_INET and adjusts the mask length to IPv4 semantics.
+ *
+ * Normalization ensures consistent behavior for CIDR equality,
+ * containment, and overlap checks by avoiding mismatches between
+ * IPv4 and IPv4-mapped IPv6 representations of the same network.
+ *
+ * This function must be invoked before performing CIDR comparisons
+ * such as cidr_contains_ip(), or cidr_equals().
+ *
+ * @param[in,out] cidr   CIDR object to be normalized in-place
+ */
+void normalize_v4_mapped_cidr(CIDR *cidr)
+{
+	sockaddr_t ipv4;
+	sockaddr_t *result;
+
+	if (!cidr)
+		return;
+
+	result = convert_ipv6_to_ipv4(&cidr->ip_addr, &ipv4);
+
+	if (result == &ipv4) {
+		cidr->ip_addr = ipv4;
+
+		if (cidr->mask >= 96)
+			cidr->mask -= 96;
+		else
+			cidr->mask = 0;
+	}
 }

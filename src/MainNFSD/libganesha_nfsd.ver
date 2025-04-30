@@ -25,6 +25,7 @@
   close_fsal_fd;
   compound_data_Free;
   component_log_level;
+  conditional_component_log_level;
   config_error_no_error;
   config_errs_to_log;
   config_Free;
@@ -154,6 +155,7 @@
   insert_fd_lru;
   ip_str_to_sockaddr;
   is_filesystem_exported;
+  is_op_context_conditional_flag_set;
   load_config_from_node;
   load_config_from_parse;
   log_attrlist;

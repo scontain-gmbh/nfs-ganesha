@@ -385,5 +385,12 @@ void nfs_init_stats_time(void);
 extern int async_deleg_transition_handler(struct fridgethr *fr,
 					  struct gsh_export *probe_exp);
 
+int add_export_id(enum log_components component, struct glist_head *export_list,
+		  uint16_t export_id, void *cnode,
+		  struct config_error_type *err_type);
+struct export_id_list *is_export_id_match(enum log_components component,
+					  struct glist_head *export_list,
+					  uint16_t export_id);
+
 #endif /* !EXPORT_MGR_H */
 /** @} */

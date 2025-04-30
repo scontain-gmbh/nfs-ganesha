@@ -660,7 +660,7 @@ void free_args(nfs_request_t *reqdata)
 	/* Clean up the op_ctx */
 	if (op_ctx->client != NULL) {
 		put_gsh_client(op_ctx->client);
-		op_ctx->client = NULL;
+		set_op_context_client(NULL);
 	}
 
 	clean_credentials();
@@ -1012,7 +1012,7 @@ static enum xprt_stat nfs_rpc_process_request(nfs_request_t *reqdata,
 	 * this, we should sprint a buffer once, in when we're setting up
 	 * xprt private data. */
 
-	op_ctx->client = get_gsh_client(op_ctx->caller_addr, false);
+	set_op_context_client(get_gsh_client(op_ctx->caller_addr, false));
 
 	if (op_ctx->client == NULL) {
 		LogDebug(COMPONENT_DISPATCH,

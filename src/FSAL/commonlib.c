@@ -3210,6 +3210,19 @@ void destroy_ctx_refstr(void)
 }
 
 /**
+ * @brief Check if Export or Client conditional flag set into the op_context.
+ */
+bool is_op_context_conditional_flag_set(void)
+{
+	if (cond_log_match_policy == COND_LOG_MATCH_ALL)
+		return (op_ctx && (op_ctx->client_conditional_log &&
+				   op_ctx->export_conditional_log));
+
+	return (op_ctx && (op_ctx->client_conditional_log ||
+			   op_ctx->export_conditional_log));
+}
+
+/**
  * @brief Set an export into an op_context (could be NULL).
  *
  * This is the core function that sets up an op_context. It makes no assumptions
@@ -3265,6 +3278,10 @@ static void set_op_context_export_fsal_no_release(struct gsh_export *exp,
 		op_ctx->fsal_module = fsal_exp->fsal;
 	else if (!op_ctx->fsal_module && op_ctx->saved_op_ctx)
 		op_ctx->fsal_module = op_ctx->saved_op_ctx->fsal_module;
+
+	if (op_ctx->ctx_export &&
+	    conditional_logging_export_match(op_ctx->ctx_export->export_id))
+		op_ctx->export_conditional_log = true;
 }
 
 /** @brief Remove the current export from the op_context so the op_context has
@@ -3315,6 +3332,9 @@ static inline void clear_op_context_export_impl(void)
 	 */
 	gsh_refstr_put(op_ctx->ctx_fullpath);
 	gsh_refstr_put(op_ctx->ctx_pseudopath);
+
+	/* Clear the context export conditional flag */
+	op_ctx->export_conditional_log = false;
 }
 
 /**
@@ -3358,6 +3378,25 @@ void set_op_context_export(struct gsh_export *exp)
 	clear_op_context_export_impl();
 
 	set_op_context_export_fsal_no_release(exp, fsal_exp, NULL);
+}
+
+/**
+ * @brief Set a client into the op_context.
+ *
+ * @param[in] client   The gsh_client to set, can be NULL.
+ *
+ */
+void set_op_context_client(struct gsh_client *client)
+{
+	op_ctx->client = client;
+
+	if (!op_ctx->client)
+		return;
+
+	op_ctx->client_conditional_log = false;
+
+	if (conditional_logging_client_match(&op_ctx->client->cl_addrbuf))
+		op_ctx->client_conditional_log = true;
 }
 
 /**
@@ -3554,6 +3593,8 @@ void release_op_context(void)
 	struct req_op_context *cur_ctx = op_ctx;
 
 	clear_op_context_export_impl();
+
+	op_ctx->client_conditional_log = false;
 
 	/* Clear the ctx_export and fsal_export */
 	op_ctx->ctx_export = NULL;
