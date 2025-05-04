@@ -568,4 +568,4 @@ if __name__ == '__main__':
 
     else:
         print("Unknown/missing command."\
-              " Try \"ganesha_mgr.py help\" for more info")
+              " Try \"ganesha_mgr help\" for more info")
