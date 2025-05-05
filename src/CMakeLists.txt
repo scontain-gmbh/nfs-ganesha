@@ -1683,6 +1683,12 @@ else(USE_UNWIND)
     set(BCOND_UNWIND "%bcond_with")
 endif(USE_UNWIND)
 
+if(USE_UNWIND_ENRICHED_BT)
+    set(BCOND_UNWIND_ENRICHED_BT "%bcond_without")
+else(USE_UNWIND_ENRICHED_BT)
+    set(BCOND_UNWIND_ENRICHED_BT "%bcond_with")
+endif(USE_UNWIND_ENRICHED_BT)
+
 if(_MSPAC_SUPPORT)
     set(BCOND_MSPAC_SUPPORT "%bcond_without")
 else(_MSPAC_SUPPORT)
