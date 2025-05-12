@@ -115,6 +115,7 @@ struct ceph_export {
 	char *fs_name; /* filesystem name */
 	char *cmount_path; /* path to cmount at */
 	int64_t fscid; /* Cluster fsid for named fs' */
+        bool use_acl; /* indicate ACL is supported */
 };
 
 struct ceph_fd {

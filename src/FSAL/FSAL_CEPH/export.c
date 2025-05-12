@@ -478,6 +478,25 @@ void get_fsal_obj_hdl(struct fsal_export *exp_hdl, struct fsal_fd *fd,
 	*handle = &myself->handle;
 }
 
+static attrmask_t fs_supported_attrs(struct fsal_export *exp_hdl)
+{
+	attrmask_t supported_mask;
+	struct ceph_export *export;
+
+	export = container_of(exp_hdl, struct ceph_export, export);
+	supported_mask = fsal_supported_attrs(&exp_hdl->fsal->fs_info);
+
+	/* Fixup supported_mask to indicate if ACL is actually supported for
+	 * this export.
+	 */
+	if (export->use_acl)
+		supported_mask |= ATTR_ACL;
+	else
+		supported_mask &= ~ATTR_ACL;
+
+	return supported_mask;
+}
+
 /**
  * @brief Set operations for exports
  *
@@ -501,6 +520,7 @@ void export_ops_init(struct export_ops *ops)
 #ifdef CEPHFS_POSIX_ACL
 	ops->fs_acl_support = fs_acl_support;
 #endif /* CEPHFS_POSIX_ACL */
+	ops->fs_supported_attrs = fs_supported_attrs;
 #ifdef CEPH_PNFS
 	export_ops_pnfs(ops);
 #endif /* CEPH_PNFS */

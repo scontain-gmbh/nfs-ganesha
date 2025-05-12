@@ -827,6 +827,9 @@ has_cmount:
 	export->fscid = cm->cm_fscid;
 	export->export.fsal = module_in;
 	export->export.up_ops = up_ops;
+	export->use_acl =
+          !op_ctx_export_has_option(EXPORT_OPTION_DISABLE_ACL);
+
 
 	glist_add_tail(&cm->cm_exports, &export->cm_list);
 
