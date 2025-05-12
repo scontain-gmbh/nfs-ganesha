@@ -159,6 +159,7 @@ static void load_lttng(void)
 
 #endif /* USE_LTTNG */
 
+#ifdef USE_MONITORING
 /* Function to check if the passed in sockaddr_t is holding INADDR_ANY */
 static bool if_ip_addr_any(const sockaddr_t *addr)
 {
@@ -181,6 +182,7 @@ static bool if_ip_addr_any(const sockaddr_t *addr)
 			return false;
 	}
 }
+#endif
 
 /**
  * main: simply the main function.

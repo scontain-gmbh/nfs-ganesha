@@ -39,8 +39,7 @@ typedef struct sockaddr_storage sockaddr_t;
 #ifdef USE_MONITORING
 
 #ifndef __cplusplus
-void prometheus_exposer__start(const sockaddr_t *addr,
-			       uint16_t port,
+void prometheus_exposer__start(const sockaddr_t *addr, uint16_t port,
 			       prometheus_registry_handle_t registry_handle);
 
 #else /* __cplusplus */
@@ -52,8 +51,7 @@ void prometheus_exposer__start(const sockaddr_t *addr,
 #include "prometheus/registry.h"
 
 extern "C" {
-void prometheus_exposer__start(const sockaddr_t *addr,
-			       uint16_t port,
+void prometheus_exposer__start(const sockaddr_t *addr, uint16_t port,
 			       prometheus_registry_handle_t registry_handle);
 } /* extern "C" */
 
@@ -102,8 +100,7 @@ class PrometheusExposer {
 #endif
 
 static inline void
-prometheus_exposer__start(const sockaddr_t UNUSED(*addr),
-		          uint16_t UNUSED(port),
+prometheus_exposer__start(const sockaddr_t *UNUSED(addr), uint16_t UNUSED(port),
 			  prometheus_registry_handle_t UNUSED(registry_handle))
 {
 }
