@@ -42,6 +42,7 @@
 	fprintf(stderr, "[%s:%d] %s: %s\n", __FILE__, __LINE__, (MESSAGE), \
 		strerror(errno))
 #define PFATAL(MESSAGE) (PERROR(MESSAGE), abort())
+#define PEXIT(MESSAGE) (PERROR(MESSAGE), exit(1))
 
 static const char kStatus[] = "status";
 static const char kSuccess[] = "success";
@@ -142,11 +143,12 @@ static bool is_metric_empty(prometheus::Metric::Type type,
 // server from MBs to KBs
 static void compact_family(prometheus::MetricFamily &family)
 {
-	auto first_element_to_remove = std::remove_if(
-		family.metric.begin(), family.metric.end(),
-		[&family](auto metric) {
-			return is_metric_empty(family.type, metric);
-		});
+	auto first_element_to_remove =
+		std::remove_if(family.metric.begin(), family.metric.end(),
+			       [&family](auto metric) {
+				       return is_metric_empty(family.type,
+							      metric);
+			       });
 	// Keep at least one metric even if it's empty so it's easier to query
 	if (first_element_to_remove == family.metric.begin())
 		first_element_to_remove++;
@@ -184,7 +186,7 @@ void PrometheusExposer::start(const sockaddr_t *addr, uint16_t port)
 {
 	const std::lock_guard<std::mutex> lock(mutex_);
 	if (running_)
-		PFATAL("Already running");
+		PEXIT("Already running");
 
 	if (addr->ss_family == AF_INET6)
 		server_fd_ = socket(AF_INET6, SOCK_STREAM, 0);
@@ -198,7 +200,7 @@ void PrometheusExposer::start(const sockaddr_t *addr, uint16_t port)
 
 	const int opt = 1;
 	if (setsockopt(server_fd_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)))
-		PFATAL("Failed to set socket options");
+		PEXIT("Failed to set socket options");
 
 	if (addr->ss_family == AF_INET6) {
 		struct sockaddr_in6 addr6;
@@ -206,17 +208,17 @@ void PrometheusExposer::start(const sockaddr_t *addr, uint16_t port)
 		addr6.sin6_addr = ((struct sockaddr_in6 *)addr)->sin6_addr;
 		addr6.sin6_port = htons(port);
 		if (bind(server_fd_, (struct sockaddr *)&addr6, sizeof(addr6)))
-			PFATAL("Failed to bind socket, IPv6");
+			PEXIT("Failed to bind socket, IPv6");
 	} else {
 		struct sockaddr_in addr4;
 		addr4.sin_family = AF_INET;
 		addr4.sin_addr = ((struct sockaddr_in *)addr)->sin_addr;
 		addr4.sin_port = htons(port);
 		if (bind(server_fd_, (struct sockaddr *)&addr4, sizeof(addr4)))
-			PFATAL("Failed to bind socket, IPv4");
+			PEXIT("Failed to bind socket, IPv4");
 	}
 	if (listen(server_fd_, 3))
-		PFATAL("Failed to listen on socket");
+		PEXIT("Failed to listen on socket");
 
 	running_ = true;
 	thread_id_ = std::thread{ server_thread, this };
