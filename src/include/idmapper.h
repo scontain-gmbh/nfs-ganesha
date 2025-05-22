@@ -60,6 +60,7 @@
 
 extern pthread_rwlock_t idmapper_user_lock;
 extern pthread_rwlock_t idmapper_group_lock;
+extern pthread_rwlock_t idmapper_negative_cache_uid_lock;
 extern pthread_rwlock_t idmapper_negative_cache_user_lock;
 extern pthread_rwlock_t idmapper_negative_cache_group_lock;
 
@@ -75,8 +76,10 @@ bool idmapper_lookup_by_gname(const struct gsh_buffdesc *, uid_t *);
 bool idmapper_lookup_by_gid(const gid_t, const struct gsh_buffdesc **);
 
 void idmapper_negative_cache_init(void);
+void idmapper_negative_cache_add_user_by_uid(uid_t);
 void idmapper_negative_cache_add_user_by_name(const struct gsh_buffdesc *);
 void idmapper_negative_cache_add_group_by_name(const struct gsh_buffdesc *);
+bool idmapper_negative_cache_lookup_user_by_uid(uid_t);
 bool idmapper_negative_cache_lookup_user_by_name(const struct gsh_buffdesc *);
 bool idmapper_negative_cache_lookup_group_by_name(const struct gsh_buffdesc *);
 void idmapper_negative_cache_clear(void);
@@ -114,6 +117,7 @@ extern struct gsh_dbus_method cachemgr_show_idmapper_users;
 extern struct gsh_dbus_method cachemgr_show_idmapper_groups;
 extern struct gsh_dbus_method cachemgr_show_idmapper_negative_users;
 extern struct gsh_dbus_method cachemgr_show_idmapper_negative_groups;
+extern struct gsh_dbus_method cachemgr_show_idmapper_negative_uids;
 extern struct gsh_dbus_method cachemgr_show_uid2grp;
 extern struct gsh_dbus_method auth_statistics;
 #endif

@@ -300,7 +300,7 @@ class ManageCache():
             ids = reply[1]
             self.proc_id(_ts, ids)
         else:
-            self.status_message(status, errormsg
+            self.status_message(status, errormsg)
 
     def proc_id(self, _ts, ids):
         print("Timestamp: ", time.ctime(_ts[0]), _ts[1], " nsecs")

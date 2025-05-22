@@ -651,6 +651,31 @@ bool uname2grp(const struct gsh_buffdesc *name, struct group_data **gdata)
 }
 
 /**
+ * @brief Add uid to the idmapper-user negative cache
+ *
+ * @param[in] uid      uid
+ */
+static void add_uid_to_negative_cache(uid_t uid)
+{
+	if (!idmapping_enabled) {
+		LogWarn(COMPONENT_IDMAPPER,
+			"Idmapping is disabled. Add uid to negative cache skipped.");
+		return;
+	}
+	PTHREAD_RWLOCK_wrlock(&idmapper_negative_cache_uid_lock);
+
+	/* Recheck after obtaining the lock */
+	if (!idmapping_enabled) {
+		PTHREAD_RWLOCK_unlock(&idmapper_negative_cache_uid_lock);
+		LogWarn(COMPONENT_IDMAPPER,
+			"Idmapping is disabled. Add uid to negative cache skipped.");
+		return;
+	}
+	idmapper_negative_cache_add_user_by_uid(uid);
+	PTHREAD_RWLOCK_unlock(&idmapper_negative_cache_uid_lock);
+}
+
+/**
  * @brief Get supplementary groups given uid
  *
  * @param[in]   uid        The uid of the user
@@ -662,6 +687,7 @@ bool uid2grp(uid_t uid, struct group_data **gdata)
 {
 	bool success = false;
 	bool is_cache_hit = false;
+	bool is_negative_cache_hit = false;
 
 	if (!idmapping_enabled) {
 		LogWarn(COMPONENT_IDMAPPER,
@@ -683,7 +709,15 @@ bool uid2grp(uid_t uid, struct group_data **gdata)
 	}
 	PTHREAD_RWLOCK_unlock(&uid2grp_user_lock);
 
-	/* We could not find non-expired group-data in cache, fetch it afresh */
+	/* Lookup negative cache */
+	PTHREAD_RWLOCK_rdlock(&idmapper_negative_cache_uid_lock);
+	is_negative_cache_hit = idmapper_negative_cache_lookup_user_by_uid(uid);
+	PTHREAD_RWLOCK_unlock(&idmapper_negative_cache_uid_lock);
+	if (is_negative_cache_hit)
+		return false;
+
+	/* We could not find non-expired group-data in cache,
+	 * nor in the negative cache, fetch it afresh */
 	*gdata = uid2grp_allocate_by_uid(uid);
 	if (*gdata) {
 		/* This will also remove existing expired cache entry */
@@ -702,6 +736,8 @@ bool uid2grp(uid_t uid, struct group_data **gdata)
 		uid2grp_remove_expired_by_uid(uid);
 		PTHREAD_RWLOCK_unlock(&uid2grp_user_lock);
 	}
+	/* We couldn't find that uid, place it in the negative cache */
+	add_uid_to_negative_cache(uid);
 	return false;
 }
 

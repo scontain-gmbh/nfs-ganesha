@@ -140,6 +140,8 @@ static const char *get_cache_name(idmapping_cache_t idmapping_cache)
 		return "negative_username_to_user";
 	case IDMAPPING_NEGATIVE_GROUPNAME_TO_GROUP_CACHE:
 		return "negative_groupname_to_user";
+	case IDMAPPING_NEGATIVE_UID_TO_USER_CACHE:
+		return "negative_uid_to_user";
 	default:
 		LogFatal(COMPONENT_IDMAPPER, "Unsupported idmapping cache");
 	}
@@ -159,6 +161,8 @@ static const char *get_cache_entity_name(idmapping_cache_entity_t cache_entity)
 		return "NEGATIVE_USER";
 	case IDMAPPING_CACHE_ENTITY_NEGATIVE_GROUP:
 		return "NEGATIVE_GROUP";
+	case IDMAPPING_CACHE_ENTITY_NEGATIVE_UID:
+		return "NEGATIVE_UID";
 	default:
 		LogFatal(COMPONENT_IDMAPPER,
 			 "Unsupported idmapping cache entity: %d",

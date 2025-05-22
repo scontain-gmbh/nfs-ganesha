@@ -1942,6 +1942,7 @@ static struct gsh_dbus_method *cachemgr_methods[] = {
 	&cachemgr_show_idmapper_groups,
 	&cachemgr_show_idmapper_negative_users,
 	&cachemgr_show_idmapper_negative_groups,
+	&cachemgr_show_idmapper_negative_uids,
 	&cachemgr_show_uid2grp,
 	NULL
 };

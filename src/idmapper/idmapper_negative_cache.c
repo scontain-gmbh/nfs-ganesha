@@ -48,13 +48,17 @@
 
 /* Struct representing the negative cache entity */
 typedef enum negative_cache_entity_type {
-	USER,
-	GROUP
+	USERNAME,
+	GROUP,
+	UID
 } negative_cache_entity_type_t;
 
 /* Struct representing a user or group entry in the negative cache */
 typedef struct negative_cache_entity {
-	struct gsh_buffdesc name; /*< Entity name */
+	union {
+		struct gsh_buffdesc name; /*< Entity name */
+		uid_t uid;
+	};
 	struct avltree_node name_node; /*< Entity tree node */
 	time_t epoch; /*< Entity creation timestamp */
 
@@ -67,6 +71,9 @@ pthread_rwlock_t idmapper_negative_cache_user_lock;
 
 /* Lock that protects the idmapper negative group cache */
 pthread_rwlock_t idmapper_negative_cache_group_lock;
+
+/* Lock that protects the idmapper negative uid cache */
+pthread_rwlock_t idmapper_negative_cache_uid_lock;
 
 /** @brief The fifo queue for storing negative users
  *
@@ -85,11 +92,17 @@ static TAILQ_HEAD(idmapping_negative_cache_queue,
 /* The fifo queue (similar to above) for storing negative groups */
 struct idmapping_negative_cache_queue negative_group_fifo_queue;
 
+/* The fifo queue (similar to above) for storing negative uids */
+struct idmapping_negative_cache_queue negative_uid_fifo_queue;
+
 /* AVL-Tree cache for storing negative cache user name node */
 static struct avltree uname_tree;
 
 /* AVL-Tree cache for storing negative cache group name node */
 static struct avltree gname_tree;
+
+/* AVL-Tree cache for storing negative cache group name node */
+static struct avltree uid_tree;
 
 /**
  * @brief Checks if a negative user/group entry is expired
@@ -116,7 +129,7 @@ remove_negative_cache_entity(negative_cache_entity_t *entity,
 	idmapping_cache_entity_t idmapping_cache_entity;
 
 	switch (entity_type) {
-	case USER:
+	case USERNAME:
 		cache_tree = &uname_tree;
 		cache_queue = &negative_user_fifo_queue;
 		idmapping_cache_entity = IDMAPPING_CACHE_ENTITY_NEGATIVE_USER;
@@ -125,6 +138,11 @@ remove_negative_cache_entity(negative_cache_entity_t *entity,
 		cache_tree = &gname_tree;
 		cache_queue = &negative_group_fifo_queue;
 		idmapping_cache_entity = IDMAPPING_CACHE_ENTITY_NEGATIVE_GROUP;
+		break;
+	case UID:
+		cache_tree = &uid_tree;
+		cache_queue = &negative_uid_fifo_queue;
+		idmapping_cache_entity = IDMAPPING_CACHE_ENTITY_NEGATIVE_UID;
 		break;
 	default:
 		LogFatal(COMPONENT_IDMAPPER,
@@ -153,7 +171,7 @@ reap_negative_cache_entities(negative_cache_entity_type_t entity_type)
 	idmapping_cache_entity_t idmapping_cache_entity;
 
 	switch (entity_type) {
-	case USER:
+	case USERNAME:
 		cache_queue = &negative_user_fifo_queue;
 		entity_lock = &idmapper_negative_cache_user_lock;
 		idmapping_cache_entity = IDMAPPING_CACHE_ENTITY_NEGATIVE_USER;
@@ -162,6 +180,11 @@ reap_negative_cache_entities(negative_cache_entity_type_t entity_type)
 		cache_queue = &negative_group_fifo_queue;
 		entity_lock = &idmapper_negative_cache_group_lock;
 		idmapping_cache_entity = IDMAPPING_CACHE_ENTITY_NEGATIVE_GROUP;
+		break;
+	case UID:
+		cache_queue = &negative_uid_fifo_queue;
+		entity_lock = &idmapper_negative_cache_uid_lock;
+		idmapping_cache_entity = IDMAPPING_CACHE_ENTITY_NEGATIVE_UID;
 		break;
 	default:
 		LogFatal(COMPONENT_IDMAPPER,
@@ -188,21 +211,22 @@ void idmapper_negative_cache_reap(void)
 {
 	LogFullDebug(COMPONENT_IDMAPPER,
 		     "Idmapper negative-cache reaper run started");
-	reap_negative_cache_entities(USER);
+	reap_negative_cache_entities(USERNAME);
 	reap_negative_cache_entities(GROUP);
+	reap_negative_cache_entities(UID);
 	LogFullDebug(COMPONENT_IDMAPPER,
 		     "Idmapper negative-cache reaper run ended");
 }
 
 /*
- * @brief Comparison function for negative-cache-entity nodes
+ * @brief Comparison function for negative-cache-entity name nodes
  *
  * @return -1 if @arg node1 is less than @arg node2
  * @return 0 if @arg node1 and @arg node2 are equal
  * @return 1 if @arg node1 is greater than @arg node2
  */
-static int node_comparator(const struct avltree_node *node1,
-			   const struct avltree_node *node2)
+static int node_name_comparator(const struct avltree_node *node1,
+				const struct avltree_node *node2)
 {
 	negative_cache_entity_t *entity1 =
 		avltree_container_of(node1, negative_cache_entity_t, name_node);
@@ -212,6 +236,30 @@ static int node_comparator(const struct avltree_node *node1,
 	return gsh_buffdesc_comparator(&entity1->name, &entity2->name);
 }
 
+/*
+ * @brief Comparison function for negative-cache-entity uid nodes
+ *
+ * @return -1 if @arg node1 is less than @arg node2
+ * @return 0 if @arg node1 and @arg node2 are equal
+ * @return 1 if @arg node1 is greater than @arg node2
+ */
+static int node_uid_comparator(const struct avltree_node *node1,
+			       const struct avltree_node *node2)
+{
+	negative_cache_entity_t *entity1 =
+		avltree_container_of(node1, negative_cache_entity_t, name_node);
+	negative_cache_entity_t *entity2 =
+		avltree_container_of(node2, negative_cache_entity_t, name_node);
+
+	if (entity1->uid < entity2->uid)
+		return -1;
+
+	if (entity1->uid == entity2->uid)
+		return 0;
+
+	return 1;
+}
+
 /**
  * @brief Initialise the idmapper negative cache
  */
@@ -219,10 +267,64 @@ void idmapper_negative_cache_init(void)
 {
 	PTHREAD_RWLOCK_init(&idmapper_negative_cache_user_lock, NULL);
 	PTHREAD_RWLOCK_init(&idmapper_negative_cache_group_lock, NULL);
-	avltree_init(&uname_tree, node_comparator, 0);
-	avltree_init(&gname_tree, node_comparator, 0);
+	PTHREAD_RWLOCK_init(&idmapper_negative_cache_uid_lock, NULL);
+	avltree_init(&uname_tree, node_name_comparator, 0);
+	avltree_init(&gname_tree, node_name_comparator, 0);
+	avltree_init(&uid_tree, node_uid_comparator, 0);
 	TAILQ_INIT(&negative_user_fifo_queue);
 	TAILQ_INIT(&negative_group_fifo_queue);
+	TAILQ_INIT(&negative_uid_fifo_queue);
+}
+
+/**
+ * @brief Add an entity to the negative cache by uid
+ *
+ * @note The caller must hold the uids lock for write
+ *
+ * @param[in] uid The uid for insertion
+ */
+void idmapper_negative_cache_add_user_by_uid(uid_t uid)
+{
+	struct avltree_node *old_node;
+	negative_cache_entity_t *old_entity, *new_entity, *cache_queue_head;
+	uint32_t max_cache_entities = nfs_param.directory_services_param
+					      .negative_cache_users_max_count;
+
+	new_entity = gsh_malloc(sizeof(negative_cache_entity_t));
+	new_entity->uid = uid;
+	new_entity->epoch = time(NULL);
+	old_node = avltree_insert(&new_entity->name_node, &uid_tree);
+
+	/* Unlikely that the node already exists. If it does, we update it */
+	if (unlikely(old_node)) {
+		old_entity = avltree_container_of(old_node,
+						  negative_cache_entity_t,
+						  name_node);
+		old_entity->epoch = time(NULL);
+		/* Move entity to the tail of the queue */
+		TAILQ_REMOVE(&negative_uid_fifo_queue, old_entity, queue_entry);
+		TAILQ_INSERT_TAIL(&negative_uid_fifo_queue, old_entity,
+				  queue_entry);
+		gsh_free(new_entity);
+		return;
+	}
+	TAILQ_INSERT_TAIL(&negative_uid_fifo_queue, new_entity, queue_entry);
+
+	/* If we breach max-cache capacity, remove entity queue's head node */
+	if (avltree_size(&uid_tree) > max_cache_entities) {
+		LogInfo(COMPONENT_IDMAPPER,
+			"Cache size limit violated, removing uid with least time validity");
+		cache_queue_head = TAILQ_FIRST(&negative_uid_fifo_queue);
+		const time_t cached_duration =
+			time(NULL) - cache_queue_head->epoch;
+		remove_negative_cache_entity(cache_queue_head, UID);
+		idmapper_monitoring__evicted_cache_entity(
+			IDMAPPING_CACHE_ENTITY_NEGATIVE_UID, cached_duration);
+	}
+
+	idmapper_monitoring__cache_entries_total_set(
+		IDMAPPING_CACHE_ENTITY_NEGATIVE_UID,
+		(int64_t)avltree_size(&uid_tree));
 }
 
 /**
@@ -252,7 +354,7 @@ static void idmapper_negative_cache_add_entity_by_name(
 	new_entity->epoch = time(NULL);
 
 	switch (entity_type) {
-	case USER:
+	case USERNAME:
 		cache_tree = &uname_tree;
 		cache_queue = &negative_user_fifo_queue;
 		max_cache_entities = nfs_param.directory_services_param
@@ -267,6 +369,9 @@ static void idmapper_negative_cache_add_entity_by_name(
 					     .negative_cache_groups_max_count;
 		entity_type_string = (char *)"group";
 		idmapping_cache_entity = IDMAPPING_CACHE_ENTITY_NEGATIVE_GROUP;
+		break;
+	case UID:
+		LogFatal(COMPONENT_IDMAPPER, "UID entity add attempt by name");
 		break;
 	default:
 		LogFatal(COMPONENT_IDMAPPER,
@@ -316,7 +421,7 @@ static void idmapper_negative_cache_add_entity_by_name(
  */
 void idmapper_negative_cache_add_user_by_name(const struct gsh_buffdesc *name)
 {
-	idmapper_negative_cache_add_entity_by_name(name, USER);
+	idmapper_negative_cache_add_entity_by_name(name, USERNAME);
 }
 
 /**
@@ -329,6 +434,37 @@ void idmapper_negative_cache_add_user_by_name(const struct gsh_buffdesc *name)
 void idmapper_negative_cache_add_group_by_name(const struct gsh_buffdesc *name)
 {
 	idmapper_negative_cache_add_entity_by_name(name, GROUP);
+}
+
+/**
+ * @brief Look up an entity by uid in negative cache
+ *
+ * @note The caller must hold the uids lock for read
+ *
+ * @param[in] uid The uid to look up.
+  *
+ * @return true on success, false otherwise.
+ */
+bool idmapper_negative_cache_lookup_user_by_uid(uid_t uid)
+{
+	struct avltree_node *cache_node;
+	negative_cache_entity_t *cache_entity;
+	negative_cache_entity_t prototype = { .uid = uid };
+	bool is_cache_hit;
+
+	cache_node = avltree_lookup(&prototype.name_node, &uid_tree);
+	if (!cache_node) {
+		idmapper_monitoring__cache_usage(
+			IDMAPPING_NEGATIVE_UID_TO_USER_CACHE, false);
+		return false;
+	}
+
+	cache_entity = avltree_container_of(cache_node, negative_cache_entity_t,
+					    name_node);
+	is_cache_hit = !is_negative_cache_entity_expired(cache_entity);
+	idmapper_monitoring__cache_usage(IDMAPPING_NEGATIVE_UID_TO_USER_CACHE,
+					 is_cache_hit);
+	return is_cache_hit;
 }
 
 /**
@@ -352,11 +488,15 @@ static bool idmapper_negative_cache_lookup_entity_by_name(
 	bool is_cache_hit;
 
 	switch (entity_type) {
-	case USER:
+	case USERNAME:
 		cache_tree = &uname_tree;
 		break;
 	case GROUP:
 		cache_tree = &gname_tree;
+		break;
+	case UID:
+		LogFatal(COMPONENT_IDMAPPER,
+			 "UID entity lookup attempt by name");
 		break;
 	default:
 		LogFatal(COMPONENT_IDMAPPER,
@@ -371,7 +511,7 @@ static bool idmapper_negative_cache_lookup_entity_by_name(
 	is_cache_hit = !is_negative_cache_entity_expired(cache_entity);
 
 	switch (entity_type) {
-	case USER:
+	case USERNAME:
 		idmapper_monitoring__cache_usage(
 			IDMAPPING_NEGATIVE_USERNAME_TO_USER_CACHE,
 			is_cache_hit);
@@ -380,6 +520,10 @@ static bool idmapper_negative_cache_lookup_entity_by_name(
 		idmapper_monitoring__cache_usage(
 			IDMAPPING_NEGATIVE_GROUPNAME_TO_GROUP_CACHE,
 			is_cache_hit);
+		break;
+	case UID:
+		LogFatal(COMPONENT_IDMAPPER,
+			 "UID entity lookup attempt by name");
 		break;
 	default:
 		LogFatal(COMPONENT_IDMAPPER,
@@ -399,7 +543,7 @@ static bool idmapper_negative_cache_lookup_entity_by_name(
  */
 bool idmapper_negative_cache_lookup_user_by_name(const struct gsh_buffdesc *name)
 {
-	return idmapper_negative_cache_lookup_entity_by_name(name, USER);
+	return idmapper_negative_cache_lookup_entity_by_name(name, USERNAME);
 }
 
 /**
@@ -429,13 +573,17 @@ remove_all_negative_cache_entities(negative_cache_entity_type_t entity_type)
 	negative_cache_entity_t *entity;
 
 	switch (entity_type) {
-	case USER:
+	case USERNAME:
 		cache_tree = &uname_tree;
 		entity_lock = &idmapper_negative_cache_user_lock;
 		break;
 	case GROUP:
 		cache_tree = &gname_tree;
 		entity_lock = &idmapper_negative_cache_group_lock;
+		break;
+	case UID:
+		cache_tree = &uid_tree;
+		entity_lock = &idmapper_negative_cache_uid_lock;
 		break;
 	default:
 		LogFatal(COMPONENT_IDMAPPER,
@@ -458,8 +606,9 @@ remove_all_negative_cache_entities(negative_cache_entity_type_t entity_type)
  */
 void idmapper_negative_cache_clear(void)
 {
-	remove_all_negative_cache_entities(USER);
+	remove_all_negative_cache_entities(USERNAME);
 	remove_all_negative_cache_entities(GROUP);
+	remove_all_negative_cache_entities(UID);
 }
 
 /**
@@ -470,6 +619,7 @@ void idmapper_negative_cache_destroy(void)
 	idmapper_negative_cache_clear();
 	PTHREAD_RWLOCK_destroy(&idmapper_negative_cache_user_lock);
 	PTHREAD_RWLOCK_destroy(&idmapper_negative_cache_group_lock);
+	PTHREAD_RWLOCK_destroy(&idmapper_negative_cache_uid_lock);
 }
 
 #ifdef USE_DBUS
@@ -493,13 +643,17 @@ static bool show_idmapper_negative_cache_entity(
 	pthread_rwlock_t *entity_lock;
 
 	switch (entity_type) {
-	case USER:
+	case USERNAME:
 		cache_tree = &uname_tree;
 		entity_lock = &idmapper_negative_cache_user_lock;
 		break;
 	case GROUP:
 		cache_tree = &gname_tree;
 		entity_lock = &idmapper_negative_cache_group_lock;
+		break;
+	case UID:
+		cache_tree = &uid_tree;
+		entity_lock = &idmapper_negative_cache_uid_lock;
 		break;
 	default:
 		LogFatal(COMPONENT_IDMAPPER,
@@ -521,8 +675,21 @@ static bool show_idmapper_negative_cache_entity(
 					     name_node);
 		dbus_message_iter_open_container(&sub_iter, DBUS_TYPE_STRUCT,
 						 NULL, &id_iter);
-		snprintf(namebuff, MIN(entry->name.len + 1, 256), "%s",
-			 (char *)entry->name.addr);
+		switch (entity_type) {
+		case USERNAME: // fall-through
+		case GROUP: // fall-through
+			snprintf(namebuff, MIN(entry->name.len + 1, 256), "%s",
+				 (char *)entry->name.addr);
+			break;
+		case UID:
+			snprintf(namebuff, 256, "%d", entry->uid);
+			break;
+		default:
+			LogFatal(COMPONENT_IDMAPPER,
+				 "Unknown negative cache entity type: %d",
+				 entity_type);
+		}
+
 		dbus_message_iter_append_basic(&id_iter, DBUS_TYPE_STRING,
 					       &namebuff);
 		dbus_message_iter_append_basic(&id_iter, DBUS_TYPE_UINT64,
@@ -544,7 +711,8 @@ static bool show_idmapper_negative_cache_entity(
 static bool show_idmapper_negative_users(DBusMessageIter *args,
 					 DBusMessage *reply, DBusError *error)
 {
-	return show_idmapper_negative_cache_entity(args, reply, error, USER);
+	return show_idmapper_negative_cache_entity(args, reply, error,
+						   USERNAME);
 }
 
 /**
@@ -559,6 +727,18 @@ static bool show_idmapper_negative_groups(DBusMessageIter *args,
 	return show_idmapper_negative_cache_entity(args, reply, error, GROUP);
 }
 
+/**
+ *@brief Dbus method for showing idmapper negative groups cache
+ *
+ *@param[in]  args
+ *@param[out] reply
+ */
+static bool show_idmapper_negative_uids(DBusMessageIter *args,
+					DBusMessage *reply, DBusError *error)
+{
+	return show_idmapper_negative_cache_entity(args, reply, error, UID);
+}
+
 struct gsh_dbus_method cachemgr_show_idmapper_negative_users = {
 	.name = "showidmapper_negative_users",
 	.method = show_idmapper_negative_users,
@@ -570,6 +750,14 @@ struct gsh_dbus_method cachemgr_show_idmapper_negative_users = {
 struct gsh_dbus_method cachemgr_show_idmapper_negative_groups = {
 	.name = "showidmapper_negative_groups",
 	.method = show_idmapper_negative_groups,
+	.args = { TIMESTAMP_REPLY,
+		  { .name = "ids", .type = "a(st)", .direction = "out" },
+		  END_ARG_LIST }
+};
+
+struct gsh_dbus_method cachemgr_show_idmapper_negative_uids = {
+	.name = "showidmapper_negative_uids",
+	.method = show_idmapper_negative_uids,
 	.args = { TIMESTAMP_REPLY,
 		  { .name = "ids", .type = "a(st)", .direction = "out" },
 		  END_ARG_LIST }
