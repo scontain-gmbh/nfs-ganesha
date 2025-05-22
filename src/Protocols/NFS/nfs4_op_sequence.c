@@ -146,7 +146,7 @@ enum nfs_req_result nfs4_op_sequence(struct nfs_argop4 *op,
 
 	GSH_AUTO_TRACEPOINT(
 		nfs4, op_sequence_start, TRACE_INFO,
-		"SEQUENCE arg: session={} sequence={} slotid={} highest_slotid={} cachethis={}",
+		"SEQUENCE arg: session={} seq={} slotid={} highest_slotid={} cachethis={}",
 		TP_SESSION(arg_SEQUENCE4->sa_sessionid),
 		arg_SEQUENCE4->sa_sequenceid, arg_SEQUENCE4->sa_slotid,
 		arg_SEQUENCE4->sa_highest_slotid, arg_SEQUENCE4->sa_cachethis);
@@ -342,7 +342,7 @@ enum nfs_req_result nfs4_op_sequence(struct nfs_argop4 *op,
 		&res_SEQUENCE4->SEQUENCE4res_u.sr_resok4;
 	GSH_AUTO_TRACEPOINT(
 		nfs4, op_sequence_end, TRACE_INFO,
-		"SEQUENCE res: status={} session={} sequence={} slotid={} status_flags={}",
+		"SEQUENCE res: status={} session={} seq={} slotid={} status_flags={}",
 		res_SEQUENCE4->sr_status, TP_SESSION(reok->sr_sessionid),
 		reok->sr_sequenceid, reok->sr_slotid, reok->sr_status_flags);
 	return NFS_REQ_OK;
