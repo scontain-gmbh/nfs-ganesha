@@ -86,12 +86,24 @@ int nfsacl_setacl(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 	if (obj->type == DIRECTORY)
 		is_dir = TRUE;
 
-	if (arg->arg_setacl.acl_access == NULL &&
-	    (!is_dir || arg->arg_setacl.acl_default == NULL)) {
+	/* Validate NFSv3 ACL parameters */
+
+	/* Access ACL is mandatory and must contain entries */
+	if (arg->arg_setacl.acl_access == NULL ||
+	    arg->arg_setacl.acl_access_count == 0) {
 		res->res_setacl.status = NFS3ERR_INVAL;
 		rc = NFS_REQ_OK;
 		LogFullDebug(COMPONENT_FSAL,
-			     "nfs3 setacl failed for invalid parameter");
+			     "nfs3 setacl failed: invalid access ACL");
+		goto out;
+	}
+
+	/* Default ACL only allowed for directories */
+	if (!is_dir && arg->arg_setacl.acl_default_count != 0) {
+		res->res_setacl.status = NFS3ERR_INVAL;
+		rc = NFS_REQ_OK;
+		LogFullDebug(COMPONENT_FSAL,
+			     "nfs3 setacl failed: default ACL on non-directory");
 		goto out;
 	}
 
