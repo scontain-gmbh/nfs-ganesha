@@ -600,11 +600,12 @@ pool(string, default "nfs-ganesha")
 grace_oid(string, default "grace")
     Name of the object containing the rados_cluster grace DB
 
-nodeid(uint32, range 0 to INT32_MAX, default -1)
+nodeid(string, default result of gethostname())
     Unique node identifier within rados_cluster.
-    Internally a string is formed like "node<nodeid>" to register membership
-    within rados_cluster. If nodeid is -1, then hostname (returned via
-    gethostname()) is used for registering the membership.
+    If nodeid is numeric string, then internally a string is formed like
+    "node<nodeid>" to register membership within rados_cluster. If nodeid is
+    non-numeric string, then it is used as is. If no nodeid present, then
+    hostname (returned via gethostname()) is used for registering the membership
 
 RADOS_URLS {}
 --------------------------------------------------------------------------------
