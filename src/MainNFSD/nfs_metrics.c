@@ -158,7 +158,7 @@ enum nfsstat4_index {
 static counter_metric_handle_t rpcs_received_total;
 static counter_metric_handle_t rpcs_completed_total;
 static gauge_metric_handle_t rpcs_inflight;
-static gauge_metric_handle_t ganesha_info;
+gauge_metric_handle_t ganesha_info;
 /* NFSv4 Operation Metrics */
 static histogram_metric_handle_t nfsv4_op_latency[NFS4_OP_LAST_ONE]
 						 [NFSSTAT4_INDEX_LAST];
@@ -189,11 +189,12 @@ static const nfsstat4 index_to_nfsstat4[] = {
 	FOREACH_NFS_STAT4(DEFINE_INDEX_TO_STAT)
 };
 
-static void register_ganesha_info_metrics(void)
+void register_ganesha_info_metrics(const char *server_scope)
 {
 	const metric_label_t labels[] = {
 		METRIC_LABEL("GANESHA_VERSION", _GIT_DESCRIBE),
-		METRIC_LABEL("BUILT_TIME", __DATE__ " " __TIME__)
+		METRIC_LABEL("BUILT_TIME", __DATE__ " " __TIME__),
+		METRIC_LABEL("SERVER_SCOPE", server_scope)
 	};
 	ganesha_info = monitoring__register_gauge(
 		"ganesha_build_info",
@@ -363,7 +364,6 @@ void nfs_metrics__nfs4_request(uint32_t op, nsecs_elapsed_t request_time,
 
 void nfs_metrics__init(void)
 {
-	register_ganesha_info_metrics();
 	register_rpcs_metrics();
 	register_nfsv4_operations_metrics();
 	register_dropped_gss_requests_count_metric();
