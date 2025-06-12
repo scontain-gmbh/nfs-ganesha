@@ -187,11 +187,7 @@ enum nfs_req_result nfs4_op_setclientid_confirm(struct nfs_argop4 *op,
 
 		display_client_record(&dspbuf, client_record);
 
-		LogFullDebug(
-			COMPONENT_CLIENTID,
-			"Client Record %s cr_confirmed_rec=%p cr_unconfirmed_rec=%p",
-			str, client_record->cr_confirmed_rec,
-			client_record->cr_unconfirmed_rec);
+		LogFullDebug(COMPONENT_CLIENTID, "Client Record %s", str);
 	}
 
 	/* At this point one and only one of pconf and punconf is non-NULL */
@@ -504,11 +500,8 @@ enum nfs_req_result nfs4_op_setclientid_confirm(struct nfs_argop4 *op,
 		struct display_buffer dspbuf = { sizeof(str), str, str };
 
 		display_client_record(&dspbuf, client_record);
-		LogFullDebug(
-			COMPONENT_CLIENTID,
-			"Client Record %s cr_confirmed_rec=%p cr_unconfirmed_rec=%p",
-			str, client_record->cr_confirmed_rec,
-			client_record->cr_unconfirmed_rec);
+
+		LogFullDebug(COMPONENT_CLIENTID, "Client Record %s", str);
 	}
 
 	/* Successful exit */

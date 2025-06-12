@@ -133,11 +133,7 @@ enum nfs_req_result nfs4_op_destroy_clientid(struct nfs_argop4 *op,
 
 		display_client_record(&dspbuf, client_record);
 
-		LogFullDebug(
-			COMPONENT_CLIENTID,
-			"Client Record %s cr_confirmed_rec=%p cr_unconfirmed_rec=%p",
-			str, client_record->cr_confirmed_rec,
-			client_record->cr_unconfirmed_rec);
+		LogFullDebug(COMPONENT_CLIENTID, "Client Record %s", str);
 	}
 
 	/* per Frank, we must check the confirmed and unconfirmed

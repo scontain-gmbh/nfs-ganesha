@@ -309,8 +309,14 @@ int display_clientid(struct display_buffer *dspbuf, clientid4 clientid);
 clientid4 new_clientid(void);
 void new_clientid_verifier(char *verf);
 
-int display_client_id_rec(struct display_buffer *dspbuf,
-			  nfs_client_id_t *clientid);
+int display_client_id_rec_int(struct display_buffer *dspbuf,
+			      nfs_client_id_t *clientid, bool show_client_rec);
+
+static inline int display_client_id_rec(struct display_buffer *dspbuf,
+					nfs_client_id_t *clientid)
+{
+	return display_client_id_rec_int(dspbuf, clientid, true);
+}
 
 #define CLIENTNAME_BUFSIZE (NFS4_OPAQUE_LIMIT * 2 + 1)
 int display_clientid_name(struct display_buffer *dspbuf,

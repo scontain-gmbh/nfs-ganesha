@@ -259,10 +259,7 @@ enum nfs_req_result nfs4_op_create_session(struct nfs_argop4 *op,
 
 		display_client_record(&dspbuf, client_record);
 
-		LogInfo(component,
-			"Client Record %s cr_confirmed_rec=%p cr_unconfirmed_rec=%p",
-			str, client_record->cr_confirmed_rec,
-			client_record->cr_unconfirmed_rec);
+		LogInfo(component, "Client Record %s", str);
 	}
 
 	/* At this point one and only one of conf and unconf is
@@ -627,11 +624,7 @@ enum nfs_req_result nfs4_op_create_session(struct nfs_argop4 *op,
 		struct display_buffer dspbuf = { sizeof(str), str, str };
 
 		display_client_record(&dspbuf, client_record);
-		LogFullDebug(
-			component,
-			"Client Record %s cr_confirmed_rec=%p cr_unconfirmed_rec=%p",
-			str, client_record->cr_confirmed_rec,
-			client_record->cr_unconfirmed_rec);
+		LogFullDebug(component, "Client Record %s", str);
 	}
 
 	populate_callback_params_in_session(

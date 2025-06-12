@@ -149,11 +149,7 @@ enum nfs_req_result nfs4_op_setclientid(struct nfs_argop4 *op,
 
 		display_client_record(&dspbuf, client_record);
 
-		LogFullDebug(
-			COMPONENT_CLIENTID,
-			"Client Record %s cr_confirmed_rec=%p cr_unconfirmed_rec=%p",
-			str, client_record->cr_confirmed_rec,
-			client_record->cr_unconfirmed_rec);
+		LogFullDebug(COMPONENT_CLIENTID, "Client Record %s", str);
 	}
 
 	conf = client_record->cr_confirmed_rec;

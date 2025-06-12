@@ -183,13 +183,14 @@ const char *clientid_confirm_state_to_str(nfs_clientid_confirm_state_t confirmed
 /**
  * @brief Display a client record
  *
- * @param[in]  clientid Client record
- * @param[out] str      Output buffer
+ * @param[out] dspbuf           Dispplay buffer to fill
+ * @param[in]  clientid         Client ID record
+ * @param[in]  show_client_rec  Show client record or not
  *
  * @return Length of display string.
  */
-int display_client_id_rec(struct display_buffer *dspbuf,
-			  nfs_client_id_t *clientid)
+int display_client_id_rec_int(struct display_buffer *dspbuf,
+			      nfs_client_id_t *clientid, bool show_client_rec)
 {
 	int delta;
 	int b_left = display_printf(dspbuf, "%p ClientID={", clientid);
@@ -202,17 +203,30 @@ int display_client_id_rec(struct display_buffer *dspbuf,
 	if (b_left <= 0)
 		return b_left;
 
-	b_left = display_printf(dspbuf, "} %s ClientRec={",
+	b_left = display_printf(dspbuf, "} %s",
 				clientid_confirm_state_to_str(
 					clientid->cid_confirmed));
 
 	if (b_left <= 0)
 		return b_left;
 
-	b_left = display_client_record(dspbuf, clientid->cid_client_record);
+	if (show_client_rec) {
+		b_left = display_cat(dspbuf, " ClientRec={");
 
-	if (b_left <= 0)
-		return b_left;
+		if (b_left <= 0)
+			return b_left;
+
+		b_left = display_client_record(dspbuf,
+					       clientid->cid_client_record);
+
+		if (b_left <= 0)
+			return b_left;
+
+		b_left = display_cat(dspbuf, "}");
+
+		if (b_left <= 0)
+			return b_left;
+	}
 
 	if (clientid->cid_lease_reservations > 0)
 		delta = 0;
@@ -221,7 +235,7 @@ int display_client_id_rec(struct display_buffer *dspbuf,
 
 	b_left = display_printf(
 		dspbuf,
-		"} t_delta=%d reservations=%d cid_refcount=%d files_opened=%u,",
+		" t_delta=%d reservations=%d cid_refcount=%d files_opened=%u,",
 		delta, clientid->cid_lease_reservations,
 		atomic_fetch_int32_t(&clientid->cid_refcount),
 		atomic_fetch_uint32_t(&clientid->cid_open_state_counter));
@@ -244,6 +258,28 @@ int display_client_id_rec(struct display_buffer *dspbuf,
 	}
 
 	return b_left;
+}
+
+int display_client_id_rec_ptr(struct display_buffer *dspbuf,
+			      nfs_client_id_t *clientid, bool conf)
+{
+	int b_left = display_printf(dspbuf, "%s = %p", conf ? "conf" : "unconf",
+				    clientid);
+
+	if (b_left <= 0)
+		return b_left;
+
+	b_left = display_cat(dspbuf, " {");
+
+	if (clientid == NULL)
+		b_left = display_cat(dspbuf, "NULL");
+	else
+		b_left = display_client_id_rec_int(dspbuf, clientid, false);
+
+	if (b_left <= 0)
+		return b_left;
+
+	return display_cat(dspbuf, "}");
 }
 
 /**
@@ -1714,8 +1750,8 @@ void new_clientid_verifier(char *verf)
 /**
  * @brief Display a client owner record
  *
- * @param[in]  record The record to display
- * @param[out] str    Output buffer
+ * @param[out] dspbuf          The display buffer to fill in
+ * @param[in]  record          The record to display
  *
  * @return Length of output string.
  */
@@ -1723,7 +1759,7 @@ void new_clientid_verifier(char *verf)
 int display_client_record(struct display_buffer *dspbuf,
 			  nfs_client_record_t *record)
 {
-	int b_left = display_printf(dspbuf, "%p name=", record);
+	int b_left = display_printf(dspbuf, "{%p name=", record);
 
 	if (b_left <= 0)
 		return b_left;
@@ -1734,7 +1770,42 @@ int display_client_record(struct display_buffer *dspbuf,
 	if (b_left <= 0)
 		return b_left;
 
-	return display_printf(dspbuf, " cr_refcount=%" PRId32,
+	b_left = display_cat(dspbuf, " ");
+
+	if (b_left <= 0)
+		return b_left;
+
+	b_left = display_client_id_rec_ptr(dspbuf, record->cr_confirmed_rec,
+					   true);
+
+	if (b_left <= 0)
+		return b_left;
+
+	b_left = display_cat(dspbuf, " ");
+
+	if (b_left <= 0)
+		return b_left;
+
+	b_left = display_client_id_rec_ptr(dspbuf, record->cr_unconfirmed_rec,
+					   false);
+
+	if (b_left <= 0)
+		return b_left;
+
+	b_left = display_cat(dspbuf, " server_addr = ");
+
+	if (b_left <= 0)
+		return b_left;
+
+	b_left = display_sockip(dspbuf, &record->cr_server_addr);
+
+	if (b_left <= 0)
+		return b_left;
+
+	return display_printf(dspbuf,
+			      " pnfs_flags 0x%" PRIx32 " cr_refcount=%" PRId32
+			      "}",
+			      record->cr_pnfs_flags,
 			      atomic_fetch_int32_t(&record->cr_refcount));
 }
 
@@ -1936,18 +2007,35 @@ int compare_client_record(struct gsh_buffdesc *buff1,
 	nfs_client_record_t *pkey1 = buff1->addr;
 	nfs_client_record_t *pkey2 = buff2->addr;
 
-	if (pkey1->cr_client_val_len != pkey2->cr_client_val_len)
+	if (pkey1->cr_client_val_len != pkey2->cr_client_val_len) {
+		if (isDebug(COMPONENT_HASHTABLE))
+			LogFullDebug(COMPONENT_CLIENTID, "val len mismatch");
 		return 1;
-	if (pkey1->cr_pnfs_flags != pkey2->cr_pnfs_flags)
+	}
+
+	if (pkey1->cr_pnfs_flags != pkey2->cr_pnfs_flags) {
+		if (isDebug(COMPONENT_HASHTABLE))
+			LogFullDebug(COMPONENT_CLIENTID, "pnfs_flags mismatch");
 		return 1;
+	}
 
 	rc = cmp_sockaddr(&pkey1->cr_server_addr, &pkey2->cr_server_addr, true);
 
-	if (rc == 0)
+	if (rc == 0) {
+		if (isDebug(COMPONENT_HASHTABLE))
+			LogFullDebug(COMPONENT_CLIENTID, "sockaddr mismatch");
 		return rc;
+	}
 
-	return memcmp(pkey1->cr_client_val, pkey2->cr_client_val,
-		      pkey1->cr_client_val_len);
+	rc = memcmp(pkey1->cr_client_val, pkey2->cr_client_val,
+		    pkey1->cr_client_val_len);
+
+	if (rc != 0) {
+		if (isDebug(COMPONENT_HASHTABLE))
+			LogFullDebug(COMPONENT_CLIENTID, "val mismatch");
+	}
+
+	return rc;
 }
 
 /**
