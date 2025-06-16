@@ -304,14 +304,17 @@ enum nfs_req_result nfs4_op_listxattr(struct nfs_argop4 *op,
 	 */
 	overhead = sizeof(nfs_cookie4) + RNDUP(sizeof(bool));
 
-	/* Is this maxcount too small for even the tiniest xattr name? */
+	/* Is this maxcount too small for even the tiniest xattr name?
+	 * Adjust the minimum maxcount to the value without xattr, which
+	 * includes only nfs_cookie4 + names count + eof.
+	 */
 	if (arg_LISTXATTR4->lxa_maxcount <
-	    (overhead + sizeof(uint32_t) + RNDUP(1))) {
+	    (overhead + sizeof(uint32_t))) {
 		res_LISTXATTR4->status = NFS4ERR_TOOSMALL;
 		return NFS_REQ_ERROR;
 	}
 
-	maxcount = arg_LISTXATTR4->lxa_maxcount - overhead;
+	maxcount = arg_LISTXATTR4->lxa_maxcount - overhead - sizeof(uint32_t);
 	fsal_status = obj_handle->obj_ops->listxattrs(obj_handle, maxcount,
 						      &lxa_cookie, &lxr_eof,
 						      &list);
@@ -323,7 +326,7 @@ enum nfs_req_result nfs4_op_listxattr(struct nfs_argop4 *op,
 	}
 
 	entry = list.xl4_entries;
-	resp_size = sizeof(nfsstat4) + sizeof(nfs_cookie4) +
+	resp_size = sizeof(nfsstat4) + sizeof(nfs_cookie4) + sizeof(uint32_t) +
 		    list.xl4_count * sizeof(uint32_t) + RNDUP(sizeof(bool));
 
 	for (i = 0; i < list.xl4_count; i++) {
