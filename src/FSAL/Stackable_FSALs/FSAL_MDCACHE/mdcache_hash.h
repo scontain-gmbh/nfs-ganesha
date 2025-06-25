@@ -381,21 +381,26 @@ static inline bool cih_remove_checked(mdcache_entry_t *entry)
 	bool freed = false;
 
 	PTHREAD_MUTEX_lock(&cp->cih_lock);
-	node = cih_fhcache_inline_lookup(&cp->t, &entry->fh_hk.node_k);
-	if (entry->fh_hk.inavl && node) {
-		LogFullDebug(COMPONENT_MDCACHE, "Unhashing entry %p", entry);
+	if (entry->fh_hk.inavl) {
+		node = cih_fhcache_inline_lookup(&cp->t, &entry->fh_hk.node_k);
+		if (node) {
+			LogFullDebug(COMPONENT_MDCACHE, "Unhashing entry %p",
+				     entry);
 
-		GSH_AUTO_TRACEPOINT(mdcache, mdc_lru_remove_checked,
-				    TRACE_DEBUG,
-				    "LRU remove. Obj: {}, refcnt: {}",
-				    &entry->obj_handle, entry->lru.refcnt);
+			GSH_AUTO_TRACEPOINT(mdcache, mdc_lru_remove_checked,
+					    TRACE_DEBUG,
+					    "LRU remove. Obj: {}, refcnt: {}",
+					    &entry->obj_handle,
+					    entry->lru.refcnt);
 
-		avltree_remove(node, &cp->t);
-		cp->cache[cih_cache_offsetof(&cih_fhcache, entry->fh_hk.key.hk)] =
-			NULL;
-		entry->fh_hk.inavl = false;
-		/* return sentinel ref */
-		unref = true;
+			avltree_remove(node, &cp->t);
+			cp->cache[cih_cache_offsetof(&cih_fhcache,
+						     entry->fh_hk.key.hk)] =
+				NULL;
+			entry->fh_hk.inavl = false;
+			/* return sentinel ref */
+			unref = true;
+		}
 	}
 	PTHREAD_MUTEX_unlock(&cp->cih_lock);
 
