@@ -87,7 +87,9 @@ int nfs3_setattr(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 				  &res->res_setattr3.status, &rc);
 
 	if (obj == NULL) {
-		/* Status and rc have been set by nfs3_FhandleToCache */
+		/* Status and rc have been set by nfs3_FhandleToCache.
+		 * The obj is NULL, so we cannot fill the WCC data.
+		 */
 		LogFullDebug(COMPONENT_NFSPROTO, "nfs3_FhandleToCache failed");
 		goto out;
 	}
@@ -112,7 +114,7 @@ int nfs3_setattr(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 			res->res_setattr3.status = NFS3ERR_NOT_SYNC;
 			rc = NFS_REQ_OK;
 			LogFullDebug(COMPONENT_NFSPROTO, "guard check failed");
-			goto out;
+			goto out_fail;
 		}
 	}
 
@@ -123,7 +125,7 @@ int nfs3_setattr(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 		rc = NFS_REQ_OK;
 		LogFullDebug(COMPONENT_NFSPROTO,
 			     "nfs3_Sattr_To_FSALattr failed");
-		goto out;
+		goto out_fail;
 	}
 
 	if (setattr.valid_mask != 0) {
@@ -143,7 +145,7 @@ int nfs3_setattr(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 				rc = NFS_REQ_DROP;
 			LogFullDebug(COMPONENT_NFSPROTO,
 				     "nfs_in_grace is true");
-			goto out;
+			goto out_fail;
 		}
 
 		/* For now we don't look for states, so indicate bypass so
@@ -156,25 +158,19 @@ int nfs3_setattr(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 			res->res_setattr3.status =
 				nfs3_Errno_status(fsal_status);
 			LogFullDebug(COMPONENT_NFSPROTO, "fsal_setattr failed");
-			if (nfs_RetryableError(fsal_status.major)) {
-				/* Drop retryable request. */
-				rc = NFS_REQ_DROP;
-			}
-			goto out;
+			goto out_fail;
 		}
 	}
 
 	/* Set the NFS return */
 	res->res_setattr3.status = NFS3_OK;
 
+	/* Build Weak Cache Coherency data */
+	nfs_SetWccData(&pre_attr, obj, NULL, &resok->obj_wcc);
+
 	rc = NFS_REQ_OK;
 
 out:
-
-	if (rc != NFS_REQ_DROP) {
-		/* Build Weak Cache Coherency data */
-		nfs_SetWccData(&pre_attr, obj, NULL, &resok->obj_wcc);
-	}
 
 	/* Release the attributes (may release an inherited ACL) */
 	fsal_release_attrs(&setattr);
@@ -188,6 +184,17 @@ out:
 		 rc == NFS_REQ_DROP ? " Dropping response" : "");
 
 	return rc;
+
+out_fail:
+
+	if (nfs_RetryableError(fsal_status.major)) {
+		/* Drop retryable request. */
+		rc = NFS_REQ_DROP;
+	} else {
+		nfs_SetWccData(&pre_attr, obj, NULL, &resfail->obj_wcc);
+	}
+
+	goto out;
 } /* nfs3_setattr */
 
 /**
