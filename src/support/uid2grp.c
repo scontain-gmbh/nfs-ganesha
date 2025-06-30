@@ -174,7 +174,7 @@ static bool my_getgrouplist_alloc(char *user, gid_t gid,
 			GSH_AUTO_TRACEPOINT(
 				uid2grp, getgrouplist_retry_failed,
 				TRACE_WARNING,
-				"getgrouplist for user:{} failed, ngroups: {}, errno: %d",
+				"getgrouplist for user:{} failed, ngroups: {}, errno: {}",
 				TP_STR(user), ngroups, ret);
 			gsh_free(groups);
 			return false;
