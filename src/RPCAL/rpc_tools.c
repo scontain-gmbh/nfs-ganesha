@@ -220,6 +220,47 @@ int display_sockaddr_port(struct display_buffer *dspbuf, const sockaddr_t *addr,
 
 /**
  *
+ * @brief Convert an IP address string to a sockaddr
+ *
+ * @param[in]  ip_str       String representation of IP address
+ * @param[out] sockaddr     Canonicalised to IPv4 if ip_str is IPv4
+ *
+ * @return 0 on success. EINVAL if ip_str is invalid
+ */
+int ip_str_to_sockaddr(char *ip_str, sockaddr_t *sp)
+{
+	int ret = 0;
+	sockaddr_t server_addr;
+
+	if (inet_pton(AF_INET, ip_str,
+		      &(*(struct sockaddr_in *)&server_addr).sin_addr) == 1) {
+		sp->ss_family = AF_INET;
+		memcpy(&((struct sockaddr_in *)sp)->sin_addr,
+		       &(*(struct sockaddr_in *)&server_addr).sin_addr,
+		       sizeof(struct in_addr));
+	} else if (inet_pton(
+			   AF_INET6, ip_str,
+			   &(*(struct sockaddr_in6 *)&server_addr).sin6_addr) ==
+		   1) {
+		sockaddr_t server_addr_ipv4;
+		sockaddr_t *server_addr_conv;
+		sp->ss_family = AF_INET;
+		/* Canonicalise, does the right thing with IPv4 input */
+		server_addr_conv =
+			convert_ipv6_to_ipv4(&server_addr, &server_addr_ipv4);
+		if (server_addr_conv == &server_addr_ipv4)
+			memcpy(&((struct sockaddr_in *)sp)->sin_addr,
+			       server_addr_conv, sizeof(struct in_addr));
+		else
+			sp->ss_family = AF_INET6;
+	} else {
+		ret = EINVAL;
+	}
+	return ret;
+}
+
+/**
+ *
  * @brief Compare 2 sockaddrs, including ports
  *
  * @param[in] addr_1      First address
