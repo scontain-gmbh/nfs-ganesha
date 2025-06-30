@@ -137,18 +137,18 @@ static bool my_getgrouplist_alloc(char *user, gid_t gid,
 	ret = pwnam_wrappers__getgrouplist(user, gid, groups, &ngroups);
 	now(&e_time);
 	idmapper_monitoring__external_request(IDMAPPING_USERNAME_TO_GROUPLIST,
-					      IDMAPPING_PWUTILS, ret != -1,
+					      IDMAPPING_PWUTILS, ret == 0,
 					      &s_time, &e_time);
 	GSH_AUTO_TRACEPOINT(uid2grp, getgrouplist_call, TRACE_INFO,
 			    "getgrouplist returned {}, ngroups={} ", ret,
 			    ngroups);
 
-	if (ret == -1) {
+	if (ret != 0) {
 		LogEvent(COMPONENT_IDMAPPER,
-			 "getgrouplist for user: %s failed, retrying", user);
+			 "getgrouplist for user: %s failed, errno: %d, retrying", user, ret);
 		GSH_AUTO_TRACEPOINT(uid2grp, getgrouplist_failed, TRACE_INFO,
-				    "getgrouplist for user: {} failed, retrying",
-				    TP_STR(user));
+				    "getgrouplist for user: {} failed, errno: {}, retrying",
+				    TP_STR(user), ret);
 
 		gsh_free(groups);
 
@@ -165,17 +165,17 @@ static bool my_getgrouplist_alloc(char *user, gid_t gid,
 		now(&e_time);
 		idmapper_monitoring__external_request(
 			IDMAPPING_USERNAME_TO_GROUPLIST, IDMAPPING_PWUTILS,
-			ret != -1, &s_time, &e_time);
+			ret == 0, &s_time, &e_time);
 
-		if (ret == -1) {
+		if (ret != 0) {
 			LogWarn(COMPONENT_IDMAPPER,
-				"getgrouplist for user:%s failed, ngroups: %d",
-				user, ngroups);
+				"getgrouplist for user:%s failed, ngroups: %d, errno: %d",
+				user, ngroups, ret);
 			GSH_AUTO_TRACEPOINT(
 				uid2grp, getgrouplist_retry_failed,
 				TRACE_WARNING,
-				"getgrouplist for user:{} failed, ngroups: {}",
-				TP_STR(user), ngroups);
+				"getgrouplist for user:{} failed, ngroups: {}, errno: %d",
+				TP_STR(user), ngroups, ret);
 			gsh_free(groups);
 			return false;
 		}
