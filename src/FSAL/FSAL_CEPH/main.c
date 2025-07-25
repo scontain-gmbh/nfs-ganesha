@@ -360,7 +360,7 @@ void create_unique_id(struct ceph_mount *cm, char *nodeid, char **uniq_id)
 	size_t len;
 
 	if (CephFSM.use_old_uuid) {
-		LogDebug(COMPONENT_FSAL, "Old logic of uuid for ceph");
+		LogEvent(COMPONENT_FSAL, "Old logic of uuid for ceph");
 		len = strlen(RECLAIM_UUID_PREFIX) + strlen(nodeid) + 1 + 4 + 1;
 		*uniq_id = gsh_malloc(len);
 		(void)snprintf(*uniq_id, len, RECLAIM_UUID_PREFIX "%s-%4.4hx",
@@ -369,7 +369,7 @@ void create_unique_id(struct ceph_mount *cm, char *nodeid, char **uniq_id)
 		char buff[8192]; /* large buffer to accommodate lengthy path */
 		uint64_t hashkey;
 
-		LogDebug(COMPONENT_FSAL, "New logic of uuid for ceph");
+		LogEvent(COMPONENT_FSAL, "New logic of uuid for ceph");
 		/* create string containing nodeid, userid, fs_name and mount
 		 * path for hashing purpose*/
 		(void)snprintf(buff, 8192, "%s%s%s%s", nodeid, cm->cm_user_id,
@@ -382,7 +382,7 @@ void create_unique_id(struct ceph_mount *cm, char *nodeid, char **uniq_id)
 		(void)snprintf(*uniq_id, len, RECLAIM_UUID_PREFIX "0x%" PRIx64,
 			       hashkey);
 	}
-	LogDebug(COMPONENT_FSAL, "Unique id for ceph_mount : %s", *uniq_id);
+	LogEvent(COMPONENT_FSAL, "Unique id for ceph_mount : %s", *uniq_id);
 }
 
 static int reclaim_reset(struct ceph_mount *cm)
