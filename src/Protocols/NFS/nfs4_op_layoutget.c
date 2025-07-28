@@ -152,7 +152,8 @@ static nfsstat4 acquire_layout_state(compound_data_t *data,
 				.length = NFS4_UINT64_MAX
 			};
 
-			if (condemned_state->state_data.layout.granting) {
+			if (atomic_fetch_uint32_t(&condemned_state->state_data
+							   .layout.granting)) {
 				nfs_status = NFS4ERR_DELAY;
 				dec_state_t_ref(condemned_state);
 				goto out;
@@ -277,11 +278,11 @@ static nfsstat4 one_segment(struct fsal_obj_handle *obj, state_t *layout_state,
 
 	start_position = xdr_getpos(&loc_body);
 
-	++layout_state->state_data.layout.granting;
+	atomic_inc_uint32_t(&layout_state->state_data.layout.granting);
 
 	nfs_status = obj->obj_ops->layoutget(obj, &loc_body, arg, res);
 
-	--layout_state->state_data.layout.granting;
+	atomic_dec_uint32_t(&layout_state->state_data.layout.granting);
 
 	current->lo_content.loc_body.loc_body_len =
 		xdr_getpos(&loc_body) - start_position;
