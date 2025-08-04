@@ -110,7 +110,8 @@ BANG         "\!"
 DOT          "\."
 AT           "@"
 
-CIDR         \/[1-9][0-9]{0,1}
+IPV4CIDR         \/[1-9][0-9]{0,1}
+IPV6CIDR         \/[1-9][0-9]{0,2}
 V4OCTET      [0-9]{1,3}
 IPV4ADDR     {V4OCTET}{DOT}{V4OCTET}{DOT}{V4OCTET}{DOT}{V4OCTET}
 H16          [0-9A-Fa-f]{1,4}
@@ -384,7 +385,7 @@ INCLUDE_URL  {URLTYPES}:\/\/[a-zA-Z0-9\-\.\_&=\/]+
 	return TOK_V4_ANY;
 }
 
-<TERM>{IPV4ADDR}{CIDR}?  { /* V4 CIDR */
+<TERM>{IPV4ADDR}{IPV4CIDR}?  { /* V4 CIDR */
 	DEBUG_LEX(" IPv4 :%s", yytext);
 	yylval->token = save_token(yytext, false, false, stp);
 	if (index(yylval->token, '/') == NULL)
@@ -396,7 +397,7 @@ INCLUDE_URL  {URLTYPES}:\/\/[a-zA-Z0-9\-\.\_&=\/]+
    /* Mere mortals are not supposed to grok the pattern for IPV6ADDR. */
    /* I got it from the Flex manual. */
 
-<TERM>{IPV6ADDR}{CIDR}?  { /* V6 CIDR */
+<TERM>{IPV6ADDR}{IPV6CIDR}?  { /* V6 CIDR */
 	DEBUG_LEX(" IPv6 :%s", yytext);
 	yylval->token = save_token(yytext, false, false, stp);
 	if (index(yylval->token, '/') == NULL)
