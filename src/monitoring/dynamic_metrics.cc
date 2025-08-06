@@ -388,7 +388,7 @@ void dynamic_metrics__observe_nfs_request(
 
 void dynamic_metrics__observe_nfs_io(size_t bytes_requested,
 				     size_t bytes_transferred, bool is_write,
-				     export_id_t export_id,
+				     export_id_t export_id, const char *path,
 				     const char *client_ip)
 {
 	if (!dynamic_metrics)
@@ -429,17 +429,25 @@ void dynamic_metrics__observe_nfs_io(size_t bytes_requested,
 	// Observe by export metrics.
 	const std::string exportLabel = GetExportLabel(export_id);
 	dynamic_metrics->bytesReceivedTotalByOperationExport
-		.Add({ { kOperation, operation }, { kExport, exportLabel } })
+		.Add({ { kOperation, operation },
+		       { kExport, exportLabel },
+		       { kExportpath, path } })
 		.Increment(bytes_received);
 	dynamic_metrics->bytesSentTotalByOperationExport
-		.Add({ { kOperation, operation }, { kExport, exportLabel } })
+		.Add({ { kOperation, operation },
+		       { kExport, exportLabel },
+		       { kExportpath, path } })
 		.Increment(bytes_sent);
 	dynamic_metrics->requestSizeByOperationExport
-		.Add({ { kOperation, operation }, { kExport, exportLabel } },
+		.Add({ { kOperation, operation },
+		       { kExport, exportLabel },
+		       { kExportpath, path } },
 		     requestSizeBuckets)
 		.Observe(bytes_requested);
 	dynamic_metrics->responseSizeByOperationExport
-		.Add({ { kOperation, operation }, { kExport, exportLabel } },
+		.Add({ { kOperation, operation },
+		       { kExport, exportLabel },
+		       { kExportpath, path } },
 		     requestSizeBuckets)
 		.Observe(bytes_sent);
 }

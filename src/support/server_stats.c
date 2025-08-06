@@ -1541,6 +1541,7 @@ void server_stats_io_done(size_t requested, size_t transferred, bool success,
 	}
 	if (op_ctx->req_type == NFS_REQUEST) {
 		uint16_t export_id = 0;
+		const char *path = op_ctx_export_path(op_ctx);
 		struct fsal_export *export = op_ctx->fsal_export;
 		struct gsh_client *client = op_ctx->client;
 		const char *client_ip = client == NULL ? ""
@@ -1549,7 +1550,8 @@ void server_stats_io_done(size_t requested, size_t transferred, bool success,
 		if (export != NULL)
 			export_id = export->export_id;
 		dynamic_metrics__observe_nfs_io(requested, transferred,
-						is_write, export_id, client_ip);
+						is_write, export_id, path,
+						client_ip);
 	}
 }
 

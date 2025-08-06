@@ -85,7 +85,7 @@ void dynamic_metrics__observe_nfs_request(
 
 void dynamic_metrics__observe_nfs_io(size_t bytes_requested,
 				     size_t bytes_transferred, bool is_write,
-				     export_id_t export_id,
+				     export_id_t export_id, const char *path,
 				     const char *client_ip);
 
 /* MDCache hit rates. */
