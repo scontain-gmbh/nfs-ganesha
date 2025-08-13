@@ -1297,6 +1297,7 @@ static bool gsh_export_removeexport(DBusMessageIter *args, DBusMessage *reply,
 	}
 
 	if (EXPORT_ADMIN_TRYLOCK() != 0) {
+		put_gsh_export(export);
 		dbus_set_error(
 			error, DBUS_ERROR_INVALID_ARGS,
 			"another export admin operation is in progress, try again later");
