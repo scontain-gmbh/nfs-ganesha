@@ -413,8 +413,13 @@ int set_nodeid(void)
 	bool use_host_name = false;
 	bool prepend = false;
 	long maxlen = sysconf(_SC_HOST_NAME_MAX);
+	if (maxlen < 0) {
+		LogWarn(COMPONENT_CLIENTID,
+			"sysconf(_SC_HOST_NAME_MAX) failed, falling back to MAXNAMLEN");
+		maxlen = MAXNAMLEN;
+	}
 
-	nodeid = gsh_malloc(maxlen);
+	nodeid = gsh_malloc(maxlen + 1);
 
 	/* check nodeid override with "I" option */
 	if (g_nodeid >= 0) {
@@ -455,7 +460,7 @@ int set_nodeid(void)
 	if (prepend) {
 		/* numeric nodeid, prepend "node" */
 		ret = snprintf(nodeid, maxlen, "node%d", node_id);
-		if (unlikely(ret >= maxlen)) {
+		if (unlikely(ret > maxlen)) {
 			LogCrit(COMPONENT_CLIENTID, "node%d too long", node_id);
 			return -ENAMETOOLONG;
 		} else if (unlikely(ret < 0)) {
@@ -478,7 +483,7 @@ int set_nodeid(void)
 	} else {
 		/* non-numeric nodeid set in ganesha.conf, use it as is */
 		ret = snprintf(nodeid, maxlen, "%s", rados_kv_param.nodeid);
-		if (unlikely(ret >= maxlen)) {
+		if (unlikely(ret > maxlen)) {
 			LogCrit(COMPONENT_CLIENTID, "%s too long",
 				rados_kv_param.nodeid);
 			return -ENAMETOOLONG;
