@@ -132,6 +132,10 @@ nfsstat4 FSAL_encode_ipv4_netaddr(XDR *xdrs, uint16_t proto, uint32_t addr,
 		mark = "sctp";
 		break;
 
+	case 256:
+		mark = "rdma";
+		break;
+
 	default:
 		LogCrit(COMPONENT_FSAL, "Caller supplied invalid protocol %u",
 			proto);

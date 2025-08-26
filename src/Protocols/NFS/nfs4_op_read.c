@@ -551,7 +551,8 @@ static enum nfs_req_result op_dsread(struct nfs_argop4 *op,
 	/* Construct the FSAL file handle */
 
 	/* Must allocate buffer as a multiple of BYTES_PER_XDR_UNIT */
-	buffer = gsh_malloc_aligned(4096, RNDUP(arg_READ4->count));
+	buffer = get_buffer_for_io_response(RNDUP(arg_READ4->count),
+					    &resok->data.last_iov_buf_size);
 
 	resok->iov0.iov_base = buffer;
 	resok->iov0.iov_len = arg_READ4->count;
@@ -565,7 +566,9 @@ static enum nfs_req_result op_dsread(struct nfs_argop4 *op,
 		&eof);
 
 	if (nfs_status != NFS4_OK) {
-		gsh_free(buffer);
+		if (!op_ctx->is_rdma_buff_used) {
+			gsh_free(buffer);
+		}
 		resok->data.data_len = 0;
 		resok->iov0.iov_len = 0;
 		resok->iov0.iov_base = NULL;
