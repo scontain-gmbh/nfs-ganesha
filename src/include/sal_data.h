@@ -242,6 +242,7 @@ struct nfs41_session {
 	uint32_t nb_slots; /**< Number of slots in this session */
 	nfs41_session_slot_t *fc_slots; /**< Forechannel slot table*/
 	nfs41_cb_session_slot_t *bc_slots; /**< Backchannel slot table */
+	bool has_revoked_delegations; /**< True if delegations were revoked */
 };
 
 /**
@@ -391,6 +392,11 @@ struct state_deleg {
 	struct cf_deleg_stats sd_clfile_stats; /* client specific */
 	uint32_t share_access; /*< The NFSv4 Share Access state */
 	uint32_t share_deny; /*< The NFSv4 Share Deny state */
+};
+
+struct revoked_delegation {
+	struct glist_head list; /* glist linkage */
+	stateid4 stateid; /* delegation stateid key */
 };
 
 /**

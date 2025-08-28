@@ -97,6 +97,34 @@ enum nfs_req_result nfs4_op_free_stateid(struct nfs_argop4 *op,
 		return NFS_REQ_ERROR;
 	}
 
+	/* Per RFC 5661 requires FREE_STATEID to return NFS4_OK when the
+	 * target is a revoked delegation stateid. This block removes
+	 * the stateid from the revoked list and updates the client’s
+	 * session flags if no other revoked delegations remain.
+	 */
+	if (is_stateid_revoked(&arg_FREE_STATEID4->fsa_stateid)) {
+		nfs_client_id_t *clientid =
+			(data->session != NULL) ? data->session->clientid_record
+						: NULL;
+
+		/* Atomically remove stateid and clear session flags if no
+		 * more remain.
+		 */
+		if (atomic_remove_revoked_and_clear_flags(
+			    &arg_FREE_STATEID4->fsa_stateid, clientid)) {
+			LogDebug(COMPONENT_STATE,
+				 "Cleared session flags for client 0x%llx",
+				 (unsigned long long)clientid->cid_clientid);
+		} else if (clientid != NULL) {
+			LogDebug(COMPONENT_STATE,
+				 "Keep session flags for client 0x%llx",
+				 (unsigned long long)clientid->cid_clientid);
+		}
+
+		res_FREE_STATEID4->fsr_status = NFS_OK;
+		return NFS_REQ_OK;
+	}
+
 	res_FREE_STATEID4->fsr_status =
 		nfs4_Check_Stateid(&arg_FREE_STATEID4->fsa_stateid, NULL,
 				   &state, data, STATEID_SPECIAL_CURRENT, 0,

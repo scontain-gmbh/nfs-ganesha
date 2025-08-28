@@ -304,6 +304,51 @@ enum nfs_req_result nfs4_op_sequence(struct nfs_argop4 *op,
 			SEQ4_STATUS_CB_PATH_DOWN;
 	}
 
+	LogFullDebug(COMPONENT_SESSIONS,
+		     "Check revoked delegations flag for session %p, flag=%s",
+		     session,
+		     session->has_revoked_delegations ? "true" : "false");
+
+	/* Check and update revoked delegation status for a session.
+	 * This block verifies if the session's revoked delegation flag is set.
+	 * If set it confirms whether revoked delegations remain for the client.
+	 * It updates the SEQUENCE response flags accordingly and clears the
+	 * session flag if no revoked delegations remain.
+	 */
+	if (session->has_revoked_delegations) {
+		/* Check if there are actually any revoked delegations left
+		 * for this client.
+		 */
+		bool has_revoked = false;
+
+		if (session->clientid_record != NULL)
+			has_revoked = has_revoked_delegations_for_client(
+				session->clientid_record);
+
+		if (has_revoked) {
+			/* Set the flag to indicate there are revoked
+			 * delegations.
+			 */
+			res_SEQUENCE4->SEQUENCE4res_u.sr_resok4
+				.sr_status_flags |=
+				SEQ4_STATUS_RECALLABLE_STATE_REVOKED;
+			LogDebug(
+				COMPONENT_SESSIONS,
+				"Setting flag for session %p (clientid=0x%llx)",
+				session, (unsigned long long)session->clientid);
+		} else {
+			/* No revoked delegations clear the session flag */
+			session->has_revoked_delegations = false;
+			LogDebug(COMPONENT_SESSIONS,
+				 "Clear flag for session %p (clientid=0x%llx)",
+				 session,
+				 (unsigned long long)session->clientid);
+		}
+	} else {
+		LogDebug(COMPONENT_SESSIONS,
+			 "Not setting the flag for session %p", session);
+	}
+
 	/* Remember if we are caching result and set position to cache. */
 	data->sa_cachethis = arg_SEQUENCE4->sa_cachethis;
 	data->slot = slot;
