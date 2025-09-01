@@ -556,9 +556,55 @@ static void ino_invalidate_cb(void *handle, vinodeno_t vino, int64_t offset,
 	key.export_id = cm->cm_export_id;
 	fh_desc.addr = &key;
 	fh_desc.len = sizeof(key);
+
+	PTHREAD_RWLOCK_rdlock(&cmount_lock);
+
 	cm->cm_export->export.up_ops->invalidate(cm->cm_export->export.up_ops,
 						 &fh_desc,
 						 FSAL_UP_INVALIDATE_CACHE);
+
+	PTHREAD_RWLOCK_unlock(&cmount_lock);
+}
+
+/* Callback for dentry invalidation. This callback is triggered when ceph client
+ * finds that a directory entry is invalid */
+static void dentry_invalidate_cb(void *handle, vinodeno_t dir_ino,
+				 vinodeno_t dentry_ino, const char *dentry_name,
+				 size_t dentry_len)
+{
+	struct ceph_mount *cm = handle;
+	struct ceph_handle_key dir_key;
+	struct gsh_buffdesc dir_fh_desc;
+	const struct fsal_up_vector *event_func;
+	fsal_status_t status = { ERR_FSAL_NO_ERROR, 0 };
+
+	LogDebug(COMPONENT_FSAL,
+		 "ceph asking to invalidate content of dir 0x%lx:0x%lx:0x%lx",
+		 cm->cm_fscid, dir_ino.snapid.val, dir_ino.ino.val);
+	LogDebug(COMPONENT_FSAL,
+		 "ceph asking to invalidate dentry 0x%lx:0x%lx:0x%lx Name:%s",
+		 cm->cm_fscid, dentry_ino.snapid.val, dentry_ino.ino.val,
+		 dentry_name);
+
+	/* Try to invalidate the directory */
+	dir_key.hhdl.chk_ino = dir_ino.ino.val;
+	dir_key.hhdl.chk_snap = dir_ino.snapid.val;
+	dir_key.hhdl.chk_fscid = cm->cm_fscid;
+	dir_key.export_id = cm->cm_export_id;
+	dir_fh_desc.addr = &dir_key;
+	dir_fh_desc.len = sizeof(dir_key);
+
+	/* Fetch the up vector */
+	event_func = cm->cm_export->export.up_ops;
+	PTHREAD_RWLOCK_rdlock(&cmount_lock);
+	status = event_func->invalidate(cm->cm_export->export.up_ops,
+					&dir_fh_desc,
+					FSAL_UP_INVALIDATE_DIR_POPULATED |
+						FSAL_UP_INVALIDATE_DIR_CHUNKS);
+	PTHREAD_RWLOCK_unlock(&cmount_lock);
+
+	if (status.major != ERR_FSAL_NO_ERROR)
+		LogWarn(COMPONENT_FSAL, "Directory invalidation failed");
 }
 
 static mode_t umask_cb(void *handle)
@@ -572,11 +618,13 @@ static mode_t umask_cb(void *handle)
 
 static void register_callbacks(struct ceph_mount *cm)
 {
-	struct ceph_client_callback_args args = { .handle = cm,
-						  .ino_cb = ino_invalidate_cb,
-						  .ino_release_cb =
-							  ino_release_cb,
-						  .umask_cb = umask_cb };
+	struct ceph_client_callback_args args = {
+		.handle = cm,
+		.ino_cb = ino_invalidate_cb,
+		.ino_release_cb = ino_release_cb,
+		.dentry_cb = dentry_invalidate_cb,
+		.umask_cb = umask_cb
+	};
 	ceph_ll_register_callbacks(cm->cmount, &args);
 }
 #else /* USE_FSAL_CEPH_REGISTER_CALLBACKS */
