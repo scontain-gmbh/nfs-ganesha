@@ -887,6 +887,12 @@ bool is_write_delegated(struct fsal_obj_handle *obj, nfs_client_id_t **client)
  */
 bool state_deleg_conflict_impl(struct fsal_obj_handle *obj, bool write)
 {
+	/* Skip unnecessary checks if delegation is disabled
+	 * in the NFSv4 stanza.
+	 */
+	if (!nfs_param.nfsv4_param.allow_delegations)
+		return false;
+
 	struct file_deleg_stats *deleg_stats;
 	struct gsh_client *deleg_client = NULL;
 

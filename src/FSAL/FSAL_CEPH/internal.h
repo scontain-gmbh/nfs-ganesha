@@ -96,6 +96,14 @@ struct ceph_mount {
 	uint16_t cm_export_id;
 	/* an export for release upcalls */
 	struct ceph_export *cm_export;
+	/** The flag to track the delegation enablement
+	 *  at the ceph mount level
+	 */
+	bool cm_allow_delegations;
+	/** The flag to track the delegation disablement
+	 *  at the ceph mount level
+	 */
+	bool cm_disallow_delegations;
 };
 
 /**

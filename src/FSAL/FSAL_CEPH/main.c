@@ -314,9 +314,40 @@ static struct config_block export_param_block = {
 #ifdef USE_FSAL_CEPH_LL_DELEGATION
 static void enable_delegations(struct ceph_mount *cm)
 {
-	struct export_perms *export_perms = &op_ctx->ctx_export->export_perms;
+	/* Skip setting delegation timeout if delegation is disabled
+	 * in the NFSv4 stanza.
+	 */
+	if (!nfs_param.nfsv4_param.allow_delegations) {
+		LogFullDebug(COMPONENT_FSAL, "Delegations disabled in NFSV4");
+		return;
+	}
 
-	if (export_perms->options & EXPORT_OPTION_DELEGATIONS) {
+	/* Skip setting delegation timeout again if it was already
+	 * configured successfully for this cmount instance.
+	 */
+	if (cm->cm_allow_delegations) {
+		LogFullDebug(COMPONENT_FSAL,
+			     "Deleg timeout is already set for this cmount");
+		return;
+	}
+
+	/* Skip setting delegation timeout if it previously failed,
+	 * i.e., ceph_set_deleg_timeout returned an error for this cmount.
+	 */
+	if (cm->cm_disallow_delegations) {
+		LogFullDebug(COMPONENT_FSAL,
+			     "Deleg previously disabled for this cmount");
+		return;
+	}
+
+	/* Check EXPORT, EXPORT_DEFAULTS, and CLIENT blocks for
+	 * delegation-related settings.
+	 * We only need to know if the delegation option is set in
+	 * any stanza, not which specific EXPORT or CLIENT enabled it.
+	 */
+	uint32_t eff_options = export_check_client_options(op_ctx->ctx_export);
+
+	if (eff_options & EXPORT_OPTION_DELEGATIONS) {
 		/*
 		 * Ganesha will time out delegations when the recall fails
 		 * for two lease periods. We add just a little bit above that
@@ -338,11 +369,20 @@ static void enable_delegations(struct ceph_mount *cm)
 		ceph_status = ceph_set_deleg_timeout(cm->cmount, dt);
 
 		if (ceph_status != 0) {
-			export_perms->options &= ~EXPORT_OPTION_DELEGATIONS;
+			cm->cm_disallow_delegations = true;
+
 			LogWarn(COMPONENT_FSAL,
 				"Unable to set delegation timeout for %s. Disabling delegation support: %s",
 				CTX_FULLPATH(op_ctx), strerror(-ceph_status));
+		} else {
+			cm->cm_allow_delegations = true;
+
+			LogFullDebug(COMPONENT_FSAL,
+				     "Setting cm_allow_delegations to %d",
+				     cm->cm_allow_delegations);
 		}
+	} else {
+		LogDebug(COMPONENT_FSAL, "No deleg option set in the config");
 	}
 }
 #else /* !USE_FSAL_CEPH_LL_DELEGATION */
@@ -733,6 +773,13 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 
 	cm = gsh_calloc(1, sizeof(*cm));
 
+	cm->cm_allow_delegations = false;
+	cm->cm_disallow_delegations = false;
+
+	LogDebug(COMPONENT_FSAL,
+		 "Initialized allow_delegations %d disallow_delegations %d",
+		 cm->cm_allow_delegations, cm->cm_disallow_delegations);
+
 	cm->cm_refcnt = 1;
 
 	if (export->fs_name)
@@ -879,8 +926,6 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 	}
 #endif /* USE_FSAL_CEPH_GET_FS_CID */
 
-	enable_delegations(cm);
-
 has_cmount:
 	export->cm = cm;
 	export->cmount = cm->cmount;
@@ -929,6 +974,13 @@ has_cmount:
 			CTX_FULLPATH(op_ctx));
 		goto error;
 	}
+
+	/* Set the delegation timer if the delegation option is enabled
+	 * in CLIENT, EXPORT, or EXPORT_DEFAULT stanzas
+	 */
+	LogFullDebug(COMPONENT_FSAL, "Export ID: %d, Cmount: %p, Refcount: %d",
+		     cm->cm_export_id, cm, cm->cm_refcnt);
+	enable_delegations(cm);
 
 	PTHREAD_RWLOCK_unlock(&cmount_lock);
 

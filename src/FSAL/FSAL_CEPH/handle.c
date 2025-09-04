@@ -2654,7 +2654,7 @@ static fsal_status_t ceph_fsal_lease_op2(struct fsal_obj_handle *obj_hdl,
 					 fsal_deleg_t deleg)
 {
 	fsal_status_t status = { 0, 0 }, status2;
-	int retval = 0;
+	int retval = EACCES;
 	unsigned int cmd;
 	struct ceph_fd *my_fd;
 	struct ceph_fd temp_fd = { FSAL_FD_INIT, NULL };
@@ -2695,8 +2695,14 @@ static fsal_status_t ceph_fsal_lease_op2(struct fsal_obj_handle *obj_hdl,
 
 	my_fd = container_of(out_fd, struct ceph_fd, fsal_fd);
 
-	retval = ceph_ll_delegation(export->cmount, my_fd->fd, cmd,
-				    ceph_deleg_cb, obj_hdl);
+	/* Ask for delegations only if the delegation timeout was set
+	 * successfully for this cmount instance.
+	 */
+	if (export->cm->cm_allow_delegations &&
+	    !export->cm->cm_disallow_delegations) {
+		retval = ceph_ll_delegation(export->cmount, my_fd->fd, cmd,
+					    ceph_deleg_cb, obj_hdl);
+	}
 
 	GSH_AUTO_TRACEPOINT(fsal_ceph, ceph_lease, TRACE_DEBUG,
 			    "Lease. fileid: {}, cmd: {}", obj_hdl->fileid, cmd);

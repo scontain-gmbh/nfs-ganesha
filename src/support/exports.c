@@ -1156,6 +1156,77 @@ uint32_t export_check_options(struct gsh_export *exp)
 }
 
 /**
+ * @brief Check if the delegation option is set in the config file
+ *
+ * This method checks whether the delegation option is parsed
+ * from any of the EXPORT, EXPORT_DEFAULTS, or CLIENT stanzas.
+ *
+ * This is required so that the enable_delegations() method can set the
+ * delegation timeout in Ceph.
+ *
+ * NOTE: This is NOT used to check whether delegations are allowed for a
+ *       specific OPEN request (from a specific client on the export).
+ *       It only detects if the delegation option is set on the export at all.
+ *
+ * @param[in] exp Export handle
+ *
+ * @return Effective delegation option.
+ */
+uint32_t export_check_client_options(struct gsh_export *exp)
+{
+	uint32_t exp_options = 0;
+	uint32_t cli_options = 0;
+	uint32_t eff_options = 0;
+	struct glist_head *client;
+	struct exportlist_client_entry *expcli;
+
+	if (!exp)
+		return 0;
+
+	/* Check the EXPORT, EXPORT_DEFAULTS options */
+	exp_options = export_check_options(exp);
+
+	/* Check the client delegation options. We loop through the
+	 * export's client list and check if any client has the delegation
+	 * option set. We break out of the loop as soon as we encounter a
+	 * client that has set the delegation since we only need
+	 * to set the delegation timeout through enable_delegtions().
+	 */
+	if (glist_empty(&exp->clients)) {
+		LogFullDebug(COMPONENT_EXPORT,
+			     "Client list for the export is empty");
+	} else {
+		glist_for_each(client, &exp->clients) {
+			expcli = glist_entry(client,
+					     struct exportlist_client_entry,
+					     client_entry.cle_list);
+
+			LogDebug(COMPONENT_EXPORT, "CLIENT block options %d",
+				 expcli->client_perms.options);
+
+			/* Update the client options with respect to
+			 * delegation options only and break if deleg is set.
+			 */
+			if (expcli->client_perms.options &
+			    EXPORT_OPTION_DELEGATIONS) {
+				cli_options = expcli->client_perms.options &
+					      EXPORT_OPTION_DELEGATIONS;
+
+				LogFullDebug(COMPONENT_EXPORT,
+					     "Client has set the deleg %d",
+					     cli_options);
+				break;
+			}
+		}
+	}
+
+	/* Calculate the effective options */
+	eff_options = exp_options | cli_options;
+
+	return eff_options;
+}
+
+/**
  * @brief Commit an export block
  *
  * Validate the export level parameters.  fsal and client
