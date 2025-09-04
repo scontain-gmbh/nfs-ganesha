@@ -392,6 +392,7 @@ struct state_deleg {
 	struct cf_deleg_stats sd_clfile_stats; /* client specific */
 	uint32_t share_access; /*< The NFSv4 Share Access state */
 	uint32_t share_deny; /*< The NFSv4 Share Deny state */
+	char openstate_key[OTHERSIZE]; /*< The hash key of related open-state */
 };
 
 struct revoked_delegation {
