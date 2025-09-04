@@ -1234,8 +1234,7 @@ int StrClient(struct display_buffer *dspbuf, struct base_client_entry *client)
 
 	switch (client->type) {
 	case NETWORK_CLIENT:
-		free_paddr =
-			cidr_to_str(client->client.network.cidr, CIDR_NOFLAGS);
+		free_paddr = cidr_to_str(client->client.network.cidr);
 		paddr = free_paddr;
 		break;
 
@@ -1568,7 +1567,6 @@ client_match(enum log_components component, const char *str,
 	int ipvalid = -1; /* -1 need to print, 0 - invalid, 1 - ok */
 	char hostname[NI_MAXHOST];
 	char ipstring[SOCK_NAME_MAX];
-	CIDR *host_prefix = NULL;
 	struct base_client_entry *client;
 	sockaddr_t alt_hostaddr;
 	sockaddr_t *hostaddr = NULL;
@@ -1598,21 +1596,8 @@ client_match(enum log_components component, const char *str,
 
 		switch (client->type) {
 		case NETWORK_CLIENT:
-			if (host_prefix == NULL) {
-				if (hostaddr->ss_family == AF_INET6) {
-					host_prefix = cidr_from_in6addr(
-						&((struct sockaddr_in6 *)
-							  hostaddr)
-							 ->sin6_addr);
-				} else {
-					host_prefix = cidr_from_inaddr(
-						&((struct sockaddr_in *)hostaddr)
-							 ->sin_addr);
-				}
-			}
-
-			if (cidr_contains(client->client.network.cidr,
-					  host_prefix) == 0) {
+			if (cidr_contains_ip(client->client.network.cidr,
+					     hostaddr) == 0) {
 				goto out;
 			}
 			break;
@@ -1697,9 +1682,6 @@ client_match(enum log_components component, const char *str,
 	client = NULL;
 
 out:
-
-	if (host_prefix != NULL)
-		cidr_free(host_prefix);
 
 	return client;
 }

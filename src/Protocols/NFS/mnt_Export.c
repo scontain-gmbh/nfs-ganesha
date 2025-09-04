@@ -108,8 +108,7 @@ static bool proc_export(struct gsh_export *export, void *arg)
 		free_grp_name = false;
 		switch (client->type) {
 		case NETWORK_CLIENT:
-			grp_name = cidr_to_str(client->client.network.cidr,
-					       CIDR_NOFLAGS);
+			grp_name = cidr_to_str(client->client.network.cidr);
 			if (grp_name == NULL) {
 				state->retval = errno;
 				grp_name = "Invalid Network Address";

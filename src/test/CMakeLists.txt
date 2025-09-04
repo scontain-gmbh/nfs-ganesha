@@ -45,3 +45,10 @@ SET(test_url_regex_SRCS
   )
 add_executable(test_url_regex EXCLUDE_FROM_ALL ${test_url_regex_SRCS})
 target_link_libraries(test_url_regex ganesha_nfsd ${CMAKE_THREAD_LIBS_INIT})
+
+SET(test_cidr_SRCS
+   test_cidr.c
+)
+
+add_executable(test_cidr EXCLUDE_FROM_ALL ${test_cidr_SRCS})
+target_link_libraries(test_cidr ganesha_nfsd)

@@ -12,6 +12,13 @@
   check_share_conflict;
   check_verifier_attrlist;
   check_verifier_stat;
+  cidr_compare;
+  cidr_contains_ip;
+  cidr_free;
+  cidr_from_inaddr;
+  cidr_from_in6addr;
+  cidr_from_str;
+  cidr_to_str;
   CityHash64;
   clear_op_context_export;
   close_fsal_fd;
@@ -143,6 +150,7 @@
   init_op_context_simple;
   init_server_pkgs;
   insert_fd_lru;
+  ip_str_to_sockaddr;
   is_filesystem_exported;
   load_config_from_node;
   load_config_from_parse;

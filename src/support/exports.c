@@ -28,7 +28,7 @@
  * @brief Export parsing and management
  */
 #include "config.h"
-#include "cidr.h"
+#include "ip_utils.h"
 #include "log.h"
 #include "fsal.h"
 #include "nfs_core.h"

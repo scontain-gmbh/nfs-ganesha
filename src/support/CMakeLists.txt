@@ -103,6 +103,7 @@ SET(support_STAT_SRCS
    export_mgr.c
    nfs4_fs_locations.c
    xprt_handler.c
+   ip_utils.c
 )
 
 if(ERROR_INJECTION)

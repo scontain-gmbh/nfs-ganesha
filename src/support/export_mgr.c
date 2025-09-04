@@ -1363,8 +1363,7 @@ static void client_of_export(struct exportlist_client_entry *expclient,
 
 	switch (client->type) {
 	case NETWORK_CLIENT:
-		grp_name =
-			cidr_to_str(client->client.network.cidr, CIDR_NOFLAGS);
+		grp_name = cidr_to_str(client->client.network.cidr);
 		if (grp_name == NULL) {
 			grp_name = "Invalid Network Address";
 		}
@@ -1392,18 +1391,25 @@ static void client_of_export(struct exportlist_client_entry *expclient,
 				       &grp_name);
 	// Client Cidr block
 	if (client->type == NETWORK_CLIENT) {
-		dbus_message_iter_append_basic(
-			&client_struct_iter, DBUS_TYPE_INT32,
-			&client->client.network.cidr->version);
-		dbus_message_iter_append_basic(
-			&client_struct_iter, DBUS_TYPE_BYTE,
-			&client->client.network.cidr->addr);
-		dbus_message_iter_append_basic(
-			&client_struct_iter, DBUS_TYPE_BYTE,
-			&client->client.network.cidr->mask);
-		dbus_message_iter_append_basic(
-			&client_struct_iter, DBUS_TYPE_INT32,
-			&client->client.network.cidr->proto);
+		unsigned char addr[16];
+		unsigned char mask[16];
+		int proto;
+		int version;
+
+		cidr_ipaddr_to_chars(client->client.network.cidr, addr);
+		cidr_mask_to_chars(client->client.network.cidr, mask);
+		proto = cidr_proto(client->client.network.cidr);
+		version = cidr_version(client->client.network.cidr);
+
+		dbus_message_iter_append_basic(&client_struct_iter,
+					       DBUS_TYPE_INT32, &version);
+
+		dbus_message_iter_append_basic(&client_struct_iter,
+					       DBUS_TYPE_BYTE, addr);
+		dbus_message_iter_append_basic(&client_struct_iter,
+					       DBUS_TYPE_BYTE, mask);
+		dbus_message_iter_append_basic(&client_struct_iter,
+					       DBUS_TYPE_INT32, &proto);
 	} else {
 		int dummy_val1 = 0;
 		uint8_t dummy_val2 = 0;

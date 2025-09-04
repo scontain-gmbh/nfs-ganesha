@@ -138,7 +138,6 @@ endif(USE_ACL_MAPPING)
 set(ganesha_nfsd_OBJS
     $<TARGET_OBJECTS:MainServices>
     $<TARGET_OBJECTS:avltree>
-    $<TARGET_OBJECTS:cidr>
     $<TARGET_OBJECTS:config_parsing>
     $<TARGET_OBJECTS:hashtable>
     $<TARGET_OBJECTS:idmap>

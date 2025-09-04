@@ -224,7 +224,7 @@ Options:
          --ignore BRACKET_SPACE in certain files
          --ignore DEEP_INDENTATION in certain files
 -i       Include files agreed on to ignore (config_parsing|Protocols/XDR
--e       Include files from external prohects (murmur3|cidr|atomic_x86|city)
+-e       Include files from external projects (murmur3|atomic_x86|city)
 -g       Use git-diff --name-only instead of find (-d will be ignored)
 -k       Specify commit for git-diff, default is HEAD
 -o {dir} Directory to direct output files to, defaults to /tmp/checkpatch
@@ -239,7 +239,7 @@ DIR="."
 ALWAYS="libtirpc|libntirpc|CMakeFiles|tools/test_findlog.c|include/config.h"
 ALWAYS="$ALWAYS|nfsv41.h|nlm4.h|nsm.h|rquota.h|nfsacl.h"
 
-EXTERNAL="murmur3.h|cidr.h|cidr/|include/city|avltree.h"
+EXTERNAL="murmur3.h/|include/city|avltree.h"
 EXTERNAL="$EXTERNAL|avl/|FSAL/FSAL_GPFS/include"
 
 NO_EXTERNAL=0
