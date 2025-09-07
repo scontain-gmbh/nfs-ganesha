@@ -286,6 +286,8 @@ NFSV4 {}
 
 	Enforce_UTF8_Validation(bool, default false)
 
+	* Updates dynamically when a new configuration is loaded via SIGHUP.
+
 	Max_Client_Ids(uint32, range 0 to UINT32_MAX, default 0)
 
 	Server_Scope(string, default "")

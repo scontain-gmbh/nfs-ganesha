@@ -415,6 +415,19 @@ bool reread_config(void)
 		goto reread_error;
 	}
 
+	/* Reread NFSv4 configuration */
+	nfs_version4_parameter_t nfs_version4_param;
+	(void)load_config_from_parse(config_struct, &version4_param,
+				     &nfs_version4_param, true, &err_type);
+	if (!config_error_is_harmless(&err_type)) {
+		LogCrit(COMPONENT_CONFIG,
+			"Error while parsing NFSv4 configuration section");
+		goto reread_error;
+	}
+	/* We currently only support reloading the UTF8 validation field. */
+	nfs_param.nfsv4_param.enforce_utf8_vld =
+		nfs_version4_param.enforce_utf8_vld;
+
 	/* Set idmapping status based on directory_services configuration */
 	status = set_idmapping_status(
 		nfs_param.directory_services_param.idmapping_active);

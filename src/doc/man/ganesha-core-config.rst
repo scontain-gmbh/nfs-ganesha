@@ -478,6 +478,9 @@ Sssd_Implementation_Skip_Cache(bool, default false)
 NFSv4 {}
 --------------------------------------------------------------------------------
 
+This block is reloaded, however, only one parameter (Enforce_UTF8_Validation) is
+updated.
+
 Sticky_Grace(bool, default false)
     Whether to disable the sticky grace.
 
@@ -562,7 +565,8 @@ Slot_Table_Size(uint32, range 1 to 1024, default 64)
     Size of the NFSv4.1 slot table
 
 Enforce_UTF8_Validation(bool, default false)
-    Set true to enforce valid UTF-8 for path components and compound tags
+    Set true to enforce valid UTF-8 for path components and compound tags.
+    Updates dynamically when a new configuration is loaded via SIGHUP.
 
 Max_Client_Ids(uint32, range 0 to UINT32_MAX, default 0)
     Specify a max limit on number of NFS4 ClientIDs supported by the
