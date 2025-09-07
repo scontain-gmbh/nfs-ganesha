@@ -141,9 +141,16 @@ static bool admin_dbus_grace(DBusMessageIter *args, DBusMessage *reply,
 	char *errormsg = "Started grace period";
 	bool success = true;
 	DBusMessageIter iter;
-	nfs_grace_start_t gsp;
+	nfs_grace_start_t gsp = {
+		.event = EVENT_JUST_GRACE,
+		.nodeid = -1,
+		.ipaddr = NULL,
+	};
+	sockaddr_t sa;
 	char *input = NULL;
-	char *ip;
+	char *end = NULL;
+	char *arg = NULL;
+	size_t size;
 	int ret;
 
 	dbus_message_iter_init_append(reply, &iter);
@@ -161,25 +168,55 @@ static bool admin_dbus_grace(DBusMessageIter *args, DBusMessage *reply,
 	}
 	dbus_message_iter_get_basic(args, &input);
 
-	gsp.nodeid = -1;
-	gsp.event = EVENT_TAKE_IP;
+	gsp.event = strtol(input, &end, 10);
+	if (end == input) {
+		goto invalid_dbus_arg;
+	}
+	if (*end != '\0' && *end != ':') {
+		goto invalid_dbus_arg;
+	}
+	if (*end == ':') {
+		arg = end + 1;
+	} else {
+		arg = NULL;
+	}
+	/* Backward compatibility: treat empty argument as no argument */
+	if (arg != NULL && *arg == '\0') {
+		arg = NULL;
+	}
 
-	ip = index(input, ':');
-	if (ip == NULL)
-		gsp.ipaddr = input; /* no event specified */
-	else {
-		int size = strlen(input) + 1;
-		char *buf = alloca(size);
-
-		gsp.ipaddr = ip + 1; /* point at the ip passed the : */
-		memcpy(buf, input, size);
-		ip = strstr(buf, ":");
-		if (ip != NULL) {
-			*ip = '\0'; /* replace ":" with null */
-			gsp.event = atoi(buf);
+	switch (gsp.event) {
+	case EVENT_JUST_GRACE:
+	case EVENT_CLEAR_BLOCKED:
+	case EVENT_UPDATE_CLIENTS:
+		if (arg != NULL) {
+			goto invalid_dbus_arg;
 		}
-		if (gsp.event == EVENT_TAKE_NODEID)
-			gsp.nodeid = atoi(gsp.ipaddr);
+		break;
+	case EVENT_RELEASE_IP:
+	case EVENT_TAKE_IP:
+		if (arg == NULL) {
+			goto invalid_dbus_arg;
+		}
+		ret = ip_str_to_sockaddr(arg, &sa);
+		if (ret != 0) {
+			goto invalid_dbus_arg;
+		}
+		size = strlen(arg) + 1;
+		gsp.ipaddr = alloca(size);
+		memcpy(gsp.ipaddr, arg, size);
+		break;
+	case EVENT_TAKE_NODEID:
+		if (arg == NULL) {
+			goto invalid_dbus_arg;
+		}
+		gsp.nodeid = strtol(arg, &end, 10);
+		if (end == arg) {
+			goto invalid_dbus_arg;
+		}
+		break;
+	default:
+		goto invalid_dbus_arg;
 	}
 
 	do {
@@ -201,6 +238,12 @@ static bool admin_dbus_grace(DBusMessageIter *args, DBusMessage *reply,
 out:
 	gsh_dbus_status_reply(&iter, success, errormsg);
 	return success;
+
+invalid_dbus_arg:
+	success = false;
+	errormsg = "Unable to start grace (invalid argument)";
+	LogWarn(COMPONENT_DBUS, "%s", errormsg);
+	goto out;
 }
 
 static struct gsh_dbus_method method_grace_period = {
