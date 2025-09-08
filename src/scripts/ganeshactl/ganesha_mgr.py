@@ -288,7 +288,7 @@ class ManageCache():
         if status == True:
             _ts = reply[0]
             ids = reply[1]
-            self.proc_id(_ts, ids)
+            self.proc_gid(_ts, ids)
         else:
             self.status_message(status, errormsg)
 
@@ -314,6 +314,17 @@ class ManageCache():
                     print(" %s,  %s,  %s" % (entry.Name, entry.UID, entry.GID))
                 else:
                     print(" %s,  %s,  -" % (entry.Name, entry.UID))
+
+    def proc_gid(self, _ts, ids):
+        print("Timestamp: ", time.ctime(_ts[0]), _ts[1], " nsecs")
+        if len(ids) == 0:
+            print("No entries in idmapper cache")
+        else:
+            print("Idmapper cache:")
+            print(" Name,  GID")
+            for entry in ids:
+                print(" %s,  %s" % (entry.Name, entry.GID))
+
 
 class ManageLogs():
 

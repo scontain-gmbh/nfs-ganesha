@@ -419,6 +419,7 @@ class AdminInterface():
 
 
 IDMapper = namedtuple('IDMapper', ['Name', 'UID', 'HasGID', 'GID'])
+IDMapperGroup = namedtuple('IDMapperGroup', ['Name', 'GID'])
 
 FileSys = namedtuple('FileSys', ['Path', 'MajorDevId', 'MinorDevId'])
 
@@ -498,10 +499,8 @@ class CacheMgr():
 
         ids = []
         for entry in id_array:
-            entry1 = IDMapper(Name=str(entry[0]),
-                              UID=entry[1],
-                              HasGID=entry[2],
-                              GID=entry[3])
+            entry1 = IDMapperGroup(Name=str(entry[0]),
+                              GID=entry[1])
             ids.append(entry1)
         return True, "Done", [ts_, ids]
 
