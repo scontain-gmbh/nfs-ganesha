@@ -69,6 +69,8 @@ QOS_DEFAULT_CONFIG {}
 
     enable_iops_control(bool, default false)
 
+    enable_ds_control(bool, default false)
+
     combined_rw_bw_control(bool, default false)
 
     combined_rw_token_control(bool, default true)

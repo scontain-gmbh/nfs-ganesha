@@ -140,6 +140,33 @@ static void nfs4_write_cb(struct fsal_obj_handle *obj, fsal_status_t ret,
 	}
 }
 
+#ifdef ENABLE_QOS
+static enum nfs_req_result nfs4_op_ds_write_resume(struct nfs_argop4 *op,
+						   compound_data_t *data,
+						   struct nfs_resop4 *resp)
+{
+	struct nfs4_write_data *write_data = data->op_data;
+	WRITE4args *const arg_WRITE4 = &op->nfs_argop4_u.opwrite;
+	WRITE4res *const res_WRITE4 = &resp->nfs_resop4_u.opwrite;
+
+	write_data->qos_flag = 0;
+	res_WRITE4->status = op_ctx->ctx_pnfs_ds->s_ops.dsh_write(
+		data->current_ds, &arg_WRITE4->stateid, arg_WRITE4->offset,
+		arg_WRITE4->data.iov[0].iov_len,
+		arg_WRITE4->data.iov[0].iov_base, arg_WRITE4->stable,
+		&res_WRITE4->WRITE4res_u.resok4.count,
+		&res_WRITE4->WRITE4res_u.resok4.writeverf,
+		&res_WRITE4->WRITE4res_u.resok4.committed);
+
+	if (data->op_data != NULL) {
+		gsh_free(data->op_data);
+		data->op_data = NULL;
+	}
+
+	return nfsstat4_to_nfs_req_result(res_WRITE4->status);
+}
+#endif
+
 enum nfs_req_result nfs4_op_write_resume(struct nfs_argop4 *op,
 					 compound_data_t *data,
 					 struct nfs_resop4 *resp)
@@ -150,6 +177,10 @@ enum nfs_req_result nfs4_op_write_resume(struct nfs_argop4 *op,
 
 #ifdef ENABLE_QOS
 	if (write_data->qos_flag & IS_QOS_IO) {
+		if (nfs4_Is_Fh_DSHandle(&data->currentFH)) {
+			return nfs4_op_ds_write_resume(op, data, resp);
+		}
+
 		write_data->qos_flag = 0;
 		atomic_postclear_uint32_t_bits(
 			&write_data->flags, ASYNC_PROC_EXIT | ASYNC_PROC_DONE);
@@ -236,6 +267,31 @@ static enum nfs_req_result op_dswrite(struct nfs_argop4 *op,
 
 	/** @todo - this will compile but won't work... */
 	assert(arg_WRITE4->data.iovcnt == 1);
+
+#ifdef ENABLE_QOS
+	struct nfs4_write_data *write_data = NULL;
+	uint64_t size = arg_WRITE4->data.data_len;
+	struct fsal_obj_handle *obj = data->current_obj;
+
+	write_data = gsh_calloc(1, sizeof(*write_data));
+
+	write_data->res_WRITE4 = res_WRITE4;
+	write_data->data = data;
+	write_data->obj = obj;
+	data->op_data = write_data;
+	int qos_async_scheduled = 0;
+
+	write_data->qos_flag = IS_QOS_IO;
+	qos_async_scheduled =
+		qos_process(size, write_data, data, QOS_WRITE, true);
+	if (qos_async_scheduled == QOS_TASK_SUSPENDED)
+		return NFS_REQ_ASYNC_WAIT;
+
+	/* QoS not suspended */
+	write_data->qos_flag = 0;
+	gsh_free(write_data);
+	data->op_data = NULL;
+#endif
 
 	res_WRITE4->status = op_ctx->ctx_pnfs_ds->s_ops.dsh_write(
 		data->current_ds, &arg_WRITE4->stateid, arg_WRITE4->offset,
@@ -516,7 +572,8 @@ enum nfs_req_result nfs4_op_write(struct nfs_argop4 *op, compound_data_t *data,
 	int qos_async_scheduled = 0;
 
 	write_data->qos_flag = IS_QOS_IO;
-	qos_async_scheduled = qos_process(size, write_data, data, QOS_WRITE);
+	qos_async_scheduled =
+		qos_process(size, write_data, data, QOS_WRITE, false);
 	if (qos_async_scheduled == QOS_TASK_SUSPENDED)
 		goto out;
 	write_data->qos_flag = 0;

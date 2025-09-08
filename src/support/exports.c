@@ -498,6 +498,8 @@ static struct config_item qos_block_params[] = {
 		       enable_bw_control),
 	CONF_ITEM_BOOL("enable_iops_control", false, qos_block_config,
 		       enable_iops_control),
+	CONF_ITEM_BOOL("enable_ds_control", false, qos_block_config,
+		       enable_ds_control),
 
 	CONF_ITEM_BOOL("combined_rw_bw_control", false, qos_block_config,
 		       combined_rw_bw_control),

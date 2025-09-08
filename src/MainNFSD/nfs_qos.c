@@ -1115,6 +1115,27 @@ static void update_class_token_values(qos_class_t *qos_class,
 }
 
 /**
+ * Function to update DS values for a QoS class
+ * This requires parent control(BW/token) to be enabled first.
+ *
+ * @param [in] class Pointer to the QoS export or client object
+ * @param [in] in  New values which are to be applied to DS
+ */
+static void update_class_ds_values(qos_class_t *qos_class,
+				   struct qos_block_config *in)
+{
+	bool *ds_enabled = NULL;
+
+	ds_enabled = &(qos_class->ds_enabled);
+
+	if (g_qos_config->enable_ds_control && in->enable_ds_control) {
+		*ds_enabled = true;
+	} else {
+		*ds_enabled = false;
+	}
+}
+
+/**
  * Function to update BW values for a QoS class
  *
  * @param [in] class Pointer to the QoS export or client object
@@ -1239,10 +1260,12 @@ static void set_class_values(qos_class_t *qos_class,
 		in->enable_tokens = false;
 		in->enable_iops_control = false;
 		in->enable_bw_control = false;
+		in->enable_ds_control = false;
 	}
 
 	update_class_token_values(qos_class, in);
 	update_class_bw_values(qos_class, in);
+	update_class_ds_values(qos_class, in);
 	update_class_iops_values(qos_class, in);
 }
 
@@ -1733,7 +1756,7 @@ static inline qos_status_t qos_check_pepc(void *class_ptr, uint64_t rsize,
  */
 static inline qos_status_t qos_process_pe(uint64_t rsize, void *caller_data,
 					  compound_data_t *data,
-					  qos_op_type_t op_type)
+					  qos_op_type_t op_type, bool is_ds)
 {
 	if (!op_ctx->ctx_export->qos_class) {
 		PTHREAD_MUTEX_lock(&g_qos_iopath_lock);
@@ -1742,6 +1765,8 @@ static inline qos_status_t qos_process_pe(uint64_t rsize, void *caller_data,
 
 		PTHREAD_MUTEX_unlock(&g_qos_iopath_lock);
 	}
+	if (is_ds && !op_ctx->ctx_export->qos_class->ds_enabled)
+		return QOS_TASK_NOT_SUSPENDED;
 	return qos_check_pe_pc(op_ctx->ctx_export->qos_class, rsize, op_type,
 			       caller_data, data);
 }
@@ -1758,7 +1783,7 @@ static inline qos_status_t qos_process_pe(uint64_t rsize, void *caller_data,
  */
 static inline qos_status_t qos_process_pc(uint64_t rsize, void *caller_data,
 					  compound_data_t *data,
-					  qos_op_type_t op_type)
+					  qos_op_type_t op_type, bool is_ds)
 {
 	if (!op_ctx->client->qos_class) {
 		PTHREAD_MUTEX_lock(&g_qos_iopath_lock);
@@ -1768,6 +1793,8 @@ static inline qos_status_t qos_process_pc(uint64_t rsize, void *caller_data,
 
 		PTHREAD_MUTEX_unlock(&g_qos_iopath_lock);
 	}
+	if (is_ds && !op_ctx->client->qos_class->ds_enabled)
+		return QOS_TASK_NOT_SUSPENDED;
 	return qos_check_pe_pc(op_ctx->client->qos_class, rsize, op_type,
 			       caller_data, data);
 }
@@ -1784,7 +1811,7 @@ static inline qos_status_t qos_process_pc(uint64_t rsize, void *caller_data,
  */
 static inline qos_status_t qos_process_pepc(uint64_t rsize, void *caller_data,
 					    compound_data_t *data,
-					    qos_op_type_t op_type)
+					    qos_op_type_t op_type, bool is_ds)
 {
 	qos_class_t *qos_class = op_ctx->ctx_export->qos_class;
 	qos_status_t ret = QOS_TASK_NOT_SUSPENDED;
@@ -1804,6 +1831,8 @@ static inline qos_status_t qos_process_pepc(uint64_t rsize, void *caller_data,
 		}
 		PTHREAD_MUTEX_unlock(&g_qos_iopath_lock);
 	}
+	if (is_ds && !qos_class->ds_enabled)
+		return ret;
 	/* Is QOS disabled for this particular export */
 	if (qos_class->bw_enabled || qos_class->token_enabled) {
 		/* func call reassures the client is the in export list */
@@ -1821,27 +1850,33 @@ static inline qos_status_t qos_process_pepc(uint64_t rsize, void *caller_data,
  * @param [in] data Pointer to the compound_data_t structure containing
  *			the request data.
  * @param [in] op_type Type of the operation (read/write).
+ * @param [in] is_ds Whether caller is doing a DS read/write.
  * @return : QOS_TASK_NOT_SUSPENDED/ QOS_TASK_SUSPENDED
  */
 qos_status_t qos_process(uint64_t rsize, void *caller_data,
-			 compound_data_t *data, qos_op_type_t op_type)
+			 compound_data_t *data, qos_op_type_t op_type,
+			 bool is_ds)
 {
 	qos_status_t ret = QOS_TASK_NOT_SUSPENDED;
 
 	if (!g_qos_config->enable_qos)
 		return ret;
 
+	if (is_ds && !g_qos_config->enable_ds_control)
+		return ret;
+
 	switch (g_qos_config->qos_type) {
 	case QOS_NOT_ENABLED:
 		break;
 	case QOS_PER_EXPORT_ENABLED:
-		ret = qos_process_pe(rsize, caller_data, data, op_type);
+		ret = qos_process_pe(rsize, caller_data, data, op_type, is_ds);
 		break;
 	case QOS_PER_CLIENT_ENABLED:
-		ret = qos_process_pc(rsize, caller_data, data, op_type);
+		ret = qos_process_pc(rsize, caller_data, data, op_type, is_ds);
 		break;
 	case QOS_PEREXPORT_PERCLIENT_ENABLED:
-		ret = qos_process_pepc(rsize, caller_data, data, op_type);
+		ret = qos_process_pepc(rsize, caller_data, data, op_type,
+				       is_ds);
 		break;
 	default:
 		LogDebug(COMPONENT_QOS, " INVALID QOS_TYPE: %d",

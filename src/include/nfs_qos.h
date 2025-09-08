@@ -144,6 +144,7 @@ typedef struct qos_block_config {
 	bool enable_tokens;
 	bool enable_bw_control;
 	bool enable_iops_control;
+	bool enable_ds_control;
 
 	bool combined_rw_bw_control;
 	bool combined_rw_token_control;
@@ -204,6 +205,7 @@ typedef struct Qos_Class {
 	qos_class_type_t type;
 	/* Below are default config values applied */
 	bool bw_enabled;
+	bool ds_enabled;
 	bool iops_enabled;
 	bool token_enabled;
 	bool combined_rw_bw_control;
@@ -222,7 +224,8 @@ void nfs4_qos_write_cb(void *args);
 void nfs4_qos_read_cb(void *args);
 void nfs4_qos_compound_cb(void *args);
 qos_status_t qos_process(uint64_t size, void *caller_data,
-			 compound_data_t *data, qos_op_type_t op_type);
+			 compound_data_t *data, qos_op_type_t op_type,
+			 bool is_ds);
 qos_status_t qos_process_iops(compound_data_t *data);
 void qos_init(void);
 void shutdown_qos(void);

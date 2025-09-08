@@ -316,6 +316,49 @@ void nfs4_qos_read_cb(void *args)
 }
 #endif
 
+#ifdef ENABLE_QOS
+static enum nfs_req_result nfs4_op_ds_read_resume(struct nfs_argop4 *op,
+						  compound_data_t *data,
+						  struct nfs_resop4 *resp)
+{
+	struct nfs4_read_data *read_data = data->op_data;
+	READ4args *const arg_READ4 = &op->nfs_argop4_u.opread;
+	READ4res *const res_READ4 = &resp->nfs_resop4_u.opread;
+	READ4resok *resok = &res_READ4->READ4res_u.resok4;
+	nfsstat4 nfs_status = 0;
+	void *buffer = NULL;
+	bool eof = false;
+
+	read_data->qos_flag = 0;
+	buffer = gsh_malloc_aligned(4096, RNDUP(arg_READ4->count));
+	resok->iov0.iov_base = buffer;
+	resok->iov0.iov_len = arg_READ4->count;
+	resok->data.data_len = arg_READ4->count;
+	resok->data.iovcnt = 1;
+	resok->data.iov = &resok->iov0;
+
+	nfs_status = op_ctx->ctx_pnfs_ds->s_ops.dsh_read(
+		data->current_ds, &arg_READ4->stateid, arg_READ4->offset,
+		arg_READ4->count, resok->iov0.iov_base, &resok->data.data_len,
+		&eof);
+
+	if (nfs_status != NFS4_OK) {
+		gsh_free(buffer);
+		resok->iov0.iov_len = 0;
+		resok->iov0.iov_base = NULL;
+		resok->data.data_len = 0;
+	}
+
+	resok->eof = eof;
+	res_READ4->status = nfs_status;
+
+	/* Free op_data and return */
+	gsh_free(read_data);
+	data->op_data = NULL;
+	return nfsstat4_to_nfs_req_result(res_READ4->status);
+}
+#endif
+
 enum nfs_req_result nfs4_op_read_resume(struct nfs_argop4 *op,
 					compound_data_t *data,
 					struct nfs_resop4 *resp)
@@ -325,6 +368,11 @@ enum nfs_req_result nfs4_op_read_resume(struct nfs_argop4 *op,
 	uint32_t flags;
 #ifdef ENABLE_QOS
 	if (read_data->qos_flag & IS_QOS_IO) {
+		/* If this is a DS handle, perform DS read directly on resume */
+		if (nfs4_Is_Fh_DSHandle(&data->currentFH)) {
+			return nfs4_op_ds_read_resume(op, data, resp);
+		}
+
 		bool bypass = read_data->qos_flag & IS_QOS_IO_READ_BYPASS;
 
 		read_data->qos_flag = 0;
@@ -469,7 +517,6 @@ static enum nfs_req_result op_dsread(struct nfs_argop4 *op,
 	READ4resok *resok = &res_READ4->READ4res_u.resok4;
 
 	/* Don't bother calling the FSAL if the read length is 0. */
-
 	if (arg_READ4->count == 0) {
 		resok->eof = FALSE;
 		resok->data.data_len = 0;
@@ -480,6 +527,26 @@ static enum nfs_req_result op_dsread(struct nfs_argop4 *op,
 		res_READ4->status = NFS4_OK;
 		return NFS_REQ_OK;
 	}
+
+#ifdef ENABLE_QOS
+	struct nfs4_read_data *read_data = gsh_calloc(1, sizeof(*read_data));
+	int qos_async_scheduled = 0;
+
+	read_data->res_READ4 = res_READ4;
+	read_data->data = data;
+	read_data->obj = data->current_obj;
+	data->op_data = read_data;
+	read_data->qos_flag = IS_QOS_IO;
+	qos_async_scheduled =
+		qos_process(arg_READ4->count, read_data, data, QOS_READ, true);
+	if (qos_async_scheduled == QOS_TASK_SUSPENDED)
+		return NFS_REQ_ASYNC_WAIT;
+
+	/* Not suspended: we won't need read_data; free it */
+	read_data->qos_flag = 0;
+	gsh_free(read_data);
+	data->op_data = NULL;
+#endif
 
 	/* Construct the FSAL file handle */
 
@@ -890,7 +957,8 @@ static enum nfs_req_result nfs4_read(struct nfs_argop4 *op,
 
 	read_data->qos_flag = IS_QOS_IO;
 	read_data->qos_flag |= (unsigned int)bypass * IS_QOS_IO_READ_BYPASS;
-	qos_async_scheduled = qos_process(size, read_data, data, QOS_READ);
+	qos_async_scheduled =
+		qos_process(size, read_data, data, QOS_READ, false);
 	if (qos_async_scheduled == QOS_TASK_SUSPENDED)
 		goto out;
 	read_data->qos_flag = 0;
