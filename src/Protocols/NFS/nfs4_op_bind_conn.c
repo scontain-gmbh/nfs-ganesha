@@ -2,7 +2,7 @@
 /*
  * vim:noexpandtab:shiftwidth=8:tabstop=8:
  *
- * Copyright 2017 Red Hat, Inc.
+ * Copyright 2017-2025 Red Hat, Inc.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public License
@@ -123,7 +123,7 @@ enum nfs_req_result nfs4_op_bind_conn(struct nfs_argop4 *op,
 			 .bctsr_resok4;
 	nfs41_session_t *session;
 	channel_dir_from_client4 client_channel_dir;
-	channel_dir_from_server4 server_channel_dir;
+	channel_dir_from_server4 server_channel_dir = CDFC4_FORE;
 	nfsstat4 bind_to_backchannel;
 	bool added_conn_to_session;
 

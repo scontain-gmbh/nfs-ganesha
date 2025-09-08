@@ -397,7 +397,7 @@ static fattr_xdr_result encode_supported_attrs(XDR *xdr,
 static fattr_xdr_result decode_supported_attrs(XDR *xdr,
 					       struct xdr_attrs_args *args)
 {
-	struct bitmap4 bits;
+	struct bitmap4 bits = {};
 	int attr, offset;
 	int max_attr_idx;
 

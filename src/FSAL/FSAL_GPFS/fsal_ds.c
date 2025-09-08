@@ -346,7 +346,7 @@ static nfsstat4 ds_commit(struct fsal_ds_handle *const ds_pub,
 	struct gpfs_file_handle *gpfs_handle = &ds->wire;
 	struct fsync_arg arg = { 0 };
 	unsigned int *fh;
-	int retval;
+	int retval = 0;
 	struct gpfs_fsal_export *exp = container_of(op_ctx->fsal_export,
 						    struct gpfs_fsal_export,
 						    export);

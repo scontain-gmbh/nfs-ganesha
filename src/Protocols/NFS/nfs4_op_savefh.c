@@ -60,7 +60,7 @@
  */
 void set_saved_entry(compound_data_t *data, struct fsal_obj_handle *obj)
 {
-	struct saved_export_context saved;
+	struct saved_export_context saved = {};
 	bool restore_op_ctx = false;
 
 	if (data->saved_ds != NULL || data->saved_obj != NULL) {
