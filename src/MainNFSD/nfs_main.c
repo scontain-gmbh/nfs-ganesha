@@ -49,7 +49,9 @@
 #include "conf_url.h"
 #include "sal_functions.h"
 #include "dynamic_metrics.h"
+#ifdef USE_MONITORING
 #include "prometheus_exposer.h"
+#endif /* USE_MONITORING */
 
 #ifdef LINUX
 #include <sys/prctl.h>

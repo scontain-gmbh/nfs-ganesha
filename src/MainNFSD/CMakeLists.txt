@@ -204,8 +204,11 @@ target_link_libraries(ganesha_nfsd
   ${SYSTEM_LIBRARIES}
   ${LTTNG_LIBRARIES}
   ${MOOSHIKA_LIBRARIES}
-  ganesha_monitoring
 )
+
+if (USE_MONITORING)
+  target_link_libraries(ganesha_nfsd ganesha_monitoring)
+endif (USE_MONITORING)
 
 if (USE_LTTNG)
 target_link_libraries(ganesha_nfsd ganesha_trace_symbols)

@@ -213,11 +213,17 @@ IF( EXISTS ${GANESHA_TOP_CMAKE_DIR}/../.git/HEAD  )
 
 ELSE( EXISTS ${GANESHA_TOP_CMAKE_DIR}/../.git/HEAD  )
   message( STATUS "Outside a git repository, use saved data" )
-  EXEC_PROGRAM(${GANESHA_TOP_CMAKE_DIR}/cmake/githead_from_path.sh ARGS ${GANESHA_TOP_CMAKE_DIR}
-                OUTPUT_VARIABLE  _GIT_HEAD_COMMIT)
+  EXECUTE_PROCESS( COMMAND ${GANESHA_TOP_CMAKE_DIR}/cmake/githead_from_path.sh  ${GANESHA_TOP_CMAKE_DIR}
+		   WORKING_DIRECTORY ${GANESHA_TOP_CMAKE_DIR}
+		   OUTPUT_STRIP_TRAILING_WHITESPACE
+		   ERROR_QUIET
+                   OUTPUT_VARIABLE _GIT_HEAD_COMMIT)
 
-  EXEC_PROGRAM(${GANESHA_TOP_CMAKE_DIR}/cmake/gitdesc_from_path.sh ARGS ${GANESHA_TOP_CMAKE_DIR}
-                OUTPUT_VARIABLE  _GIT_DESCRIBE)
+  EXECUTE_PROCESS( COMMAND ${GANESHA_TOP_CMAKE_DIR}/cmake/gitdesc_from_path.sh ARGS ${GANESHA_TOP_CMAKE_DIR}
+		   WORKING_DIRECTORY ${GANESHA_TOP_CMAKE_DIR}
+		   OUTPUT_STRIP_TRAILING_WHITESPACE
+		   ERROR_QUIET
+                   OUTPUT_VARIABLE _GIT_DESCRIBE)
 
 ENDIF( EXISTS ${GANESHA_TOP_CMAKE_DIR}/../.git/HEAD  )
 
@@ -1270,11 +1276,15 @@ if (USE_SYSTEM_NTIRPC)
     set(NTIRPC_LIBRARY ${NTIRPC_LIBRARY} ${NTIRPC_LTTNG})
     set(USE_LTTNG_NTIRPC ON)
   endif (USE_LTTNG)
+  if (USE_MONITORING)
+    set(NTIRPC_LIBRARY ${NTIRPC_LIBRARY} ${NTIRPC_MONITORING})
+  endif (USE_MONITORING)
 else (USE_SYSTEM_NTIRPC)
   # Set options for submodule
   set(USE_RPC_RDMA ${USE_NFS_RDMA} CACHE BOOL "Use RDMA")
   set(TIRPC_EPOLL ${TIRPC_EPOLL} CACHE BOOL "Use EPOLL")
   set(USE_GSS ${USE_GSS} CACHE BOOL "Use GSS")
+  set(USE_MONITORING ${USE_MONITORING} CACHE BOOL "Use Monitoring")
   set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
 	  "${GANESHA_TOP_CMAKE_DIR}/libntirpc/cmake/modules/")
   add_subdirectory(libntirpc)
@@ -1326,7 +1336,9 @@ add_subdirectory(RPCAL)
 add_subdirectory(Protocols)
 add_subdirectory(support)
 add_subdirectory(os)
-add_subdirectory(monitoring)
+if (USE_MONITORING)
+  add_subdirectory(monitoring)
+endif (USE_MONITORING)
 
 add_subdirectory(FSAL)
 add_subdirectory(idmapper)
@@ -1688,6 +1700,12 @@ else(RPCBIND)
     set(BCOND_RPCBIND "%bcond_with")
 endif(RPCBIND)
 
+if(ENABLE_QOS)
+  set(BCOND_QOS "%bcond_without")
+else(ENABLE_QOS)
+  set(BCOND_QOS "%bcond_with")
+endif(ENABLE_QOS)
+
 if(USE_UNWIND)
     set(BCOND_UNWIND "%bcond_without")
 else(USE_UNWIND)
@@ -1717,6 +1735,18 @@ if(USE_LEGACY_PYTHON_INSTALL)
 else(USE_LEGACY_PYTHON_INSTALL)
     set(BCOND_LEGACY_PYTHON_INSTALL "%bcond_with")
 endif(USE_LEGACY_PYTHON_INSTALL)
+
+if(USE_NFSIDMAP)
+  set(BCOND_NFSIDMAP "%bcond_without")
+else(USE_NFSIDMAP)
+  set(BCOND_NFSIDMAP "%bcond_with")
+endif(USE_NFSIDMAP)
+
+if(USE_MONITORING)
+  set(BCOND_MONITORING "%bcond_without")
+else(USE_MONITORING)
+  set(BCOND_MONITORING "%bcond_with")
+endif(USE_MONITORING)
 
 # Now create a usable specfile
 configure_file(
@@ -1781,8 +1811,10 @@ target_link_libraries(ganesha.nfsd
   ${SYSTEM_LIBRARIES}
   ${LTTNG_LIBRARIES}
   ${LDFLAG_DISALLOW_UNDEF}
-  ganesha_monitoring
 )
+if (USE_MONITORING)
+  target_link_libraries(ganesha.nfsd ganesha_monitoring)
+endif (USE_MONITORING)
 set_target_properties(ganesha.nfsd PROPERTIES COMPILE_FLAGS "-fPIC")
 install(TARGETS ganesha.nfsd COMPONENT daemon DESTINATION bin)
 

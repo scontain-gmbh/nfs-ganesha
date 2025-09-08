@@ -104,6 +104,12 @@ Requires: openSUSE-release
 @BCOND_LEGACY_PYTHON_INSTALL@ legacy_python_install
 %global use_legacy_python_install %{on_off_switch legacy_python_install}
 
+@BCOND_NFSIDMAP@ nfsidmap
+%global use_nfsidmap %{on_off_switch nfsidmap}
+
+@BCOND_MONITORING@ monitoring
+%global use_monitoring %{on_off_switch monitoring}
+
 %global dev_version %{lua: s = string.gsub('@GANESHA_EXTRA_VERSION@', '^%-', ''); s2 = string.gsub(s, '%-', '.'); print((s2 ~= nil and s2 ~= '') and s2 or "0.1") }
 
 %define sourcename @CPACK_SOURCE_PACKAGE_FILE_NAME@
@@ -171,10 +177,12 @@ Requires:	portmap
 %endif
 %endif
 
+%if ( 0%{?with_nfsidmap} )
 %if ( 0%{?suse_version} )
 BuildRequires:	nfsidmap-devel
 %else
 BuildRequires:	libnfsidmap-devel
+%endif
 %endif
 
 %if %{with rdma}
@@ -209,6 +217,10 @@ Requires(pre): /usr/sbin/groupadd
 Requires: nfs-ganesha-selinux = %{version}-%{release}
 %endif
 
+%if %{with monitoring}
+Requires:	nfs-ganesha-monitoring
+%endif
+
 # Use CMake variables
 
 %description
@@ -226,14 +238,16 @@ This package contains the mount.9P script that clients can use
 to simplify mounting to NFS-GANESHA. This is a 9p mount helper.
 %endif
 
-%package -n ganesha_monitoring
+%if %{with monitoring}
+%package monitoring
 Summary: The NFS-GANESHA Monitoring module
 Group: Applications/System
 Provides: libganesha_monitoring.so
 
-%description -n ganesha_monitoring
+%description monitoring
 The monitoring module contains metrics collectors and HTTP exposer
 in Prometheus format.
+%endif
 
 %package vfs
 Summary: The NFS-GANESHA VFS FSAL
@@ -508,8 +522,6 @@ Url:		https://github.com/nfs-ganesha/ntirpc
 # for NFS client
 Requires:	libtirpc
 
-Requires:	ganesha_monitoring
-
 %description -n libntirpc
 This package contains a new implementation of the original libtirpc,
 transport-independent RPC (TI-RPC) library for NFS-Ganesha. It has
@@ -552,6 +564,8 @@ cmake3 .	-DCMAKE_BUILD_TYPE=Debug			\
 	-DUSE_FSAL_GLUSTER=%{use_fsal_gluster}		\
 	-DUSE_SYSTEM_NTIRPC=%{use_system_ntirpc}	\
 	-DENABLE_QOS=%{use_qos}				\
+	-DUSE_NFSIDMAP=%{use_nfsidmap}			\
+	-DUSE_MONITORING=%{use_monitoring}		\
 	-DUSE_9P_RDMA=%{use_rdma}			\
 	-DUSE_LTTNG=%{use_lttng}			\
 	-DUSE_UNWIND=%{use_unwind}			\
@@ -776,9 +790,11 @@ exit 0
 %endif
 %endif
 
-%files -n ganesha_monitoring
+%if %{with monitoring}
+%files monitoring
 %{_libdir}/libganesha_monitoring*
 %{_libdir}/libntirpcmonitoring*
+%endif
 
 %files vfs
 %{_libdir}/ganesha/libfsalvfs*
@@ -917,12 +933,6 @@ exit 0
 %if ( 0%{?rhel} && 0%{?rhel} < 8 )
 %{python_sitelib}/Ganesha/*
 %{python_sitelib}/ganeshactl-*-info
-%else
-%{python3_sitelib}/Ganesha/*
-%if ( ! 0%{?with_legacy_python_install} )
-%{python3_sitelib}/ganeshactl-*-info
-%{python3_sitelib}/ganesha_top-*-info
-%endif
 %endif
 %if %{with gui_utils}
 %{_bindir}/ganesha-admin
