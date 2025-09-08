@@ -16,6 +16,7 @@ CMakeFiles/
 build/
 .cache/
 .vscode/
+*egg-info/
 
 # files
 *.kdevelop*
