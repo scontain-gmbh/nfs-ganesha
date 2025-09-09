@@ -128,7 +128,7 @@ nfsstat4 FSAL_encode_ipv4_netaddr(XDR *xdrs, uint16_t proto, uint32_t addr,
 		mark = "udp";
 		break;
 
-	case 123:
+	case 132:
 		mark = "sctp";
 		break;
 
