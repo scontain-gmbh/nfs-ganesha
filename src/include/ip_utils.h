@@ -31,11 +31,24 @@
 #ifndef __IPUTILS_H
 #define __IPUTILS_H
 
-#include "gsh_rpc.h"
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <stdbool.h>
+
+#include "display.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct sockaddr_storage sockaddr_t;
+
+/* Allow much more space than we really need for a sock name. An IPV4 address
+ * embedded in IPv6 could use 45 bytes and then if we add a port, that would be
+ * an additional 6 bytes (:65535) for a total of 51, and then one more for NUL
+ * termination. We could use 64 instead of 128.
+ */
+#define SOCK_NAME_MAX 128
 
 struct cidr_addr;
 typedef struct cidr_addr CIDR;
@@ -53,6 +66,31 @@ void cidr_mask_to_chars(CIDR *, unsigned char *);
 int cidr_family(CIDR *);
 int cidr_proto(CIDR *);
 int cidr_version(CIDR *);
+
+int cmp_sockaddr(sockaddr_t *, sockaddr_t *, bool);
+int sockaddr_cmpf(sockaddr_t *, sockaddr_t *, bool);
+uint64_t hash_sockaddr(sockaddr_t *, bool);
+int ip_str_to_sockaddr(char *, sockaddr_t *);
+
+int get_port(sockaddr_t *);
+
+sockaddr_t *convert_ipv6_to_ipv4(sockaddr_t *ipv6, sockaddr_t *ipv4);
+bool is_loopback(sockaddr_t *addr);
+
+int display_sockaddr_port(struct display_buffer *dspbuf, const sockaddr_t *addr,
+			  bool ignore_port);
+
+static inline int display_sockaddr(struct display_buffer *dspbuf,
+				   const sockaddr_t *addr)
+{
+	return display_sockaddr_port(dspbuf, addr, false);
+}
+
+static inline int display_sockip(struct display_buffer *dspbuf,
+				 const sockaddr_t *addr)
+{
+	return display_sockaddr_port(dspbuf, addr, true);
+}
 
 #ifdef __cplusplus
 }

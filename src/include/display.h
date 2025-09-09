@@ -44,6 +44,8 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
+#include <arpa/inet.h>
 
 #ifdef __cplusplus
 extern "C" {

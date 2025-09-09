@@ -33,6 +33,7 @@
 #define GSH_RPC_H
 
 #include "config.h"
+#include "ip_utils.h"
 
 #include <stdbool.h>
 
@@ -54,7 +55,6 @@ extern "C" {
 #include <rpc/rpc.h>
 #include <rpc/svc.h>
 #include <rpc/clnt.h>
-#include <arpa/inet.h>
 
 #include <rpc/svc_auth.h>
 #ifdef _HAVE_GSSAPI
@@ -109,15 +109,6 @@ struct nfs_request_lookahead {
 #define XDR_BYTES_MAXLEN (1024 * 1024)
 #define XDR_BYTES_MAXLEN_IO (64 * 1024 * 1024)
 #define XDR_STRING_MAXLEN (8 * 1024)
-
-typedef struct sockaddr_storage sockaddr_t;
-
-/* Allow much more space than we really need for a sock name. An IPV4 address
- * embedded in IPv6 could use 45 bytes and then if we add a port, that would be
- * an additional 6 bytes (:65535) for a total of 51, and then one more for NUL
- * termination. We could use 64 instead of 128.
- */
-#define SOCK_NAME_MAX 128
 
 struct netconfig *getnetconfigent(const char *);
 void freenetconfigent(struct netconfig *);
@@ -181,21 +172,6 @@ const char *str_gc_proc(rpc_gss_proc_t);
 #endif /* _HAVE_GSSAPI */
 
 void copy_xprt_addr(sockaddr_t *, SVCXPRT *);
-
-int display_sockaddr_port(struct display_buffer *dspbuf, const sockaddr_t *addr,
-			  bool ignore_port);
-
-static inline int display_sockaddr(struct display_buffer *dspbuf,
-				   const sockaddr_t *addr)
-{
-	return display_sockaddr_port(dspbuf, addr, false);
-}
-
-static inline int display_sockip(struct display_buffer *dspbuf,
-				 const sockaddr_t *addr)
-{
-	return display_sockaddr_port(dspbuf, addr, true);
-}
 
 /* Displays xprt's remote address if non-empty. Otherwise displays
  * local address.
@@ -280,20 +256,10 @@ static inline bool sprint_sockip(sockaddr_t *addr, char *buf, int len)
 
 const char *xprt_type_to_str(xprt_type_t);
 
-int cmp_sockaddr(sockaddr_t *, sockaddr_t *, bool);
-int sockaddr_cmpf(sockaddr_t *, sockaddr_t *, bool);
-uint64_t hash_sockaddr(sockaddr_t *, bool);
-int ip_str_to_sockaddr(char *, sockaddr_t *);
-
-int get_port(sockaddr_t *);
-
 struct READ4resok;
 struct xdr_uio *xdr_READ4res_uio_setup(struct READ4resok *objp);
 
 extern tirpc_pkg_params ntirpc_pp;
-
-sockaddr_t *convert_ipv6_to_ipv4(sockaddr_t *ipv6, sockaddr_t *ipv4);
-bool is_loopback(sockaddr_t *addr);
 
 struct io_data {
 	/** Release function if needed. */
