@@ -66,7 +66,7 @@ static const char *lock_tag = "LOCK";
 
 static void notify_granted_completion(rpc_call_t *call)
 {
-	if (call->chan->source.clientid->cid_minorversion != 0)
+	if (call->chan->type == RPC_CHAN_V41)
 		nfs41_release_single(call);
 }
 
