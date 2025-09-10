@@ -1821,6 +1821,8 @@ void try_to_grant_lock(state_lock_entry_t *lock_entry)
 		reason = "Removing blocked lock entry with no block data";
 	} else if (!export_ready(export)) {
 		reason = "Removing blocked lock entry due to stale export";
+	} else if (admin_shutdown) {
+		reason = "Removing blocked lock entry due to shutdown";
 	} else {
 		call_back = lock_entry->sle_block_data->sbd_granted_callback;
 		/* Mark the lock_entry as provisionally granted and make the
@@ -1959,7 +1961,7 @@ static void cancel_blocked_lock(struct fsal_obj_handle *obj,
 	/* If lock list is empty, there really isn't any work for us to do. */
 	if (glist_empty(&obj->state_hdl->file.lock_list)) {
 		LogDebug(COMPONENT_STATE,
-			"Cancel success on file with no locks");
+			 "Cancel success on file with no locks");
 		return;
 	}
 
