@@ -865,6 +865,7 @@ static enum nfs_req_result nfs4_read(struct nfs_argop4 *op,
 	read_arg = &read_data->read_arg;
 	read_arg->info = info;
 	read_arg->state = state_found;
+	read_arg->io_request = size;
 	read_arg->offset = offset;
 	read_arg->iov_count = resok->data.iovcnt;
 	read_arg->last_iov_buf_size = &resok->data.last_iov_buf_size;

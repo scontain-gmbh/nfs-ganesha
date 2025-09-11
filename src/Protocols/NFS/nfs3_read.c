@@ -419,6 +419,7 @@ int nfs3_read(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 	read_arg->info = NULL;
 	/** @todo for now pass NULL state */
 	read_arg->state = NULL;
+	read_arg->io_request = size;
 	read_arg->offset = offset;
 	read_arg->iov_count = resok->data.iovcnt;
 	read_arg->iov = resok->data.iov;
