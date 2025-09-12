@@ -2434,15 +2434,15 @@ static struct config_item pseudofs_params[] = {
 	CONF_PSEUDOFS_PARAMS(gsh_export),
 	CONF_PSEUDOFS_PERMS(gsh_export, export_perms),
 
+#ifdef ENABLE_QOS
+	CONF_ITEM_BLOCK("QOS_BLOCK", qos_block_params, qos_block_init,
+			qos_block_commit, gsh_export, qos_block),
+#endif
 	/* NOTE: the Client sub-block must be the *last*
 	 * entry in the list.  This is so all other
 	 * parameters have been processed before this sub-block
 	 * is processed.
 	 */
-#ifdef ENABLE_QOS
-	CONF_ITEM_BLOCK("QOS_BLOCK", qos_block_params, qos_block_init,
-			qos_block_commit, gsh_export, qos_block),
-#endif
 	CONF_ITEM_BLOCK_MULT("Client", pseudo_fs_client_params,
 			     pseudofs_client_init, client_commit, gsh_export,
 			     clients),
@@ -2457,15 +2457,15 @@ static struct config_item pseudofs_update_params[] = {
 	CONF_PSEUDOFS_PARAMS(gsh_export),
 	CONF_PSEUDOFS_PERMS(gsh_export, export_perms),
 
+#ifdef ENABLE_QOS
+	CONF_ITEM_BLOCK("QOS_BLOCK", qos_block_params, qos_block_init,
+			qos_block_commit, gsh_export, qos_block),
+#endif
 	/* NOTE: the Client sub-block must be the *last*
 	 * entry in the list.  This is so all other
 	 * parameters have been processed before this sub-block
 	 * is processed.
 	 */
-#ifdef ENABLE_QOS
-	CONF_ITEM_BLOCK("QOS_BLOCK", qos_block_params, qos_block_init,
-			qos_block_commit, gsh_export, qos_block),
-#endif
 	CONF_ITEM_BLOCK_MULT("Client", pseudo_fs_client_params,
 			     pseudofs_client_init, client_commit, gsh_export,
 			     clients),
