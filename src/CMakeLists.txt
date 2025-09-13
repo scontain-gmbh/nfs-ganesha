@@ -1177,8 +1177,28 @@ if(USE_CAPS)
   endif (CAPS_FOUND)
 endif(USE_CAPS)
 
-# default to ON so that it does the right thing in the CentOS CI
-goption(USE_LEGACY_PYTHON_INSTALL "Use 'python setup.py install'" ON)
+if(USE_ADMIN_TOOLS)
+  if(Python3_FOUND)
+
+    # Find Python 3
+    find_package(Python3 REQUIRED)
+
+    # Get the major and minor version of Python 3
+    string(REPLACE "." ";" set_python_version_list ${Python3_VERSION})
+    list(GET set_python_version_list 0 python_major_version)
+    list(GET set_python_version_list 1 python_minor_version)
+
+    # Check if the Python version is less than 3.12
+    if(python_major_version LESS 3 OR (python_major_version EQUAL 3 AND python_minor_version LESS 12))
+         set(USE_LEGACY_PYTHON_INSTALL TRUE)
+    else()
+        set(USE_LEGACY_PYTHON_INSTALL FALSE)
+    endif()
+
+    # Optionally, print the result for debugging
+    message(STATUS "USE_LEGACY_PYTHON_INSTALL is set to: ${USE_LEGACY_PYTHON_INSTALL}")
+  endif(Python3_FOUND)
+endif(USE_ADMIN_TOOLS)
 
 # Check if we have libblkid and libuuid, will just be reported under one
 # flag USE_BLKID
