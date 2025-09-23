@@ -635,6 +635,9 @@ bool state_deleg_conflict(struct fsal_obj_handle *obj, bool write)
 {
 	bool status = false;
 
+	if (!nfs_param.nfsv4_param.allow_delegations)
+		return false;
+
 	/*
 	 * Check the type before grabbing the lock. Which lock in state_hdl is
 	 * valid depends on the object's type.
