@@ -854,13 +854,26 @@ static enum nfs_req_result nfs4_read(struct nfs_argop4 *op,
 			     " MaxOffSet=%" PRIu64,
 			     offset, size, MaxOffsetRead);
 
-		if ((offset + size) > MaxOffsetRead) {
-			LogEvent(COMPONENT_NFS_V4,
-				 "A client tried to violate max file size %" PRIu64
-				 " for exportid #%hu",
-				 MaxOffsetRead, op_ctx->ctx_export->export_id);
-			res_READ4->status = NFS4ERR_FBIG;
+		/* If the requested offset is at/after the maximum readable
+		 * offset, treat as EOF per RFC 7530
+		 * return NFS4_OK with 0 bytes and eof=TRUE.
+		 */
+		if (offset > MaxOffsetRead) {
+			/* Offset is beyond max readable offset – treat
+			 * as EOF
+			 */
+			resok->eof = true;
+			resok->data.data_len = 0;
+			resok->data.iovcnt = 1;
+			resok->data.iov = &resok->iov0;
+			resok->iov0.iov_len = 0;
+			resok->iov0.iov_base = NULL;
+			res_READ4->status = NFS4_OK;
 			goto out;
+		}
+		/* Clamp size if the request would run past MaxOffsetRead */
+		else if ((offset + size) > MaxOffsetRead) {
+			size = MaxOffsetRead - offset;
 		}
 	}
 
