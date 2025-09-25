@@ -640,7 +640,7 @@ nfsstat4 nfs4_Errno_verbose(fsal_status_t status, const char *where)
 		break;
 
 	case ERR_FSAL_NOMEM:
-		nfserror = NFS4ERR_SERVERFAULT;
+		nfserror = NFS4ERR_RESOURCE;
 		break;
 
 	case ERR_FSAL_SYMLINK:
