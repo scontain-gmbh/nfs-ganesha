@@ -23,7 +23,7 @@
 
 # Current version as of Fedora 16.  Not tested with earlier.
 
-cmake_minimum_required(VERSION 2.6.3)
+cmake_minimum_required(VERSION 3.5.0)
 
 message( STATUS "cmake version ${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}" )
 
