@@ -92,7 +92,7 @@ struct ceph_fsal_module
 				    .unique_handles = true,
 				    .homogenous = true,
 #ifdef USE_FSAL_CEPH_LL_DELEGATION
-				    .delegations = FSAL_OPTION_FILE_READ_DELEG,
+				    .delegations = FSAL_OPTION_FILE_DELEGATIONS,
 #endif
 				    .readdir_plus = true,
 				    .xattr_support = true,

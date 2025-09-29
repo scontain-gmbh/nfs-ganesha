@@ -2667,14 +2667,16 @@ static fsal_status_t ceph_fsal_lease_op2(struct fsal_obj_handle *obj_hdl,
 
 	switch (deleg) {
 	case FSAL_DELEG_NONE:
+		openflags = FSAL_O_ANY;
 		cmd = CEPH_DELEGATION_NONE;
 		break;
 	case FSAL_DELEG_RD:
 		cmd = CEPH_DELEGATION_RD;
 		break;
 	case FSAL_DELEG_WR:
-		/* No write delegations (yet!) */
-		return ceph2fsal_error(-ENOTSUP);
+		openflags = FSAL_O_ANY;
+		cmd = CEPH_DELEGATION_WR;
+		break;
 	default:
 		LogCrit(COMPONENT_FSAL, "Unknown requested lease state");
 		return ceph2fsal_error(-EINVAL);
@@ -2688,7 +2690,7 @@ static fsal_status_t ceph_fsal_lease_op2(struct fsal_obj_handle *obj_hdl,
 	if (FSAL_IS_ERROR(status)) {
 		LogCrit(COMPONENT_FSAL, "fsal_start_io failed returning %s",
 			fsal_err_txt(status));
-		goto exit;
+		return status;
 	}
 
 	my_fd = container_of(out_fd, struct ceph_fd, fsal_fd);
@@ -2714,8 +2716,6 @@ static fsal_status_t ceph_fsal_lease_op2(struct fsal_obj_handle *obj_hdl,
 		update_share_counters_locked(obj_hdl, &myself->share, openflags,
 					     FSAL_O_CLOSED);
 	}
-
-exit:
 
 	return ceph2fsal_error(retval);
 }

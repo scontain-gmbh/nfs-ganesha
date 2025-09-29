@@ -461,6 +461,12 @@ static void get_delegation(compound_data_t *data, OPEN4args *args,
 
 	init_new_deleg_state(&state_data, deleg_type, client);
 
+	/* Saving the openstate related to delegation. This will be used
+	 * in creating delegation-related FD (related_fd) in fsal_start_io()
+	 */
+	memcpy(state_data.deleg.openstate_key, open_state->stateid_other,
+	       OTHERSIZE);
+
 	/* Add the delegation state */
 	state_status = state_add_impl(data->current_obj, STATE_TYPE_DELEG,
 				      &state_data, clientowner, &new_state,
@@ -1268,6 +1274,9 @@ enum nfs_req_result nfs4_op_open(struct nfs_argop4 *op, compound_data_t *data,
 		arg_OPEN4->claim.claim, arg_OPEN4->openhow.opentype,
 		arg_OPEN4->share_deny, arg_OPEN4->share_access);
 
+	LogFullDebug(COMPONENT_STATE, "Delegate Type = %d",
+		     arg_OPEN4->claim.open_claim4_u.delegate_type);
+
 	GSH_AUTO_TRACEPOINT(
 		nfs4, op_open_start, TRACE_INFO,
 		"OPEN arg: claim={} opentype={} howmode={} share_deny={} share_access={} seqid={}",
@@ -1516,6 +1525,12 @@ out3:
 	dec_client_id_ref(clientid);
 
 	const OPEN4resok *const resok = &res_OPEN4->OPEN4res_u.resok4;
+
+	LogFullDebug(
+		COMPONENT_STATE,
+		"END OF nfs4_op_open: res: status %s, stateid= %d, rflags %d, delegation_type %d ",
+		nfsstat4_to_str(res_OPEN4->status), resok->stateid.seqid,
+		resok->rflags, resok->delegation.delegation_type);
 
 	GSH_AUTO_TRACEPOINT(nfs4, op_open_end, TRACE_INFO,
 			    "OPEN res: status={} stateid={} " TP_CINFO_FORMAT
