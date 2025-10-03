@@ -131,8 +131,14 @@ enum nfs_req_result nfs4_op_getattr(struct nfs_argop4 *op,
 		 */
 		STATELOCK_lock(obj);
 
+		/* Trigger CB_GETATTR if a WRITE delegation exists from a
+		 * different client. Use clientid comparison instead of
+		 * gsh_client to correctly distinguish between clients.
+		 */
 		if (is_write_delegated(obj, &deleg_client) && deleg_client &&
-		    (deleg_client->gsh_client != op_ctx->client)) {
+		    (deleg_client->cid_clientid != *op_ctx->clientid)) {
+			LogFullDebug(COMPONENT_STATE,
+				     "Different clients - sending CB_GETATTR");
 			res_GETATTR4->status =
 				handle_deleg_getattr(obj, deleg_client);
 
