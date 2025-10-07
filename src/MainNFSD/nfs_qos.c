@@ -763,7 +763,8 @@ void qos_drain_iops_ios(qos_class_t *qos_class)
 void qos_drain_ios(qos_class_t *qos_class)
 {
 	if (!qos_class)
-		LogCrit(COMPONENT_QOS, "NULL QOS class passed to drain IO's");
+		return;
+
 	QOS_PRINT_CLASS(__func__, qos_class);
 	PTHREAD_MUTEX_lock(&(qos_class->lock));
 	qos_drain_token_ios(qos_class);
@@ -786,9 +787,12 @@ bool pepc_per_export_free_mem_iter(struct gsh_export *gsh_export, void *state)
 	qos_class_t *qos_class = gsh_export->qos_class;
 	qos_class_t *sub_qos_class = NULL;
 
+	if (!qos_class)
+		return true;
+
 	PTHREAD_MUTEX_lock(&qos_class->lock);
 	/* list is not populated */
-	if (!qos_class || glist_empty(&qos_class->clients)) {
+	if (glist_empty(&qos_class->clients)) {
 		PTHREAD_MUTEX_unlock(&qos_class->lock);
 		return true;
 	}
@@ -1616,8 +1620,7 @@ static void qos_token_exausted_suspend_task(qos_class_t *qos_class,
 		qos_get_time_to_tokenrefresh(qos_class, op_type, ltime);
 
 	timeout = get_time_future_useconds(
-		ltime, MIN(TOKEN_NFS_ERR_DELAY_DEFAULT, time_to_refresh),
-		0, 0);
+		ltime, MIN(TOKEN_NFS_ERR_DELAY_DEFAULT, time_to_refresh), 0, 0);
 
 	client = get_and_insert_client_details(&(qos_class->client_entries),
 					       data);
@@ -1630,8 +1633,9 @@ static void qos_token_exausted_suspend_task(qos_class_t *qos_class,
 		svc_rqst_qos_suspend_socket(client->rq_xprt);
 	} else if (client->num_ios_waiting >= SUSPEND_SOCKET_IO_LIMIT &&
 		   client->epoll_disabled == 1) {
-		timeout = get_time_future_useconds(
-			ltime, TOKEN_NFS_ERR_DELAY_IMMED, 0, 0);
+		timeout = get_time_future_useconds(ltime,
+						   TOKEN_NFS_ERR_DELAY_IMMED, 0,
+						   0);
 	}
 
 	new_timer_entry = create_timer_entry(timeout,
