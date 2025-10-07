@@ -403,8 +403,16 @@ bool should_we_grant_deleg(struct state_hdl *ostate, nfs_client_id_t *client,
 	 * are handled differently because if we are currently handling
 	 * OPEN4_SHARE_ACCESS_WRITE then we would have incremented the
 	 * counter before calling this function.
+	 *
+	 * Previously, clients requesting both READ and WRITE access were
+	 * treated as readers and failed the read-only contention check,
+	 * resulting in no delegation being granted. To correct this,
+	 * we now exclude such mixed-access opens from the read-only
+	 * contention path so that they are treated like WRITE opens and
+	 * can receive a write delegation when eligible.
 	 */
 	if ((args->share_access & OPEN4_SHARE_ACCESS_READ &&
+	     !(args->share_access & OPEN4_SHARE_ACCESS_WRITE) &&
 	     file_stats->fds_num_write_opens > 0) ||
 	    (args->share_access & OPEN4_SHARE_ACCESS_WRITE &&
 	     file_stats->fds_num_write_opens > 1)) {
