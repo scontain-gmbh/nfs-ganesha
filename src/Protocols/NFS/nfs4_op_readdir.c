@@ -54,6 +54,11 @@ struct nfs4_readdir_cb_data {
 				   hit maxcount */
 	int count; /*< Number of entries accumulated so far. */
 	uint32_t max_count; /*< Maximum number of entries allowed. */
+	/* dircount accounting (cookie+name bytes, XDR sized).
+	 * 0 = unlimited (RFC). */
+	size_t dir_bytes_used; /* running total of cookie+name bytes */
+	uint32_t dir_bytes_limit; /* requested dircount; 0 means no limit */
+	bool dircount_hit; /* stop due to dircount hit */
 	bool has_entries; /*< Track if at least one entry fit  */
 	nfsstat4 error; /*< Set to a value other than NFS4_OK if the
 				   callback function finds a fatal error. */
@@ -311,7 +316,8 @@ not_junction:
 	memset(val_fh, 0, NFS4_FHSIZE);
 
 	/* See if we have space based on max_count. */
-	if (tracker->count == tracker->max_count) {
+	if ((tracker->max_count != 0) &&
+	    (tracker->count == tracker->max_count)) {
 		LogDebug(COMPONENT_NFS_READDIR,
 			 "Skipping because we already have %d entries",
 			 tracker->count);
@@ -332,6 +338,28 @@ not_junction:
 	 */
 	name.utf8string_len = strlen(cb_parms->name);
 	name.utf8string_val = (char *)cb_parms->name;
+
+	size_t add_bytes = sizeof(nfs_cookie4) + BYTES_PER_XDR_UNIT +
+			   RNDUP(name.utf8string_len);
+
+	/*
+	 * Enforce dircount as a byte budget for the directory information
+	 * portion: XDR(cookie) + XDR(name with 4-byte rounding).
+	 * If dir_bytes_limit == 0, there is no limit (per RFC).
+	 */
+	{
+		if (tracker->dir_bytes_limit != 0 &&
+		    tracker->dir_bytes_used + add_bytes >
+			    tracker->dir_bytes_limit) {
+			LogFullDebug(
+				COMPONENT_NFS_READDIR,
+				"Stopping due to dircount hit: used=%zu add=%zu limit=%u",
+				tracker->dir_bytes_used, add_bytes,
+				tracker->dir_bytes_limit);
+			tracker->dircount_hit = true;
+			goto failure;
+		}
+	}
 
 	if (xdr_getpos(&tracker->xdr) + BASE_ENTRY_SIZE +
 		    RNDUP(name.utf8string_len) >
@@ -459,6 +487,8 @@ skip:
 	tracker->has_entries = true;
 	cb_parms->in_result = true;
 	tracker->count++;
+	/* Account for cookie+name bytes contributing to dircount. */
+	tracker->dir_bytes_used += add_bytes;
 	goto out;
 
 server_fault:
@@ -467,8 +497,9 @@ server_fault:
 
 failure:
 
-	if (!tracker->has_entries && tracker->error == NFS4_OK)
+	if (!tracker->has_entries && tracker->error == NFS4_OK) {
 		tracker->error = NFS4ERR_TOOSMALL;
+	}
 
 	/* Reset to where we started this entry and encode a boolean
 	 * false instead (entry_follows is false).
@@ -569,15 +600,10 @@ enum nfs_req_result nfs4_op_readdir(struct nfs_argop4 *op,
 	if (maxcount > (arg_READDIR4->maxcount))
 		maxcount = arg_READDIR4->maxcount;
 
-	/* Use the dircount from the request as the max number of entries if
-	 * lower than the configured max.
-	 */
-	if (dircount > nfs_param.core_param.readdir_max_count)
-		dircount = nfs_param.core_param.readdir_max_count;
-
 	LogDebug(COMPONENT_NFS_READDIR,
-		 "dircount=%lu maxcount=%lu cookie=%" PRIu64, dircount,
-		 maxcount, cookie);
+		 "dircount=%lu maxcount=%lu max_entries=%u cookie=%" PRIu64,
+		 dircount, maxcount, nfs_param.core_param.readdir_max_count,
+		 cookie);
 
 	/* Since we never send a cookie of 1 or 2, we shouldn't ever get
 	 * them back.
@@ -676,7 +702,15 @@ enum nfs_req_result nfs4_op_readdir(struct nfs_argop4 *op,
 
 	/* Prepare to read the entries */
 	tracker.mem_avail = maxcount - READDIR_RESOK_BASE_SIZE;
-	tracker.max_count = dircount;
+	/* Disable legacy entry count  limiting; enforce
+	 * total reply via XDR buffer (maxcount)
+	 * and enforce dircount as cookie+name byte budget only. */
+	tracker.max_count = nfs_param.core_param.readdir_max_count;
+	tracker.dir_bytes_used = 0;
+	tracker.dir_bytes_limit =
+		(uint32_t)dircount; /* 0 => unlimited per RFC */
+	tracker.dircount_hit = false;
+
 	tracker.entries = get_buffer_for_io_response(tracker.mem_avail, NULL);
 	/* If buffer was not assigned, let's allocate it */
 	if (tracker.entries == NULL)
