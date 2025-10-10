@@ -139,9 +139,12 @@ static inline void dynamic_metrics__mdcache_cache_miss(
 	const char *UNUSED(operation), export_id_t UNUSED(export_id))
 {
 }
+
+#ifdef HAVE_PROCPS
 static inline void dynamic_metrics__mem_info(proc_t *UNUSED(proc_info))
 {
 }
+#endif
 
 #endif /* USE_MONITORING */
 
