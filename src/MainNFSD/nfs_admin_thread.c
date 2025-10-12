@@ -146,7 +146,6 @@ static bool admin_dbus_grace(DBusMessageIter *args, DBusMessage *reply,
 		.nodeid = -1,
 		.ipaddr = NULL,
 	};
-	sockaddr_t sa;
 	char *input = NULL;
 	char *end = NULL;
 	char *arg = NULL;
@@ -198,7 +197,7 @@ static bool admin_dbus_grace(DBusMessageIter *args, DBusMessage *reply,
 		if (arg == NULL) {
 			goto invalid_dbus_arg;
 		}
-		ret = ip_str_to_sockaddr(arg, &sa);
+		ret = ip_str_to_sockaddr(arg, &gsp.sa);
 		if (ret != 0) {
 			goto invalid_dbus_arg;
 		}

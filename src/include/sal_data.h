@@ -1276,7 +1276,8 @@ struct state_async_queue_t {
 typedef struct nfs_grace_start {
 	int event; /*< Reason for grace period, see EVENT_nnn */
 	int nodeid; /*< Node from which we are taking over */
-	char *ipaddr; /*< IP of failed node */
+	char *ipaddr; /*< IP of releasing/takeover node (string) */
+	sockaddr_t sa; /*< IP of releasing/takeover node (sockaddr_t) */
 } nfs_grace_start_t;
 
 /* Memory pools */
