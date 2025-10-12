@@ -363,9 +363,22 @@ int nfs_start_grace(nfs_grace_start_t *gsp)
 		 * node is doing a take over.  read in the client ids from the
 		 * failing node.
 		 */
-		LogEvent(COMPONENT_STATE,
-			 "NFS Server recovery event %d nodeid %d ip %s",
-			 gsp->event, gsp->nodeid, gsp->ipaddr);
+		switch (gsp->event) {
+		case EVENT_RELEASE_IP:
+		case EVENT_TAKE_IP:
+			LogEvent(COMPONENT_STATE,
+				 "NFS Server recovery event %d ip %s",
+				 gsp->event, gsp->ipaddr);
+			break;
+		case EVENT_TAKE_NODEID:
+			LogEvent(COMPONENT_STATE,
+				 "NFS Server recovery event %d nodeid %d",
+				 gsp->event, gsp->nodeid);
+			break;
+		default:
+			LogEvent(COMPONENT_STATE,
+				 "NFS Server recovery event %d", gsp->event);
+		}
 
 		if (gsp->event == EVENT_CLEAR_BLOCKED)
 			cancel_all_nlm_blocked();
