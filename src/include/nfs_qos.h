@@ -217,6 +217,7 @@ void qos_perexport_insert(struct gsh_export *export,
 			  struct qos_block_config *qos_block);
 void qos_free_mem(void *gsh_ptr, qos_class_type_t class_type);
 void qos_drain_bw_ios(qos_class_t *qos_class);
+void qos_drain_iops_ios(qos_class_t *qos_class);
 qos_class_t *pepc_get_client_from_list(struct glist_head *head,
 				       struct gsh_client *gsh_client);
 void copy_gsh_qos_conf(struct gsh_export *dest, struct gsh_export *src);

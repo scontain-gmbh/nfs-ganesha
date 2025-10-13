@@ -35,22 +35,30 @@
 #include "nfs_qosmgr.h"
 /*  QoS Method Arguments */
 #define CLIENT_IP_ARG { "client_ip", "s", "in" }
+#define EXPORT_ID_ARG { "id", "q", "in" }
+
 #define READ_BW_IN_ARG { "read_bw", "t", "in" }
 #define WRITE_BW_IN_ARG { "write_bw", "t", "in" }
 #define READ_BW_OUT_ARG { "read_bw", "t", "out" }
 #define WRITE_BW_OUT_ARG { "write_bw", "t", "out" }
-#define SUCCESS_ARG { "success", "b", "out" }
-#define EXPORT_ID_ARG { "id", "q", "in" }
+
+#define READ_IOPS_IN_ARG { "read_iops", "t", "in" }
+#define WRITE_IOPS_IN_ARG { "write_iops", "t", "in" }
+#define READ_IOPS_OUT_ARG { "read_iops", "t", "out" }
+#define WRITE_IOPS_OUT_ARG { "write_iops", "t", "out" }
+
 #define MAX_TOKENS_IN { "max_tokens", "u", "in" }
 #define MAX_TOKENS_OUT { "max_tokens", "u", "out" }
 #define TOKEN_RENEW_IN { "token_renewal", "t", "in" }
 #define TOKEN_RENEW_OUT { "token_renewal", "t", "out" }
+
 #define CLIENT_LIST_ARG { "client_list", "a(sttuu)", "out" }
 #define TOTAL_CLIENTS { "total_clients", "u", "out" }
 #define OFFSET_ARG { "offset", "u", "in" }
 #define LIMIT_ARG { "limit", "u", "in" }
 #define QOS_CLIENT_CONTAINER "(s(ss)(ss)(ss))"
 #define QOS_CLIENTS_REPLY { "clients", "a(s(ss)(ss)(ss))", "out" }
+#define SUCCESS_ARG { "success", "b", "out" }
 
 struct showclients_state {
 	DBusMessageIter client_iter;
@@ -77,7 +85,7 @@ struct showclients_state {
 		}                                                            \
 	} while (0)
 
-#define CHECK_ARG_OR_return(args, iter, msg)                     \
+#define CHECK_ARG_OR_return(args, iter, msg)                      \
 	do {                                                      \
 		if (!args) {                                      \
 			gsh_dbus_status_reply(&iter, false, msg); \
@@ -236,6 +244,53 @@ static bool dbus_qos_client_token_set(DBusMessageIter *args, DBusMessage *reply,
 }
 
 /**
+ * @brief Set IOPS settings for a client.
+ *
+ * This function sets the IOPS limits for a specified client.
+ *
+ * @param [in] args DBusMessageIter containing the input arguments
+ * @param [in] reply DBusMessage to store the output result
+ * @param [in] error DBusError object to handle any errors that occur
+ *
+ * @return true if successful, false otherwise
+ */
+static bool dbus_qos_client_iops_set(DBusMessageIter *args, DBusMessage *reply,
+				     DBusError *error)
+{
+	struct gsh_client *gsh_client;
+	uint64_t read_iops, write_iops;
+	qos_class_t *qos_class;
+	DBusMessageIter iter;
+	char *errormsg = "OK";
+	bool ret = false;
+
+	dbus_message_iter_init_append(reply, &iter);
+	CHECK_DBUS_ARG_OR_return(args, DBUS_TYPE_STRING, iter,
+				 "Invalid arg ClientIP");
+	gsh_client = lookup_client(args, &errormsg);
+	CHECK_ARG_OR_return(gsh_client, iter, errormsg);
+
+	CHECK_DBUS_NEXT_ARG_OR_return(args, DBUS_TYPE_UINT64, iter,
+				      "Invalid arg read_iops");
+	dbus_message_iter_get_basic(args, &read_iops);
+	CHECK_DBUS_NEXT_ARG_OR_return(args, DBUS_TYPE_UINT64, iter,
+				      "Invalid arg write_iops");
+	dbus_message_iter_get_basic(args, &write_iops);
+
+	PTHREAD_MUTEX_lock(&g_qos_config_lock);
+	qos_class = gsh_client->qos_class;
+	if (qos_class != NULL) {
+		PTHREAD_MUTEX_lock(&qos_class->lock);
+		qos_class->rbucket.max_iops_allowed = read_iops;
+		qos_class->wbucket.max_iops_allowed = write_iops;
+		PTHREAD_MUTEX_unlock(&qos_class->lock);
+		ret = true;
+	}
+	PTHREAD_MUTEX_unlock(&g_qos_config_lock);
+	return ret;
+}
+
+/**
  * @brief Get token settings for a client.
  *
  * This function retrieves the current token limits for a given client.
@@ -317,6 +372,50 @@ static bool dbus_qos_client_bw_get(DBusMessageIter *args, DBusMessage *reply,
 					       &read_bw);
 		dbus_message_iter_append_basic(args, DBUS_TYPE_UINT64,
 					       &write_bw);
+		ret = true;
+	}
+	PTHREAD_MUTEX_unlock(&g_qos_config_lock);
+	return ret;
+}
+
+/**
+ * @brief Get IOPS settings for a client.
+ *
+ * This function retrieves the current IOPS limits for a given client.
+ *
+ * @param [in] args DBusMessageIter containing the input arguments
+ * @param [in] reply DBusMessage to store the output result
+ * @param [in] error DBusError object to handle any errors that occur
+ *
+ * @return true if successful, false otherwise
+ */
+static bool dbus_qos_client_iops_get(DBusMessageIter *args, DBusMessage *reply,
+				     DBusError *error)
+{
+	struct gsh_client *gsh_client;
+	qos_class_t *qos_class;
+	DBusMessageIter iter;
+	char *errormsg = "OK";
+	bool ret = false;
+
+	dbus_message_iter_init_append(reply, &iter);
+	CHECK_DBUS_ARG_OR_return(args, DBUS_TYPE_STRING, iter,
+				 "Invalid arg ClientIP");
+	gsh_client = lookup_client(args, &errormsg);
+	CHECK_ARG_OR_return(gsh_client, iter, errormsg);
+
+	PTHREAD_MUTEX_lock(&g_qos_config_lock);
+	qos_class = gsh_client->qos_class;
+	if (qos_class != NULL) {
+		PTHREAD_MUTEX_lock(&qos_class->lock);
+		uint64_t read_iops = qos_class->rbucket.max_iops_allowed;
+		uint64_t write_iops = qos_class->wbucket.max_iops_allowed;
+
+		PTHREAD_MUTEX_unlock(&qos_class->lock);
+		dbus_message_iter_append_basic(args, DBUS_TYPE_UINT64,
+					       &read_iops);
+		dbus_message_iter_append_basic(args, DBUS_TYPE_UINT64,
+					       &write_iops);
 		ret = true;
 	}
 	PTHREAD_MUTEX_unlock(&g_qos_config_lock);
@@ -611,6 +710,62 @@ static bool dbus_qos_export_token_get(DBusMessageIter *args, DBusMessage *reply,
 }
 
 /**
+ * @brief Set IOPS settings for an export.
+ *
+ * This function sets the IOPS limits for a specified export.
+ *
+ * @param [in] args DBusMessageIter containing the input arguments
+ * @param [in] reply DBusMessage to store the output result
+ * @param [in] error DBusError object to handle any errors that occur
+ *
+ * @return true if successful, false otherwise
+ */
+static bool dbus_qos_export_iops_set(DBusMessageIter *args, DBusMessage *reply,
+				     DBusError *error)
+{
+	uint16_t export_id;
+	uint64_t read_iops, write_iops;
+	struct gsh_export *gsh_export;
+	qos_class_t *qos_class;
+	DBusMessageIter iter;
+	bool retval = false;
+
+	dbus_message_iter_init_append(reply, &iter);
+	CHECK_DBUS_ARG_OR_return(args, DBUS_TYPE_UINT16, iter,
+				 "Invalid arg exportid");
+	dbus_message_iter_get_basic(args, &export_id);
+	gsh_export = get_gsh_export(export_id);
+	CHECK_ARG_OR_return(gsh_export, iter, "Export id not found");
+
+	if (!check_dbus_arg(args, DBUS_TYPE_UINT64, &iter,
+			    "Invalid arg read_iops"))
+		goto out;
+	dbus_message_iter_get_basic(args, &read_iops);
+
+	if (!check_dbus_arg(args, DBUS_TYPE_UINT64, &iter,
+			    "Invalid arg write_iops"))
+		goto out;
+	dbus_message_iter_get_basic(args, &write_iops);
+
+	PTHREAD_MUTEX_lock(&g_qos_config_lock);
+	qos_class = gsh_export->qos_class;
+	if (qos_class != NULL) {
+		PTHREAD_MUTEX_lock(&qos_class->lock);
+		qos_class->rbucket.max_iops_allowed = read_iops;
+		qos_class->wbucket.max_iops_allowed = write_iops;
+		PTHREAD_MUTEX_unlock(&qos_class->lock);
+		retval = true;
+	} else {
+		gsh_dbus_status_reply(&iter, false, "check config values");
+		retval = false;
+	}
+	PTHREAD_MUTEX_unlock(&g_qos_config_lock);
+out:
+	put_gsh_export(gsh_export);
+	return retval;
+}
+
+/**
  * @brief Get default client bandwidth settings for a export.
  * This function retrieves the current default client bandwidth limits
  * under a given export.
@@ -787,6 +942,80 @@ static bool dbus_qos_export_token_set(DBusMessageIter *args, DBusMessage *reply,
 
 	PTHREAD_MUTEX_unlock(&g_qos_config_lock);
 put_export:
+	put_gsh_export(gsh_export);
+	return retval;
+}
+
+/**
+ * @brief Get IOPS settings for an export.
+ *
+ * This function retrieves the current IOPS limits for a given export.
+ *
+ * @param [in] args DBusMessageIter containing the input arguments
+ * @param [in] reply DBusMessage to store the output result
+ * @param [in] error DBusError object to handle any errors that occur
+ *
+ * @return true if successful, false otherwise
+ */
+static bool dbus_qos_export_iops_get(DBusMessageIter *args, DBusMessage *reply,
+				     DBusError *error)
+{
+	uint16_t export_id;
+	struct gsh_export *gsh_export;
+	qos_class_t *qos_class;
+	DBusMessageIter iter, iops_struct;
+	char read_iops_str[32], write_iops_str[32], enable_iops_str[32];
+	const char *read_iops_ptr, *write_iops_ptr, *enable_iops_ptr;
+	const char *read_label = "READ_IOPS";
+	const char *write_label = "WRITE_IOPS";
+	const char *iops_label = "ENABLE_IOPS";
+	bool retval = false;
+
+	dbus_message_iter_init_append(reply, &iter);
+	CHECK_DBUS_ARG_OR_return(args, DBUS_TYPE_UINT16, iter,
+				 "Invalid arg exportid");
+	dbus_message_iter_get_basic(args, &export_id);
+	gsh_export = get_gsh_export(export_id);
+	CHECK_ARG_OR_return(gsh_export, iter, "Export id not found");
+	PTHREAD_MUTEX_lock(&g_qos_config_lock);
+	qos_class = gsh_export->qos_class;
+	if (qos_class != NULL) {
+		PTHREAD_MUTEX_lock(&qos_class->lock);
+
+		dbus_message_iter_open_container(&iter, DBUS_TYPE_STRUCT, NULL,
+						 &iops_struct);
+
+		snprintf(enable_iops_str, sizeof(enable_iops_str), "%d",
+			 qos_class->iops_enabled);
+		enable_iops_ptr = enable_iops_str;
+		snprintf(read_iops_str, sizeof(read_iops_str), "%" PRIu64,
+			 qos_class->rbucket.max_iops_allowed);
+		read_iops_ptr = read_iops_str;
+		snprintf(write_iops_str, sizeof(write_iops_str), "%" PRIu64,
+			 qos_class->wbucket.max_iops_allowed);
+		write_iops_ptr = write_iops_str;
+
+		dbus_message_iter_append_basic(&iops_struct, DBUS_TYPE_STRING,
+					       &iops_label);
+		dbus_message_iter_append_basic(&iops_struct, DBUS_TYPE_STRING,
+					       &enable_iops_ptr);
+		dbus_message_iter_append_basic(&iops_struct, DBUS_TYPE_STRING,
+					       &read_label);
+		dbus_message_iter_append_basic(&iops_struct, DBUS_TYPE_STRING,
+					       &read_iops_ptr);
+		dbus_message_iter_append_basic(&iops_struct, DBUS_TYPE_STRING,
+					       &write_label);
+		dbus_message_iter_append_basic(&iops_struct, DBUS_TYPE_STRING,
+					       &write_iops_ptr);
+
+		dbus_message_iter_close_container(&iter, &iops_struct);
+		PTHREAD_MUTEX_unlock(&qos_class->lock);
+		retval = true;
+	} else {
+		gsh_dbus_status_reply(&iter, false, "check config values");
+		retval = false;
+	}
+	PTHREAD_MUTEX_unlock(&g_qos_config_lock);
 	put_gsh_export(gsh_export);
 	return retval;
 }
@@ -1085,15 +1314,266 @@ static bool dbus_qos_enable_bw_control_pepc(DBusMessageIter *args,
 		glist_for_each(glist, &qos_class->clients) {
 			sub_qos_class =
 				glist_entry(glist, qos_class_t, clients);
-			sub_qos_class->bw_enabled = 1;
+			sub_qos_class->bw_enabled = true;
 		}
-		qos_class->bw_enabled = 1;
+		qos_class->bw_enabled = true;
 		PTHREAD_MUTEX_unlock(&qos_class->lock);
 		retval = true;
 	} else {
 		gsh_dbus_status_reply(&iter, false, "check config values");
 		retval = false;
 	}
+	PTHREAD_MUTEX_unlock(&g_qos_config_lock);
+	put_gsh_export(gsh_export);
+	return retval;
+}
+
+/**
+ * @brief Enable IOPS control for all clients in a pepc configuration.
+ *
+ * This function enables IOPS control for all clients under a specified export.
+ *
+ * @param [in] args DBusMessageIter containing the input arguments
+ * @param [in] reply DBusMessage to store the output result
+ * @param [in] error DBusError object to handle any errors that occur
+ *
+ * @return true if successful, false otherwise
+ */
+static bool dbus_qos_enable_iops_control_pepc(DBusMessageIter *args,
+					      DBusMessage *reply,
+					      DBusError *error)
+{
+	uint16_t export_id;
+	struct gsh_export *gsh_export;
+	qos_class_t *qos_class;
+	DBusMessageIter iter;
+	qos_class_t *sub_qos_class;
+	struct glist_head *glist;
+	bool retval = false;
+
+	dbus_message_iter_init_append(reply, &iter);
+	CHECK_DBUS_ARG_OR_return(args, DBUS_TYPE_UINT16, iter,
+				 "Invalid arg exportid");
+	dbus_message_iter_get_basic(args, &export_id);
+	gsh_export = get_gsh_export(export_id);
+	CHECK_ARG_OR_return(gsh_export, iter, "Export id not found");
+
+	PTHREAD_MUTEX_lock(&g_qos_config_lock);
+	qos_class = gsh_export->qos_class;
+
+	if (qos_class != NULL) {
+		PTHREAD_MUTEX_lock(&qos_class->lock);
+		glist_for_each(glist, &qos_class->clients) {
+			sub_qos_class =
+				glist_entry(glist, qos_class_t, clients);
+			sub_qos_class->iops_enabled = true;
+		}
+		qos_class->iops_enabled = true;
+		PTHREAD_MUTEX_unlock(&qos_class->lock);
+		retval = true;
+	} else {
+		gsh_dbus_status_reply(&iter, false, "check config values");
+		retval = false;
+	}
+	PTHREAD_MUTEX_unlock(&g_qos_config_lock);
+	put_gsh_export(gsh_export);
+	return retval;
+}
+
+/**
+ * @brief Disable IOPS control for all clients in a pepc configuration.
+ *
+ * This function disables IOPS control for all clients under a specified export.
+ *
+ * @param [in] args DBusMessageIter containing the input arguments
+ * @param [in] reply DBusMessage to store the output result
+ * @param [in] error DBusError object to handle any errors that occur
+ *
+ * @return true if successful, false otherwise
+ */
+static bool dbus_qos_disable_iops_control_pepc(DBusMessageIter *args,
+					       DBusMessage *reply,
+					       DBusError *error)
+{
+	uint16_t export_id;
+	struct gsh_export *gsh_export;
+	qos_class_t *qos_class;
+	DBusMessageIter iter;
+	qos_class_t *sub_qos_class;
+	struct glist_head *glist;
+	bool retval = false;
+
+	dbus_message_iter_init_append(reply, &iter);
+	CHECK_DBUS_ARG_OR_return(args, DBUS_TYPE_UINT16, iter,
+				 "Invalid arg exportid");
+	dbus_message_iter_get_basic(args, &export_id);
+	gsh_export = get_gsh_export(export_id);
+	CHECK_ARG_OR_return(gsh_export, iter, "Export id not found");
+
+	PTHREAD_MUTEX_lock(&g_qos_config_lock);
+	qos_class = gsh_export->qos_class;
+
+	if (qos_class != NULL) {
+		PTHREAD_MUTEX_lock(&qos_class->lock);
+		glist_for_each(glist, &qos_class->clients) {
+			sub_qos_class =
+				glist_entry(glist, qos_class_t, clients);
+			/* Drain IOPS operations for this client and
+			 * mark as disable */
+			qos_drain_iops_ios(sub_qos_class);
+		}
+		/* Drain IOPS operations for the export itself and
+		 * mark as disable */
+		qos_drain_iops_ios(qos_class);
+		PTHREAD_MUTEX_unlock(&qos_class->lock);
+		retval = true;
+	} else {
+		gsh_dbus_status_reply(&iter, false, "check config values");
+		retval = false;
+	}
+	PTHREAD_MUTEX_unlock(&g_qos_config_lock);
+	put_gsh_export(gsh_export);
+	return retval;
+}
+
+/**
+ * @brief Get IOPS settings for clients in a pepc configuration.
+ *
+ * This function retrieves the current IOPS limits for clients under
+ * a pepc configuration.
+ *
+ * @param [in] args DBusMessageIter containing the input arguments
+ * @param [in] reply DBusMessage to store the output result
+ * @param [in] error DBusError object to handle any errors that occur
+ *
+ * @return true if successful, false otherwise
+ */
+static bool dbus_qos_pepc_clients_iops_list(DBusMessageIter *args,
+					    DBusMessage *reply,
+					    DBusError *error)
+{
+	uint16_t export_id;
+	struct gsh_export *gsh_export;
+	qos_class_t *qos_class;
+	DBusMessageIter iter;
+	struct showclients_state iter_state;
+	uint32_t total_clients = 0;
+	qos_class_t *sub_qos_class;
+	struct glist_head *glist;
+	bool retval = false;
+
+	dbus_message_iter_init_append(reply, &iter);
+	CHECK_DBUS_ARG_OR_return(args, DBUS_TYPE_UINT16, iter,
+				 "Invalid arg exportid");
+	dbus_message_iter_get_basic(args, &export_id);
+	gsh_export = get_gsh_export(export_id);
+	CHECK_ARG_OR_return(gsh_export, iter, "Export id not found");
+	PTHREAD_MUTEX_lock(&g_qos_config_lock);
+	qos_class = gsh_export->qos_class;
+
+	if (qos_class != NULL) {
+		dbus_message_iter_init_append(reply, &iter);
+		total_clients = get_export_client_count(qos_class);
+		dbus_message_iter_append_basic(&iter, DBUS_TYPE_UINT32,
+					       &total_clients);
+		dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY,
+						 QOS_CLIENT_CONTAINER,
+						 &iter_state.client_iter);
+
+		PTHREAD_MUTEX_lock(&qos_class->lock);
+		glist_for_each(glist, &qos_class->clients) {
+			sub_qos_class =
+				glist_entry(glist, qos_class_t, clients);
+
+			PTHREAD_MUTEX_lock(&sub_qos_class->lock);
+			client_qos_to_dbus(sub_qos_class, &iter_state);
+			PTHREAD_MUTEX_unlock(&sub_qos_class->lock);
+		}
+		PTHREAD_MUTEX_unlock(&qos_class->lock);
+
+		dbus_message_iter_close_container(&iter,
+						  &iter_state.client_iter);
+		retval = true;
+	} else {
+		gsh_dbus_status_reply(&iter, false, "check config values");
+		retval = false;
+	}
+	PTHREAD_MUTEX_unlock(&g_qos_config_lock);
+	put_gsh_export(gsh_export);
+	return retval;
+}
+
+/**
+ * @brief Set IOPS settings for a client in a pepc configuration.
+ *
+ * @param [in] args DBusMessageIter containing the input arguments
+ * @param [in] reply DBusMessage to store the output result
+ * @param [in] error DBusError object to handle any errors that occur
+ *
+ * @return true if successful, false otherwise
+ */
+static bool dbus_qos_pepc_clients_iops_set(DBusMessageIter *args,
+					   DBusMessage *reply, DBusError *error)
+{
+	uint16_t export_id;
+	struct gsh_export *gsh_export;
+	qos_class_t *qos_class;
+	qos_class_t *sub_qos_class;
+	struct gsh_client *gsh_client;
+	uint64_t read_iops, write_iops;
+	DBusMessageIter iter;
+	char *errormsg = "OK";
+	bool retval = false;
+
+	dbus_message_iter_init_append(reply, &iter);
+	CHECK_DBUS_ARG_OR_return(args, DBUS_TYPE_UINT16, iter,
+				 "Invalid arg exportid");
+	dbus_message_iter_get_basic(args, &export_id);
+	gsh_export = get_gsh_export(export_id);
+	CHECK_ARG_OR_return(gsh_export, iter, "Export id not found");
+
+	PTHREAD_MUTEX_lock(&g_qos_config_lock);
+	qos_class = gsh_export->qos_class;
+	if (qos_class != NULL) {
+		dbus_message_iter_next(args);
+		if (!check_dbus_arg(args, DBUS_TYPE_STRING, &iter,
+				    "Invalid arg ClientIP"))
+			goto out;
+
+		gsh_client = lookup_client(args, &errormsg);
+		if (!check_arg(gsh_client, &iter, "lookup client failed"))
+			goto out;
+
+		CHECK_ARG_OR_return(gsh_client, iter, errormsg);
+
+		if (!check_dbus_next_arg(args, DBUS_TYPE_UINT64, &iter,
+					 "Invalid arg read_iops"))
+			goto out;
+		dbus_message_iter_get_basic(args, &read_iops);
+
+		if (!check_dbus_next_arg(args, DBUS_TYPE_UINT64, &iter,
+					 "Invalid arg write_iops"))
+			goto out;
+		dbus_message_iter_get_basic(args, &write_iops);
+
+		PTHREAD_MUTEX_lock(&qos_class->lock);
+		sub_qos_class = pepc_get_client_from_list(&qos_class->clients,
+							  gsh_client);
+		if (sub_qos_class) {
+			PTHREAD_MUTEX_lock(&sub_qos_class->lock);
+			sub_qos_class->iops_enabled = true;
+			sub_qos_class->rbucket.max_iops_allowed = read_iops;
+			sub_qos_class->wbucket.max_iops_allowed = write_iops;
+			PTHREAD_MUTEX_unlock(&sub_qos_class->lock);
+		}
+		PTHREAD_MUTEX_unlock(&qos_class->lock);
+
+		retval = true;
+	} else {
+		gsh_dbus_status_reply(&iter, false, "check config values");
+		retval = false;
+	}
+out:
 	PTHREAD_MUTEX_unlock(&g_qos_config_lock);
 	put_gsh_export(gsh_export);
 	return retval;
@@ -1130,19 +1610,46 @@ static struct gsh_dbus_method qos_export_default_client_bw_set = {
 		  END_ARG_LIST }
 };
 
-static struct gsh_dbus_method qos_export_enable_all_clients_bw_control_pepc = {
+static struct gsh_dbus_method qos_export_enable_all_clients_bw_pepc = {
 	.name = "EnableAllClientQosBwControlpepc",
 	.method = dbus_qos_enable_bw_control_pepc,
 	.args = { EXPORT_ID_ARG, SUCCESS_ARG, END_ARG_LIST }
 };
 
-static struct gsh_dbus_method qos_export_disable_all_clients_bw_control_pepc = {
+static struct gsh_dbus_method qos_export_disable_all_clients_bw_pepc = {
 	.name = "DisableExportQosBwControlpepc",
 	.method = dbus_qos_disable_bw_control_pepc,
 	.args = { EXPORT_ID_ARG, SUCCESS_ARG, END_ARG_LIST }
 };
 
-/* Per export ibut is common for Perexport-PerClient also*/
+static struct gsh_dbus_method qos_export_enable_all_clients_iops_pepc = {
+	.name = "EnableAllClientQosIopsControlpepc",
+	.method = dbus_qos_enable_iops_control_pepc,
+	.args = { EXPORT_ID_ARG, SUCCESS_ARG, END_ARG_LIST }
+};
+
+static struct gsh_dbus_method qos_export_disable_all_clients_iops_pepc = {
+	.name = "DisableExporttQosIopsControlpepc",
+	.method = dbus_qos_disable_iops_control_pepc,
+	.args = { EXPORT_ID_ARG, SUCCESS_ARG, END_ARG_LIST }
+};
+
+/* Perexport-PerClient implemnentation */
+static struct gsh_dbus_method qos_export_clients_iops_list = {
+	.name = "ListExportClientsIOPS",
+	.method = dbus_qos_pepc_clients_iops_list,
+	.args = { EXPORT_ID_ARG, TOTAL_CLIENTS, QOS_CLIENTS_REPLY, SUCCESS_ARG,
+		  END_ARG_LIST }
+};
+
+static struct gsh_dbus_method qos_pepc_clients_iops_set = {
+	.name = "SetExportClientIOPS",
+	.method = dbus_qos_pepc_clients_iops_set,
+	.args = { EXPORT_ID_ARG, IPADDR_ARG, READ_IOPS_IN_ARG,
+		  WRITE_IOPS_IN_ARG, SUCCESS_ARG, END_ARG_LIST }
+};
+
+/* Per export but is common for Perexport-PerClient also*/
 static struct gsh_dbus_method qos_export_bw_get = {
 	.name = "GetExportBandwidth",
 	.method = dbus_qos_export_bw_get,
@@ -1175,17 +1682,40 @@ static struct gsh_dbus_method qos_export_token_set = {
 		  END_ARG_LIST }
 };
 
+/* IOPS methods for exports */
+static struct gsh_dbus_method qos_export_iops_get = {
+	.name = "GetExportIOPS",
+	.method = dbus_qos_export_iops_get,
+	.args = { EXPORT_ID_ARG,
+		  { "iops", "a(sss)", "out" },
+		  SUCCESS_ARG,
+		  END_ARG_LIST }
+};
+
+static struct gsh_dbus_method qos_export_iops_set = {
+	.name = "SetExportIOPS",
+	.method = dbus_qos_export_iops_set,
+	.args = { EXPORT_ID_ARG, READ_IOPS_IN_ARG, WRITE_IOPS_IN_ARG,
+		  SUCCESS_ARG, END_ARG_LIST }
+};
+
 static struct gsh_dbus_method *qos_methods_pepc[] = {
 	&qos_export_bw_get,
 	&qos_export_bw_set,
 	&qos_export_token_get,
 	&qos_export_token_set,
+	&qos_export_iops_get,
+	&qos_export_iops_set,
 	&qos_export_clients_list,
 	&qos_pepc_clients_bw_set,
 	&qos_export_default_client_bw_get,
 	&qos_export_default_client_bw_set,
-	&qos_export_enable_all_clients_bw_control_pepc,
-	&qos_export_disable_all_clients_bw_control_pepc,
+	&qos_export_enable_all_clients_bw_pepc,
+	&qos_export_disable_all_clients_bw_pepc,
+	&qos_export_enable_all_clients_iops_pepc,
+	&qos_export_disable_all_clients_iops_pepc,
+	&qos_export_clients_iops_list,
+	&qos_pepc_clients_iops_set,
 	NULL
 };
 
@@ -1206,6 +1736,8 @@ static struct gsh_dbus_method *qos_methods_ps[] = {
 	&qos_export_bw_set,
 	&qos_export_token_get,
 	&qos_export_token_set,
+	&qos_export_iops_get,
+	&qos_export_iops_set,
 	&qos_export_enable_bw_control,
 	&qos_export_disable_bw_control,
 	NULL
@@ -1240,10 +1772,28 @@ static struct gsh_dbus_method qos_client_token_get = {
 		  END_ARG_LIST }
 };
 
-static struct gsh_dbus_method *qos_methods_pc[] = {
-	&qos_client_bw_get, &qos_client_bw_set, &qos_client_token_get,
-	&qos_client_token_set, NULL
+/* IOPS methods for clients */
+static struct gsh_dbus_method qos_client_iops_set = {
+	.name = "SetClientIOPS",
+	.method = dbus_qos_client_iops_set,
+	.args = { CLIENT_IP_ARG, READ_IOPS_IN_ARG, WRITE_IOPS_IN_ARG,
+		  SUCCESS_ARG, END_ARG_LIST }
 };
+
+static struct gsh_dbus_method qos_client_iops_get = {
+	.name = "GetClientIOPS",
+	.method = dbus_qos_client_iops_get,
+	.args = { CLIENT_IP_ARG, READ_IOPS_OUT_ARG, WRITE_IOPS_OUT_ARG,
+		  SUCCESS_ARG, END_ARG_LIST }
+};
+
+static struct gsh_dbus_method *qos_methods_pc[] = { &qos_client_bw_get,
+						    &qos_client_bw_set,
+						    &qos_client_token_get,
+						    &qos_client_token_set,
+						    &qos_client_iops_get,
+						    &qos_client_iops_set,
+						    NULL };
 
 static struct gsh_dbus_interface qos_interface = {
 	.name = "org.ganesha.nfsd.qos",
