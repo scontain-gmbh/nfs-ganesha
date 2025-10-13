@@ -397,7 +397,7 @@ enum nfs_req_result nfs4_op_lock(struct nfs_argop4 *op, compound_data_t *data,
 		/* Check if lock state belongs to same export */
 		if (!state_same_export(lock_state, op_ctx->ctx_export)) {
 			LogEvent(
-				COMPONENT_STATE,
+				COMPONENT_NFS_V4_LOCK,
 				"Lock Owner Export Conflict, Lock held for export %" PRIu16
 				" request for export %" PRIu16,
 				state_export_id(lock_state),

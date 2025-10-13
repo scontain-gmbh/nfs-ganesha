@@ -74,7 +74,7 @@ enum nfs_req_result nfs4_op_delegreturn(struct nfs_argop4 *op,
 	state_owner_t *owner;
 
 	LogDebug(
-		COMPONENT_NFS_V4_LOCK,
+		COMPONENT_STATE,
 		"Entering NFS v4 DELEGRETURN handler -----------------------------------------------------");
 
 	/* Initialize to sane default */
@@ -105,7 +105,7 @@ enum nfs_req_result nfs4_op_delegreturn(struct nfs_argop4 *op,
 
 	if (owner == NULL) {
 		/* Something has gone stale. */
-		LogDebug(COMPONENT_NFS_V4_LOCK, "Stale state");
+		LogDebug(COMPONENT_STATE, "Stale state");
 		res_DELEGRETURN4->status = NFS4ERR_STALE;
 		goto out_unlock;
 	}
@@ -128,7 +128,7 @@ enum nfs_req_result nfs4_op_delegreturn(struct nfs_argop4 *op,
 
 	if (state_status == STATE_SUCCESS) {
 		/* Successful exit */
-		LogDebug(COMPONENT_NFS_V4_LOCK, "Successful exit");
+		LogDebug(COMPONENT_STATE, "Successful exit");
 
 		state_del_locked(state_found);
 	}

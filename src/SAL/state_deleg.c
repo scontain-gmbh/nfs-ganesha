@@ -750,8 +750,7 @@ nfsstat4 deleg_revoke(struct fsal_obj_handle *obj, struct state_t *deleg_state)
 	if (!get_state_obj_export_owner_refs(deleg_state, NULL, &export,
 					     &owner)) {
 		/* Something is going stale. */
-		LogDebug(COMPONENT_NFS_V4_LOCK,
-			 "Stale state, owner, or export");
+		LogDebug(COMPONENT_STATE, "Stale state, owner, or export");
 		return NFS4ERR_STALE;
 	}
 
@@ -780,7 +779,7 @@ nfsstat4 deleg_revoke(struct fsal_obj_handle *obj, struct state_t *deleg_state)
 	state_status = release_lease_lock(obj, deleg_state);
 
 	if (state_status != STATE_SUCCESS) {
-		LogDebug(COMPONENT_NFS_V4_LOCK, "state unlock failed: %d",
+		LogDebug(COMPONENT_STATE, "state unlock failed: %d",
 			 state_status);
 	}
 

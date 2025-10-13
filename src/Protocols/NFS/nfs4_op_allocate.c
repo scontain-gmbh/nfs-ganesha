@@ -123,7 +123,7 @@ static enum nfs_req_result allocate_deallocate(compound_data_t *data,
 			break;
 		default:
 			*status = NFS4ERR_BAD_STATEID;
-			LogDebug(COMPONENT_NFS_V4_LOCK,
+			LogDebug(COMPONENT_STATE,
 				 "ALLOCATE with invalid stateid of type %d",
 				 (int)state->state_type);
 			goto out;
@@ -136,13 +136,13 @@ static enum nfs_req_result allocate_deallocate(compound_data_t *data,
 				      OPEN4_SHARE_ACCESS_WRITE) == 0) {
 			/* Bad open mode, return NFS4ERR_OPENMODE */
 			*status = NFS4ERR_OPENMODE;
-			if (isDebug(COMPONENT_NFS_V4_LOCK)) {
+			if (isDebug(COMPONENT_STATE)) {
 				char str[LOG_BUFF_LEN] = "\0";
 				struct display_buffer dspbuf = { sizeof(str),
 								 str, str };
 				display_stateid(&dspbuf, state);
 				LogDebug(
-					COMPONENT_NFS_V4_LOCK,
+					COMPONENT_STATE,
 					"ALLOCATE %s doesn't have OPEN4_SHARE_ACCESS_WRITE",
 					str);
 			}

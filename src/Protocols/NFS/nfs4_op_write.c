@@ -438,7 +438,7 @@ enum nfs_req_result nfs4_op_write(struct nfs_argop4 *op, compound_data_t *data,
 
 		default:
 			res_WRITE4->status = NFS4ERR_BAD_STATEID;
-			LogDebug(COMPONENT_NFS_V4_LOCK,
+			LogDebug(COMPONENT_STATE,
 				 "WRITE with invalid stateid of type %d",
 				 (int)state_found->state_type);
 			goto out;
@@ -452,13 +452,13 @@ enum nfs_req_result nfs4_op_write(struct nfs_argop4 *op, compound_data_t *data,
 		     OPEN4_SHARE_ACCESS_WRITE) == 0) {
 			/* Bad open mode, return NFS4ERR_OPENMODE */
 			res_WRITE4->status = NFS4ERR_OPENMODE;
-			if (isDebug(COMPONENT_NFS_V4_LOCK)) {
+			if (isDebug(COMPONENT_STATE)) {
 				char str[LOG_BUFF_LEN] = "\0";
 				struct display_buffer dspbuf = { sizeof(str),
 								 str, str };
 				display_stateid(&dspbuf, state_found);
 				LogDebug(
-					COMPONENT_NFS_V4_LOCK,
+					COMPONENT_STATE,
 					"WRITE %s doesn't have OPEN4_SHARE_ACCESS_WRITE",
 					str);
 			}

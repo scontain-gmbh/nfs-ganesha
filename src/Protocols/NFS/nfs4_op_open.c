@@ -433,7 +433,7 @@ static void get_delegation(compound_data_t *data, OPEN4args *args,
 
 	ostate = data->current_obj->state_hdl;
 	if (!ostate) {
-		LogFullDebug(COMPONENT_NFS_V4_LOCK, "Could not get file state");
+		LogFullDebug(COMPONENT_STATE, "Could not get file state");
 		whynone->ond_why = WND4_RESOURCE;
 		/* passing 0 current delegations since we don't have
 		 * ostate and file handle */
@@ -473,7 +473,7 @@ static void get_delegation(compound_data_t *data, OPEN4args *args,
 				      data->minorversion > 0 ? &refer : NULL);
 	if (state_status != STATE_SUCCESS) {
 		LogDebug(
-			COMPONENT_NFS_V4_LOCK,
+			COMPONENT_STATE,
 			"get delegation call failed to add state with status %s",
 			state_err_str(state_status));
 		whynone->ond_why = WND4_RESOURCE;
@@ -499,7 +499,7 @@ static void get_delegation(compound_data_t *data, OPEN4args *args,
 			ostate->file.fdeleg_stats.fds_curr_delegations);
 		if (args->claim.claim != CLAIM_PREVIOUS) {
 			LogDebug(
-				COMPONENT_NFS_V4_LOCK,
+				COMPONENT_STATE,
 				"get delegation call added state but failed to lock with status %s",
 				state_err_str(state_status));
 			state_del_locked(new_state);
@@ -535,7 +535,7 @@ static void get_delegation(compound_data_t *data, OPEN4args *args,
 						   OPEN4_SHARE_ACCESS_BOTH;
 	new_state->state_data.deleg.share_deny = args->share_deny;
 
-	if (isDebug(COMPONENT_NFS_V4_LOCK)) {
+	if (isDebug(COMPONENT_STATE)) {
 		char str1[LOG_BUFF_LEN / 2] = "\0";
 		char str2[LOG_BUFF_LEN / 2] = "\0";
 		struct display_buffer dspbuf1 = { sizeof(str1), str1, str1 };
@@ -544,7 +544,7 @@ static void get_delegation(compound_data_t *data, OPEN4args *args,
 		display_nfs4_owner(&dspbuf1, openowner);
 		display_nfs4_owner(&dspbuf2, clientowner);
 
-		LogDebug(COMPONENT_NFS_V4_LOCK,
+		LogDebug(COMPONENT_STATE,
 			 "get delegation openowner %s clientowner %s status %s",
 			 str1, str2, state_err_str(state_status));
 	}
