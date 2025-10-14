@@ -612,6 +612,7 @@ nfs_client_id_t *create_client_id(clientid4 clientid,
 		clientid = new_clientid();
 
 	client_rec->cid_confirmed = UNCONFIRMED_CLIENT_ID;
+	client_rec->cid_confirmed_saved = UNCONFIRMED_CLIENT_ID;
 	client_rec->cid_clientid = clientid;
 	client_rec->cid_last_renew = time(NULL);
 	client_rec->cid_client_record = client_record;
@@ -1177,6 +1178,7 @@ bool nfs_client_id_expire(nfs_client_id_t *clientid, bool make_stale,
 		PTHREAD_MUTEX_unlock(&clientid->cid_mutex);
 	} else {
 		/* unhash clientids that are truly expired */
+		clientid->cid_confirmed_saved = clientid->cid_confirmed;
 		clientid->cid_confirmed = EXPIRED_CLIENT_ID;
 
 		PTHREAD_MUTEX_unlock(&clientid->cid_mutex);
