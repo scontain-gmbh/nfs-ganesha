@@ -2689,7 +2689,9 @@ fsal_status_t fsal_start_io(struct fsal_fd **out_fd,
 			     deleg->sd_type, deleg->sd_state);
 
 		if (deleg->sd_type == OPEN_DELEGATE_WRITE ||
-		    deleg->sd_type == OPEN_DELEGATE_READ) {
+		    deleg->sd_type == OPEN_DELEGATE_READ ||
+		    deleg->sd_type == OPEN_DELEGATE_WRITE_ATTRS_DELEG ||
+		    deleg->sd_type == OPEN_DELEGATE_READ_ATTRS_DELEG) {
 			openstate = nfs4_State_Get_Pointer(
 				state->state_data.deleg.openstate_key);
 

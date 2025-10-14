@@ -444,6 +444,9 @@ typedef nfstime4	fattr4_time_delta;
 typedef nfstime4	fattr4_time_metadata;
 typedef nfstime4	fattr4_time_modify;
 typedef settime4	fattr4_time_modify_set;
+typedef nfstime4	fattr4_time_deleg_access;
+typedef nfstime4	fattr4_time_deleg_modify;
+typedef open_arguments4	fattr4_open_arguments;
 
 /*
  * Mandatory attributes
@@ -508,6 +511,11 @@ const FATTR4_TIME_METADATA	= 52;
 const FATTR4_TIME_MODIFY	= 53;
 const FATTR4_TIME_MODIFY_SET	= 54;
 const FATTR4_MOUNTED_ON_FILEID	= 55;
+
+/* NFSv4.2 Delegation Timestamp Extensions (RFC 9754) */
+const FATTR4_TIME_DELEG_ACCESS	= 84;
+const FATTR4_TIME_DELEG_MODIFY	= 85;
+const FATTR4_OPEN_ARGUMENTS	= 86;
 
 /*
  * File attribute container
@@ -987,6 +995,15 @@ union open_claim4 switch (open_claim_type4 claim) {
  case CLAIM_DELEGATE_PREV:
 	 /* CURRENT_FH: directory */
 	component4	file_delegate_prev;
+};
+
+/* NFSv4.2 Delegation Timestamp Extensions (RFC 9754) */
+struct open_arguments4 {
+	bitmap4		oa_share_access;
+	bitmap4		oa_share_deny;
+	bitmap4		oa_share_access_want;
+	bitmap4		oa_open_claim;
+	bitmap4		oa_create_mode;
 };
 
 /*

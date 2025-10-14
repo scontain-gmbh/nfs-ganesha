@@ -138,7 +138,11 @@ state_status_t acquire_lease_lock(struct state_hdl *ostate,
 	state_status_t status;
 	fsal_deleg_t deleg = FSAL_DELEG_RD;
 
-	if (state->state_data.deleg.sd_type == OPEN_DELEGATE_WRITE)
+	/* Now recognizes OPEN_DELEGATE_WRITE_ATTRS_DELEG as a write
+	 * delegation too for FSAL operations.
+	 */
+	if (state->state_data.deleg.sd_type == OPEN_DELEGATE_WRITE ||
+	    state->state_data.deleg.sd_type == OPEN_DELEGATE_WRITE_ATTRS_DELEG)
 		deleg = FSAL_DELEG_WR;
 
 	/* Create a new deleg data object */
@@ -454,10 +458,16 @@ bool should_we_grant_deleg(struct state_hdl *ostate, nfs_client_id_t *client,
 void get_deleg_perm(nfsace4 *permissions, open_delegation_type4 type)
 {
 	/* We need to create an access_mask that shows who
-	 * can OPEN this file. */
-	if (type == OPEN_DELEGATE_WRITE)
+	 * can OPEN this file.
+	 *
+	 * Now it also handles new ATTRS_DELEG types when
+	 * setting permissions.
+	 */
+	if (type == OPEN_DELEGATE_WRITE ||
+	    type == OPEN_DELEGATE_WRITE_ATTRS_DELEG)
 		;
-	else if (type == OPEN_DELEGATE_READ)
+	else if (type == OPEN_DELEGATE_READ ||
+		 type == OPEN_DELEGATE_READ_ATTRS_DELEG)
 		;
 	permissions->type = ACE4_ACCESS_ALLOWED_ACE_TYPE;
 	permissions->flag = 0;
@@ -894,24 +904,33 @@ bool state_deleg_conflict_impl(struct fsal_obj_handle *obj, bool write)
 
 	struct file_deleg_stats *deleg_stats;
 	struct gsh_client *deleg_client = NULL;
+	open_delegation_type4 deleg_type;
+	bool is_read_deleg;
+	bool is_write_deleg;
 
 	deleg_stats = &obj->state_hdl->file.fdeleg_stats;
+	deleg_type = deleg_stats->fds_deleg_type;
 
 	if (obj->state_hdl->file.write_delegated)
 		deleg_client =
 			obj->state_hdl->file.write_deleg_client->gsh_client;
 
+	/* Check delegation type - handles both standard and
+	 * ATTRS_DELEG types.
+	 */
+	is_read_deleg = (deleg_type == OPEN_DELEGATE_READ ||
+			 deleg_type == OPEN_DELEGATE_READ_ATTRS_DELEG);
+	is_write_deleg = (deleg_type == OPEN_DELEGATE_WRITE ||
+			  deleg_type == OPEN_DELEGATE_WRITE_ATTRS_DELEG);
+
 	if (deleg_stats->fds_curr_delegations > 0 &&
-	    ((deleg_stats->fds_deleg_type == OPEN_DELEGATE_READ && write) ||
-	     (deleg_stats->fds_deleg_type == OPEN_DELEGATE_WRITE &&
-	      deleg_client != op_ctx->client))) {
+	    ((is_read_deleg && write) ||
+	     (is_write_deleg && deleg_client != op_ctx->client))) {
 		LogDebug(
 			COMPONENT_STATE,
 			"While trying to perform a %s op, found a conflicting %s delegation",
 			write ? "write" : "read",
-			(deleg_stats->fds_deleg_type == OPEN_DELEGATE_WRITE)
-				? "WRITE"
-				: "READ");
+			is_write_deleg ? "WRITE" : "READ");
 		if (async_delegrecall(general_fridge, obj) != 0)
 			LogCrit(COMPONENT_STATE,
 				"Failed to start thread to recall delegation from conflicting operation.");
@@ -976,17 +995,28 @@ nfsstat4 handle_deleg_getattr(struct fsal_obj_handle *obj,
 	 */
 
 	cb_state = obj->state_hdl->file.cbgetattr.state;
+	LogDebug(COMPONENT_STATE, "CB_GETATTR cb_state=%d for obj %p", cb_state,
+		 obj);
+
 	switch (cb_state) {
 	case CB_GETATTR_RSP_OK:
 		/* got response for CB_GETATTR */
+		LogDebug(COMPONENT_STATE,
+			 "CB_GETATTR already completed successfully");
 		status = NFS4_OK;
 		goto out;
 	case CB_GETATTR_WIP:
 		/* wait for response */
+		LogDebug(COMPONENT_STATE,
+			 "CB_GETATTR in progress, waiting for completion");
 		goto out;
 	case CB_GETATTR_FAILED:
+		LogDebug(COMPONENT_STATE,
+			 "CB_GETATTR failed, recalling delegation");
 		goto deleg_recall;
 	default: /* CB_GETATTR_NONE */
+		LogDebug(COMPONENT_STATE,
+			 "No CB_GETATTR sent yet, sending now");
 		goto send_request;
 	}
 send_request:
@@ -997,6 +1027,8 @@ send_request:
 			"Failed to start thread to send cb_getattr.");
 		goto deleg_recall;
 	}
+	/* Return EDELAY per RFC until CB_GETATTR completes */
+	status = NFS4ERR_DELAY;
 	goto out;
 deleg_recall:
 	LogDebug(COMPONENT_STATE, "CB_GETATTR is either not enabled or failed,"

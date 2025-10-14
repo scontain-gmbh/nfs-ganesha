@@ -1648,6 +1648,10 @@ switch (open_delegation_type4 delegation_type) {
                 open_write_delegation4 write;
         case OPEN_DELEGATE_NONE_EXT: /* new to v4.1 */
                 open_none_delegation4 od_whynone;
+        case OPEN_DELEGATE_READ_ATTRS_DELEG: /* new to v4.2 - RFC 9754 */
+                open_read_delegation4 read;
+        case OPEN_DELEGATE_WRITE_ATTRS_DELEG: /* new to v4.2 - RFC 9754 */
+                open_write_delegation4 write;
 };
 
 /*

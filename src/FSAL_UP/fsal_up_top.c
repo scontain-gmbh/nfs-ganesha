@@ -1679,13 +1679,49 @@ enum cbgetattr_state handle_getattr_response(struct cbgetattr_context *cbg_ctx,
 
 	cb_state = CB_GETATTR_RSP_OK;
 
+	LogDebug(COMPONENT_STATE,
+		 "Setting cb_state to CB_GETATTR_RSP_OK for obj %p", obj);
+	LogDebug(
+		COMPONENT_FSAL_UP,
+		"Received attributes - change=%llu, size=%llu, mtime=%ld.%lu, ctime=%ld.%lu",
+		(unsigned long long)rsp_attr.change,
+		(unsigned long long)rsp_attr.filesize, rsp_attr.mtime.tv_sec,
+		rsp_attr.mtime.tv_nsec, rsp_attr.ctime.tv_sec,
+		rsp_attr.ctime.tv_nsec);
+
+	LogDebug(
+		COMPONENT_FSAL_UP,
+		"Checking changes - modified=%d, stored_change=%llu, stored_size=%llu",
+		obj->state_hdl->file.cbgetattr.modified,
+		(unsigned long long)obj->state_hdl->file.cbgetattr.change,
+		(unsigned long long)obj->state_hdl->file.cbgetattr.filesize);
+
+	LogDebug(
+		COMPONENT_FSAL_UP,
+		"Evaluating change detection - modified=%d, stored_change=%llu, received_change=%llu, stored_size=%llu, received_size=%llu",
+		obj->state_hdl->file.cbgetattr.modified,
+		(unsigned long long)obj->state_hdl->file.cbgetattr.change,
+		(unsigned long long)rsp_attr.change,
+		(unsigned long long)obj->state_hdl->file.cbgetattr.filesize,
+		(unsigned long long)rsp_attr.filesize);
+
 	/* Determine if the file is modified the very first time */
 	if (!obj->state_hdl->file.cbgetattr.modified &&
 	    ((obj->state_hdl->file.cbgetattr.change == rsp_attr.change) &&
 	     (obj->state_hdl->file.cbgetattr.filesize == rsp_attr.filesize))) {
+		LogDebug(COMPONENT_FSAL_UP,
+			 "No changes detected - keeping existing attributes");
+		LogDebug(COMPONENT_FSAL_UP,
+			 "Existing attributes - change=%llu, size=%llu",
+			 (unsigned long long)
+				 obj->state_hdl->file.cbgetattr.change,
+			 (unsigned long long)
+				 obj->state_hdl->file.cbgetattr.filesize);
 		goto out;
 	} else {
 		/* One/more attributes changed */
+		LogDebug(COMPONENT_FSAL_UP,
+			 "Changes detected - updating attributes");
 		obj->state_hdl->file.cbgetattr.modified = true;
 	}
 
@@ -1695,6 +1731,11 @@ enum cbgetattr_state handle_getattr_response(struct cbgetattr_context *cbg_ctx,
 	 */
 	obj->state_hdl->file.cbgetattr.change++;
 	obj->state_hdl->file.cbgetattr.filesize = rsp_attr.filesize;
+
+	LogDebug(COMPONENT_FSAL_UP,
+		 "Stored attributes - change=%llu, size=%llu",
+		 (unsigned long long)obj->state_hdl->file.cbgetattr.change,
+		 (unsigned long long)obj->state_hdl->file.cbgetattr.filesize);
 
 	event_func = (cbg_ctx->ctx_export->fsal_export->up_ops);
 

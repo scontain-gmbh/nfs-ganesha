@@ -255,12 +255,19 @@ state_status_t _state_add_impl(struct fsal_obj_handle *obj,
 	PTHREAD_MUTEX_unlock(&all_state_v4_mutex);
 #endif
 
+	/* Sets write_delegated flag for both standard and ATTRS_DELEG write
+	 * delegations.
+	 */
 	if (pnew_state->state_type == STATE_TYPE_DELEG &&
-	    pnew_state->state_data.deleg.sd_type == OPEN_DELEGATE_WRITE) {
+	    (pnew_state->state_data.deleg.sd_type == OPEN_DELEGATE_WRITE ||
+	     pnew_state->state_data.deleg.sd_type ==
+		     OPEN_DELEGATE_WRITE_ATTRS_DELEG)) {
 		ostate->file.write_delegated = true;
-		/* take a ref and save client ptr holding delegation for
-		 * conflict resolution
-		 */
+		//take a ref and save client ptr holding delegation for
+		// conflict resolution
+		LogDebug(COMPONENT_STATE,
+			 "Setting write_delegated=true for client %p",
+			 clientid->gsh_client);
 		inc_client_id_ref(clientid);
 		ostate->file.write_deleg_client = clientid;
 	}
@@ -494,11 +501,16 @@ void _state_del_locked(state_t *state, const char *func, int line)
 	}
 
 	/* Reset write delegated and release client ref if this is a
-	 * write delegation
+	 * write delegation and write attrs delegation.
 	 */
 	if (state->state_type == STATE_TYPE_DELEG &&
-	    state->state_data.deleg.sd_type == OPEN_DELEGATE_WRITE &&
+	    (state->state_data.deleg.sd_type == OPEN_DELEGATE_WRITE ||
+	     state->state_data.deleg.sd_type ==
+		     OPEN_DELEGATE_WRITE_ATTRS_DELEG) &&
 	    obj->state_hdl->file.write_deleg_client) {
+		LogDebug(COMPONENT_STATE,
+			 "Clearing write_delegated=false for client %p",
+			 obj->state_hdl->file.write_deleg_client->gsh_client);
 		obj->state_hdl->file.write_delegated = false;
 		dec_client_id_ref(obj->state_hdl->file.write_deleg_client);
 		obj->state_hdl->file.write_deleg_client = NULL;
@@ -506,7 +518,9 @@ void _state_del_locked(state_t *state, const char *func, int line)
 
 	/* Clean up delegation related flags if file have no active states */
 	if (state->state_type == STATE_TYPE_DELEG &&
-	    state->state_data.deleg.sd_type == OPEN_DELEGATE_READ &&
+	    (state->state_data.deleg.sd_type == OPEN_DELEGATE_READ ||
+	     state->state_data.deleg.sd_type ==
+		     OPEN_DELEGATE_READ_ATTRS_DELEG) &&
 	    glist_empty(&obj->state_hdl->file.list_of_states)) {
 		LogEvent(
 			COMPONENT_STATE,

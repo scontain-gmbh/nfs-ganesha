@@ -78,6 +78,9 @@ enum nfs_req_result nfs4_op_getattr(struct nfs_argop4 *op,
 	nfs_client_id_t *deleg_client = NULL;
 	struct fsal_obj_handle *obj = data->current_obj;
 
+	LogDebug(COMPONENT_NFS_V4,
+		 "Entering NFS v4 GETATTR handler -------------------");
+
 	GSH_AUTO_TRACEPOINT(nfs4, op_getattr_start, TRACE_INFO,
 			    "GETATTR arg: len={} map={}",
 			    arg_GETATTR4->attr_request.bitmap4_len,
@@ -146,14 +149,14 @@ enum nfs_req_result nfs4_op_getattr(struct nfs_argop4 *op,
 				STATELOCK_unlock(obj);
 				goto out;
 			} else {
-				cbgetattr_t *cbgetattr = NULL;
-
-				/* CB_GETATTR response handler must have updated
-				 * the attributes in md-cache. reset cbgetattr
-				 * state and fall through. st_lock is held till
-				 * we finish ending response*/
-				cbgetattr = &obj->state_hdl->file.cbgetattr;
-				cbgetattr->state = CB_GETATTR_NONE;
+				/* CB_GETATTR completed successfully, continue
+				 * with normal GETATTR flow. The attributes
+				 * will be retrieved from the callback response
+				 * by the FSAL.
+				 */
+				LogDebug(
+					COMPONENT_NFS_V4,
+					"CB_GETATTR completed, returning attributes from callback");
 			}
 		}
 

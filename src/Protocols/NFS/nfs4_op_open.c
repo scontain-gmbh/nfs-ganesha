@@ -456,8 +456,37 @@ static void get_delegation(compound_data_t *data, OPEN4args *args,
 		deleg_type = OPEN_DELEGATE_READ;
 	}
 
-	LogDebug(COMPONENT_STATE, "Attempting to grant %s delegation",
-		 deleg_type == OPEN_DELEGATE_WRITE ? "WRITE" : "READ");
+	/* Check if client requested delegation timestamps (RFC 9754).
+	 * If so, upgrade delegation type to include timestamp support.
+	 * Server needs to grant OPEN_DELEGATE_READ_ATTRS_DELEG or
+	 * OPEN_DELEGATE_WRITE_ATTRS_DELEG when the client requests
+	 * timestamps. Without this, server won't be granting these
+	 * delegations and timestamps won't be tracked.
+	 */
+	if (data->minorversion >= NFS4_MINOR_VERS_2 &&
+	    (args->share_access & OPEN4_SHARE_ACCESS_WANT_DELEG_TIMESTAMPS)) {
+		if (deleg_type == OPEN_DELEGATE_WRITE) {
+			deleg_type = OPEN_DELEGATE_WRITE_ATTRS_DELEG;
+			LogDebug(
+				COMPONENT_STATE,
+				"Client requested delegation timestamps, granting WRITE_ATTRS_DELEG");
+		} else if (deleg_type == OPEN_DELEGATE_READ) {
+			deleg_type = OPEN_DELEGATE_READ_ATTRS_DELEG;
+			LogDebug(
+				COMPONENT_STATE,
+				"Client requested delegation timestamps, granting READ_ATTRS_DELEG");
+		}
+	}
+
+	LogDebug(COMPONENT_STATE, "Attempting to grant %s delegation (type=%d)",
+		 deleg_type == OPEN_DELEGATE_WRITE  ? "WRITE"
+		 : deleg_type == OPEN_DELEGATE_READ ? "READ"
+		 : deleg_type == OPEN_DELEGATE_WRITE_ATTRS_DELEG
+			 ? "WRITE_ATTRS_DELEG"
+		 : deleg_type == OPEN_DELEGATE_READ_ATTRS_DELEG
+			 ? "READ_ATTRS_DELEG"
+			 : "UNKNOWN",
+		 deleg_type);
 
 	init_new_deleg_state(&state_data, deleg_type, client);
 
@@ -513,11 +542,15 @@ static void get_delegation(compound_data_t *data, OPEN4args *args,
 		prerecall = true;
 	}
 
+	/* Initialize delegation state for both standard and ATTRS delegation
+	 * types.WRITE/WRITE_ATTRS use space limits and write permissions,
+	 * while READ/READ_ATTRS set read permissions and stateid accordingly.
+	 */
 	resok->delegation.delegation_type = deleg_type;
 	ostate->file.fdeleg_stats.fds_deleg_type = deleg_type;
-	if (deleg_type == OPEN_DELEGATE_WRITE) {
+	if (deleg_type == OPEN_DELEGATE_WRITE ||
+	    deleg_type == OPEN_DELEGATE_WRITE_ATTRS_DELEG) {
 		nfs_space_limit4 *space_limit = &writeres->space_limit;
-
 		space_limit->limitby = NFS_LIMIT_SIZE;
 		space_limit->nfs_space_limit4_u.filesize =
 			DELEG_SPACE_LIMIT_FILESZ;
@@ -525,7 +558,8 @@ static void get_delegation(compound_data_t *data, OPEN4args *args,
 		writeres->recall = prerecall;
 		get_deleg_perm(&writeres->permissions, deleg_type);
 	} else {
-		assert(deleg_type == OPEN_DELEGATE_READ);
+		assert(deleg_type == OPEN_DELEGATE_READ ||
+		       deleg_type == OPEN_DELEGATE_READ_ATTRS_DELEG);
 		COPY_STATEID(&readres->stateid, new_state);
 		readres->recall = prerecall;
 		get_deleg_perm(&readres->permissions, deleg_type);
@@ -1395,6 +1429,35 @@ enum nfs_req_result nfs4_op_open(struct nfs_argop4 *op, compound_data_t *data,
 	res_OPEN4->OPEN4res_u.resok4.cinfo.before =
 		fsal_get_changeid4(obj_change);
 
+	/* Build valid share_access mask based on protocol version.
+	 *
+	 * Note: We accept SIGNAL_DELEG_WHEN_RESRC_AVAIL (0x10000) and
+	 * PUSH_DELEG_WHEN_UNCONTENDED (0x20000) flags for NFSv4.1+ even though
+	 * they are not fully implemented. Per RFC 5661 Section 18.16.3, these
+	 * are optional hints that servers MAY ignore. We accept them to
+	 * maintain compatibility with clients that send them, and silently
+	 * ignore them during delegation processing.
+	 *
+	 * We do NOT advertise support for these flags in FATTR4_OPEN_ARGUMENTS
+	 * (see encode_open_arguments in nfs_proto_tools.c) to avoid misleading
+	 * clients into thinking we will honor them.
+	 */
+	uint32_t valid_share_access_mask = OPEN4_SHARE_ACCESS_BOTH |
+					   OPEN4_SHARE_ACCESS_WANT_DELEG_MASK;
+
+	/* Add NFSv4.1+ signal flags */
+	if (data->minorversion >= NFS4_MINOR_VERS_1) {
+		valid_share_access_mask |=
+			OPEN4_SHARE_ACCESS_WANT_SIGNAL_DELEG_WHEN_RESRC_AVAIL |
+			OPEN4_SHARE_ACCESS_WANT_PUSH_DELEG_WHEN_UNCONTENDED;
+	}
+
+	/* Add NFSv4.2 delegation timestamp flag */
+	if (data->minorversion >= NFS4_MINOR_VERS_2) {
+		valid_share_access_mask |=
+			OPEN4_SHARE_ACCESS_WANT_DELEG_TIMESTAMPS;
+	}
+
 	/* Check if share_access does not have any access set, or has
 	 * invalid bits that are set.  check that share_deny doesn't
 	 * have any invalid bits set.
@@ -1402,12 +1465,13 @@ enum nfs_req_result nfs4_op_open(struct nfs_argop4 *op, compound_data_t *data,
 	if (!(arg_OPEN4->share_access & OPEN4_SHARE_ACCESS_BOTH) ||
 	    (data->minorversion == 0 &&
 	     arg_OPEN4->share_access & ~OPEN4_SHARE_ACCESS_BOTH) ||
-	    (arg_OPEN4->share_access & (~OPEN4_SHARE_ACCESS_WANT_DELEG_MASK &
-					~OPEN4_SHARE_ACCESS_BOTH)) ||
+	    (arg_OPEN4->share_access & ~valid_share_access_mask) ||
 	    (arg_OPEN4->share_deny & ~OPEN4_SHARE_DENY_BOTH)) {
 		res_OPEN4->status = NFS4ERR_INVAL;
-		LogDebug(COMPONENT_NFS_V4,
-			 "Invalid SHARE_ACCESS or SHARE_DENY");
+		LogDebug(
+			COMPONENT_NFS_V4,
+			"Invalid SHARE_ACCESS or SHARE_DENY (share_access=0x%x, valid_mask=0x%x)",
+			arg_OPEN4->share_access, valid_share_access_mask);
 		goto out;
 	}
 
