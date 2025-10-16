@@ -274,6 +274,13 @@ int cmp_sockaddr(sockaddr_t *addr_1, sockaddr_t *addr_2, bool ignore_port)
  */
 int sockaddr_cmpf(sockaddr_t *addr1, sockaddr_t *addr2, bool ignore_port)
 {
+	sockaddr_t addr_ipv4_1 = {};
+	sockaddr_t addr_ipv4_2 = {};
+
+	if (addr1->ss_family != addr2->ss_family) {
+		addr1 = convert_ipv6_to_ipv4(addr1, &addr_ipv4_1);
+		addr2 = convert_ipv6_to_ipv4(addr2, &addr_ipv4_2);
+	}
 	switch (addr1->ss_family) {
 	case AF_INET: {
 		struct sockaddr_in *in1 = (struct sockaddr_in *)addr1;
