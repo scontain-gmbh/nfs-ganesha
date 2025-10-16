@@ -68,6 +68,12 @@ struct nfs3_readdirplus_cb_data {
 				   hit maxcount */
 	int count; /*< Number of entries accumulated so far. */
 	uint32_t max_count; /*< Maximum number of entries allowed. */
+	/* dircount byte accounting:
+	 * counts: cookie + XDR name length + RNDUP(name bytes).
+	 * A limit of 0 means no limit */
+	size_t dir_bytes_used;
+	uint32_t dir_bytes_limit;
+	bool dircount_hit;
 	nfsstat3 error; /*< Set to a value other than NFS_OK if the
 				   callback function finds a fatal error. */
 };
@@ -171,15 +177,15 @@ int nfs3_readdirplus(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 	max_mem = atomic_fetch_uint64_t(&op_ctx->ctx_export->MaxRead);
 	tracker.mem_avail = MIN(mem_avail, max_mem);
 
-	/* Use the dircount from the request as the max number of entries if
-	 * lower than the configured max.
-	 */
-	if (arg->arg_readdirplus3.dircount < cfg_readdir_count)
-		tracker.max_count = arg->arg_readdirplus3.dircount;
-	else
-		tracker.max_count = cfg_readdir_count;
+	/* Server entry cap; do NOT use client's dircount as an entry count. */
+	tracker.max_count = cfg_readdir_count;
 
 	begin_cookie = arg->arg_readdirplus3.cookie;
+
+	/* RFC dircount byte-budget. 0 => unlimited */
+	tracker.dir_bytes_limit = arg->arg_readdirplus3.dircount;
+	tracker.dir_bytes_used = 0;
+	tracker.dircount_hit = false;
 
 	LogDebug(COMPONENT_NFS_READDIR,
 		 "NFS3_READDIRPLUS: dircount=%u begin_cookie=%" PRIu64
@@ -463,6 +469,12 @@ fsal_errors_t nfs3_readdirplus_callback(void *opaque,
 	entryplus3 ep3;
 	u_int pos_start = xdr_getpos(&tracker->xdr);
 
+	/* Precompute RFC dircount contribution for this entry:
+	 * cookie + XDR name length + RNDUP(name bytes). */
+	size_t name_len = strlen(cb_parms->name);
+	size_t add_bytes =
+		sizeof(cookie) + BYTES_PER_XDR_UNIT + RNDUP(name_len);
+
 	LogDebug(COMPONENT_NFS_READDIR, "Callback for %s cookie %" PRIu64,
 		 cb_parms->name, cookie);
 
@@ -488,6 +500,28 @@ fsal_errors_t nfs3_readdirplus_callback(void *opaque,
 	} else {
 		ep3.name_handle.handle_follows = false;
 		ep3.name_attributes.attributes_follow = false;
+	}
+
+	/* Enforce RFC dircount (byte budget) before XDR encoding. */
+	if (tracker->dir_bytes_limit != 0 &&
+	    tracker->dir_bytes_used + add_bytes > tracker->dir_bytes_limit) {
+		bool_t res_false = false;
+
+		tracker->dircount_hit = true;
+		if (tracker->count == 0)
+			tracker->error = NFS3ERR_TOOSMALL;
+
+		cb_parms->in_result = false;
+
+		/* Rewind to the start of this entry and terminate list. */
+		if (!xdr_setpos(&tracker->xdr, pos_start) ||
+		    !xdr_bool(&tracker->xdr, &res_false)) {
+			LogCrit(COMPONENT_NFS_READDIR,
+				"Unexpected XDR failure processing readdir result");
+			tracker->error = NFS3ERR_SERVERFAULT;
+		}
+
+		return ERR_FSAL_NO_ERROR;
 	}
 
 	/* Encode the entry into the xdrmem buffer and then assure there is
@@ -523,6 +557,7 @@ fsal_errors_t nfs3_readdirplus_callback(void *opaque,
 		/* The entry fit, let the caller know it fit */
 		cb_parms->in_result = true;
 		tracker->count++;
+		tracker->dir_bytes_used += add_bytes;
 	}
 
 	/* Now we are done with anything allocated */
