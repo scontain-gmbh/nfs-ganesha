@@ -153,6 +153,55 @@ static void fs_create_clid_name(nfs_client_id_t *clientid)
 		 clientid->cid_recov_tag);
 }
 
+/**
+ * @brief create the name for the recovery directory in IP Based recovery
+ *
+ * This name will be used to know that a client was talking to the
+ * server before a restart so that it will be allowed to do reclaims
+ * during grace period.
+ *
+ * @param[in]  saddr IP  Address
+ * @param[in]  is_old    Whether the name should be for the old state dir
+ * @param[in]  path_size Maximum size of path
+ * @param[out] path      The recovery dir name
+ *
+ * @return length of path or -ve on error
+ */
+static int fs_make_ip_recov_dir_name(sockaddr_t *saddr, bool is_old,
+				     int path_size, char *path)
+{
+	int rc;
+	char ipstring[SOCK_NAME_MAX];
+	struct display_buffer dspbuf = { sizeof(ipstring), ipstring, ipstring };
+
+	display_sockip(&dspbuf, saddr);
+
+	LogDebug(COMPONENT_CLIENTID, "ip_based=%d addr_int=%s is_old=%d",
+		 nfs_param.nfsv4_param.recovery_backend_ipbased, ipstring,
+		 is_old);
+	if (is_old) {
+		rc = snprintf(path, path_size, "%s/%s/ip_%s",
+			      nfs_param.nfsv4_param.recov_root,
+			      nfs_param.nfsv4_param.recov_old_dir, ipstring);
+	} else {
+		rc = snprintf(path, path_size, "%s/%s/ip_%s",
+			      nfs_param.nfsv4_param.recov_root,
+			      nfs_param.nfsv4_param.recov_dir, ipstring);
+	}
+
+	if (unlikely(rc >= path_size)) {
+		LogCrit(COMPONENT_CLIENTID, "Path %s too long", path);
+		return -1;
+	} else if (unlikely(rc < 0)) {
+		LogCrit(COMPONENT_CLIENTID,
+			"Unexpected return from snprintf %d error %s (%d)", rc,
+			strerror(errno), errno);
+		return rc;
+	}
+	LogDebug(COMPONENT_CLIENTID, "dir = %s", path);
+	return rc;
+}
+
 int fs_create_recov_dir(void)
 {
 	int err, root_len, dir_len, old_len, node_size = 0;
@@ -162,7 +211,9 @@ int fs_create_recov_dir(void)
 	 *              the terminating NUL.
 	 */
 
-	if (nfs_param.core_param.clustered && (g_nodeid >= 0)) {
+	if (nfs_param.nfsv4_param.recovery_backend_ipbased) {
+		node[0] = '\0';
+	} else if (nfs_param.core_param.clustered && (g_nodeid >= 0)) {
 		node_size = snprintf(node, sizeof(node), "/node%d", g_nodeid);
 
 		if (unlikely(node_size >= sizeof(node) || node_size < 0)) {
@@ -297,13 +348,40 @@ void fs_add_clid(nfs_client_id_t *clientid)
 	int err = 0;
 	char path[PATH_MAX] = { 0 };
 	int length, position;
-	int pathpos = strlen(v4_recov_dir);
+	int pathpos = 0;
+	sockaddr_t *saddr = &clientid->cid_client_record->cr_server_addr;
+	char recov_dir[PATH_MAX];
+
+	if (nfs_param.nfsv4_param.recovery_backend_ipbased) {
+		pathpos = fs_make_ip_recov_dir_name(saddr, false,
+						    sizeof(recov_dir),
+						    recov_dir);
+		err = mkdir(recov_dir, 0700);
+		if (err == -1 && errno != EEXIST) {
+			LogEvent(
+				COMPONENT_CLIENTID,
+				"Failed to create recov_dir (%s), errno: %s (%d)",
+				recov_dir, strerror(errno), errno);
+		}
+	} else {
+		memcpy(recov_dir, v4_recov_dir, v4_recov_dir_len);
+		pathpos = v4_recov_dir_len;
+	}
+
+	if (isMidDebug(COMPONENT_STATE)) {
+		char ipstring[SOCK_NAME_MAX];
+		struct display_buffer dspbuf = { sizeof(ipstring), ipstring,
+						 ipstring };
+		display_sockip(&dspbuf, saddr);
+		LogDebug(COMPONENT_STATE, "server_addr=%s recov_dir=%s",
+			 ipstring, recov_dir);
+	}
 
 	fs_create_clid_name(clientid);
 
 	/* break clientid down if it is greater than max dir name */
 	/* and create a directory hierarchy to represent the clientid. */
-	memcpy(path, v4_recov_dir, pathpos + 1);
+	memcpy(path, recov_dir, pathpos + 1);
 
 	length = strlen(clientid->cid_recov_tag);
 
@@ -362,11 +440,28 @@ void fs_add_clid(nfs_client_id_t *clientid)
 void fs_reclaim_complete(nfs_client_id_t *clientid)
 {
 	char path[PATH_MAX] = { 0 };
+	char recov_dir[PATH_MAX];
+	int recov_dir_len;
+	sockaddr_t *saddr = &clientid->cid_client_record->cr_server_addr;
 	int length, position = 0, pathpos, marker_len;
 	int fd;
+	char client_str[LOG_BUFF_LEN] = "\0";
+	struct display_buffer dspbuf = { sizeof(client_str), client_str,
+					 client_str };
 
-	memcpy(path, v4_recov_dir, v4_recov_dir_len);
-	pathpos = v4_recov_dir_len;
+	display_client_id_rec(&dspbuf, clientid);
+	LogDebug(COMPONENT_CLIENTID, " %s", client_str);
+
+	if (nfs_param.nfsv4_param.recovery_backend_ipbased) {
+		fs_make_ip_recov_dir_name(saddr, false, sizeof(recov_dir),
+					  recov_dir);
+		recov_dir_len = strlen(recov_dir);
+		memcpy(path, recov_dir, recov_dir_len);
+		pathpos = recov_dir_len;
+	} else {
+		memcpy(path, v4_recov_dir, v4_recov_dir_len);
+		pathpos = v4_recov_dir_len;
+	}
 
 	length = strlen(clientid->cid_recov_tag);
 	marker_len = strlen(reclaim_complete_marker);
@@ -391,6 +486,7 @@ void fs_reclaim_complete(nfs_client_id_t *clientid)
 			path[pathpos + len] = '/';
 			memcpy(path + pathpos + len + 1,
 			       reclaim_complete_marker, marker_len);
+			LogDebug(COMPONENT_CLIENTID, "Create marker %s", path);
 			fd = creat(path, 0700);
 			if (fd < 0) {
 				LogEvent(
@@ -465,6 +561,9 @@ static void fs_rm_clid_impl(int position, char *recov_dir, int len,
 	int segment_len;
 	int total_len;
 
+	LogDebug(COMPONENT_CLIENTID,
+		 "position=%d len=%d  parent_path=%s recov_dir=%s", position,
+		 len, parent_path, recov_dir);
 	if (position == len) {
 		/* We are at the tail directory of the clid,
 		* remove revoked handles and reclaim complete marker, if any.
@@ -495,6 +594,7 @@ static void fs_rm_clid_impl(int position, char *recov_dir, int len,
 	fs_rm_clid_impl(position + segment_len, recov_dir, len, path,
 			total_len - 1);
 
+	LogDebug(COMPONENT_CLIENTID, "Will remove %s", path);
 	err = rmdir(path);
 	if (err == -1) {
 		LogEvent(
@@ -510,14 +610,65 @@ static void fs_rm_clid_impl(int position, char *recov_dir, int len,
 void fs_rm_clid(nfs_client_id_t *clientid)
 {
 	char *recov_dir = clientid->cid_recov_tag;
+	sockaddr_t *saddr = &clientid->cid_client_record->cr_server_addr;
+	char client_str[LOG_BUFF_LEN] = "\0";
+	struct display_buffer dspbuf = { sizeof(client_str), client_str,
+					 client_str };
 
 	if (recov_dir == NULL)
 		return;
 
-	clientid->cid_recov_tag = NULL;
-	fs_rm_clid_impl(0, recov_dir, strlen(recov_dir), v4_recov_dir,
-			v4_recov_dir_len);
-	gsh_free(recov_dir);
+	display_client_id_rec(&dspbuf, clientid);
+	LogDebug(COMPONENT_STATE,
+		 "v4_recov_dir=%s recov_dir=%s client=%s saved=%d confirmed=%d",
+		 v4_recov_dir, recov_dir, client_str,
+		 clientid->cid_confirmed_saved, clientid->cid_confirmed);
+
+	if (nfs_param.nfsv4_param.recovery_backend_ipbased) {
+		char client_str[LOG_BUFF_LEN] = "\0";
+		struct display_buffer dspbuf = { sizeof(client_str), client_str,
+						 client_str };
+		char ip_recov_dir[PATH_MAX];
+		int ip_recov_dir_len;
+
+		display_client_id_rec(&dspbuf, clientid);
+		ip_recov_dir_len = fs_make_ip_recov_dir_name(
+			saddr, false, sizeof(ip_recov_dir), ip_recov_dir);
+
+		/*
+		   In the case of v4.1, confirmed client ids are removed as
+		   a result of OP_DESTROY_CLIENTID sent when a client umounts.
+		   For V4.0, the CONFIRMED_CLIENT_ID status is trashed in
+		   nfs3_clientid.c:nfs_client_id_expire().  We need that to
+		   differentiate from "normal" expiry after a release IP.
+		   So we save it the status in clientid->cid_confirmed_saved
+		   in that function so that we can check it here.
+		*/
+		if ((clientid->cid_confirmed == CONFIRMED_CLIENT_ID) ||
+		    (clientid->cid_minorversion == 0 &&
+		     clientid->cid_confirmed_saved == CONFIRMED_CLIENT_ID)) {
+			LogDebug(COMPONENT_STATE,
+				 "Will cleanup %s %s: client=%s", ip_recov_dir,
+				 recov_dir, client_str);
+			fs_rm_clid_impl(0, recov_dir, strlen(recov_dir),
+					ip_recov_dir, ip_recov_dir_len);
+		} else if (clientid->cid_minorversion > 0 &&
+			   clientid->cid_confirmed == EXPIRED_CLIENT_ID) {
+			int pathpos = ip_recov_dir_len;
+
+			ip_recov_dir[pathpos++] = '/';
+			memcpy(ip_recov_dir + pathpos, recov_dir,
+			       strlen(recov_dir) + 1);
+			LogDebug(COMPONENT_STATE,
+				 "should expire client records %s",
+				 ip_recov_dir);
+		}
+	} else {
+		clientid->cid_recov_tag = NULL;
+		fs_rm_clid_impl(0, recov_dir, strlen(recov_dir), v4_recov_dir,
+				v4_recov_dir_len);
+		gsh_free(recov_dir);
+	}
 }
 
 static bool fs_check_reclaim_complete(const char *clid_path)
@@ -817,12 +968,19 @@ static int fs_read_recov_clids_impl(const char *parent_path, char *clid_str,
 		 * hierarchy  that represent the current clientid
 		 */
 		if (!takeover) {
-			fs_rm_client_records(sub_path);
-			rc = rmdir(sub_path);
-			if (rc == -1) {
-				LogEvent(COMPONENT_CLIENTID,
-					 "Failed to rmdir (%s), errno: %s (%d)",
-					 sub_path, strerror(errno), errno);
+			if (nfs_param.nfsv4_param.recovery_backend_ipbased) {
+				LogDebug(COMPONENT_CLIENTID, "Would remove %s",
+					 sub_path);
+			} else {
+				fs_rm_client_records(sub_path);
+				rc = rmdir(sub_path);
+				if (rc == -1) {
+					LogEvent(
+						COMPONENT_CLIENTID,
+						"Failed to rmdir (%s), errno: %s (%d)",
+						sub_path, strerror(errno),
+						errno);
+				}
 			}
 		}
 		gsh_free(sub_path);
@@ -833,25 +991,39 @@ static int fs_read_recov_clids_impl(const char *parent_path, char *clid_str,
 	return num;
 }
 
-static void fs_read_recov_clids_recover(add_clid_entry_hook add_clid_entry,
+static void fs_read_recov_clids_recover(char *recov_dir, char *old_dir,
+					add_clid_entry_hook add_clid_entry,
 					add_rfh_entry_hook add_rfh_entry)
 {
 	int rc;
 
-	rc = fs_read_recov_clids_impl(v4_old_dir, NULL, NULL, 0, add_clid_entry,
+	rc = fs_read_recov_clids_impl(old_dir, NULL, NULL, 0, add_clid_entry,
 				      add_rfh_entry);
 	if (rc == -1) {
 		LogEvent(COMPONENT_CLIENTID,
-			 "Failed to read v4 recovery dir (%s)", v4_old_dir);
+			 "Failed to read v4 recovery dir (%s)", old_dir);
 		return;
 	}
 
-	rc = fs_read_recov_clids_impl(v4_recov_dir, NULL, v4_old_dir, 0,
+	rc = fs_read_recov_clids_impl(v4_recov_dir, NULL, old_dir, 0,
 				      add_clid_entry, add_rfh_entry);
 	if (rc == -1) {
 		LogEvent(COMPONENT_CLIENTID,
-			 "Failed to read v4 recovery dir (%s)", v4_recov_dir);
+			 "Failed to read v4 recovery dir (%s)", recov_dir);
 		return;
+	}
+}
+
+static void create_dir(char *path)
+{
+	int err;
+
+	err = mkdir(path, 0755);
+	if (err == -1 && errno != EEXIST) {
+		err = errno;
+		LogEvent(COMPONENT_CLIENTID,
+			 "Failed to create v4 recovery dir (%s), errno: %s (%d)",
+			 path, strerror(errno), errno);
 	}
 }
 
@@ -865,10 +1037,54 @@ void fs_read_recov_clids_takeover(nfs_grace_start_t *gsp,
 				  add_rfh_entry_hook add_rfh_entry)
 {
 	int rc;
+	sockaddr_t saddr;
 	char path[PATH_MAX];
+	char recov_dir[PATH_MAX];
+	char old_dir[PATH_MAX];
+
+	LogDebug(COMPONENT_CLIENTID, "ip_based=%d, gsp=%p",
+		 nfs_param.nfsv4_param.recovery_backend_ipbased, gsp);
+	if (nfs_param.nfsv4_param.recovery_backend_ipbased) {
+		if (gsp) {
+			/* should always be set */
+			if (gsp->ipaddr) {
+				LogDebug(COMPONENT_CLIENTID, "gsp_ipaddr=%s",
+					 gsp->ipaddr);
+				rc = ip_str_to_sockaddr(gsp->ipaddr, &saddr);
+				if (rc != 0) {
+					LogWarn(COMPONENT_STATE,
+						"Unable to convert IP string %s",
+						gsp->ipaddr);
+					return;
+				}
+
+				fs_make_ip_recov_dir_name(&saddr, false,
+							  sizeof(recov_dir),
+							  recov_dir);
+				create_dir(recov_dir);
+				fs_make_ip_recov_dir_name(&saddr, true,
+							  sizeof(old_dir),
+							  old_dir);
+				create_dir(old_dir);
+			}
+		} else {
+			LogDebug(
+				COMPONENT_CLIENTID,
+				"IP BASED v4_recov_dir_len=%d strlen(v4_recov_dir)=%ld",
+				v4_recov_dir_len, strlen(v4_recov_dir));
+			memcpy(recov_dir, v4_recov_dir, v4_recov_dir_len + 1);
+			memcpy(old_dir, v4_old_dir, v4_old_dir_len + 1);
+		}
+		LogDebug(COMPONENT_CLIENTID, "IP BASED END %s %s", recov_dir,
+			 old_dir);
+	} else {
+		memcpy(recov_dir, v4_recov_dir, v4_recov_dir_len + 1);
+		memcpy(old_dir, v4_old_dir, v4_old_dir_len + 1);
+	}
 
 	if (!gsp) {
-		fs_read_recov_clids_recover(add_clid_entry, add_rfh_entry);
+		fs_read_recov_clids_recover(recov_dir, old_dir, add_clid_entry,
+					    add_rfh_entry);
 		return;
 	}
 
@@ -887,19 +1103,36 @@ void fs_read_recov_clids_takeover(nfs_grace_start_t *gsp,
 		}
 		break;
 	case EVENT_TAKE_IP:
-		rc = snprintf(path, sizeof(path), "%s/%s/%s",
-			      nfs_param.nfsv4_param.recov_root, gsp->ipaddr,
-			      nfs_param.nfsv4_param.recov_dir);
+		if (nfs_param.nfsv4_param.recovery_backend_ipbased) {
+			rc = snprintf(path, sizeof(path), "%s", recov_dir);
 
-		if (unlikely(rc >= sizeof(path))) {
-			LogCrit(COMPONENT_CLIENTID, "Path %s/%s/%s too long",
-				nfs_param.nfsv4_param.recov_root, gsp->ipaddr,
-				nfs_param.nfsv4_param.recov_dir);
-			return;
-		} else if (unlikely(rc < 0)) {
-			LogCrit(COMPONENT_CLIENTID,
-				"Unexpected return from snprintf %d error %s (%d)",
-				rc, strerror(errno), errno);
+			if (unlikely(rc >= sizeof(path))) {
+				LogCrit(COMPONENT_CLIENTID, "Path %s too long",
+					path);
+				return;
+			} else if (unlikely(rc < 0)) {
+				LogCrit(COMPONENT_CLIENTID,
+					"Unexpected return from snprintf %d error %s (%d)",
+					rc, strerror(errno), errno);
+			}
+		} else {
+			rc = snprintf(path, sizeof(path), "%s/%s/%s",
+				      nfs_param.nfsv4_param.recov_root,
+				      gsp->ipaddr,
+				      nfs_param.nfsv4_param.recov_dir);
+
+			if (unlikely(rc >= sizeof(path))) {
+				LogCrit(COMPONENT_CLIENTID,
+					"Path %s/%s/%s too long",
+					nfs_param.nfsv4_param.recov_root,
+					gsp->ipaddr,
+					nfs_param.nfsv4_param.recov_dir);
+				return;
+			} else if (unlikely(rc < 0)) {
+				LogCrit(COMPONENT_CLIENTID,
+					"Unexpected return from snprintf %d error %s (%d)",
+					rc, strerror(errno), errno);
+			}
 		}
 		break;
 	case EVENT_TAKE_NODEID:
@@ -927,7 +1160,7 @@ void fs_read_recov_clids_takeover(nfs_grace_start_t *gsp,
 	LogEvent(COMPONENT_CLIENTID, "Recovery for nodeid %d dir (%s)",
 		 gsp->nodeid, path);
 
-	rc = fs_read_recov_clids_impl(path, NULL, v4_old_dir, 1, add_clid_entry,
+	rc = fs_read_recov_clids_impl(path, NULL, old_dir, 1, add_clid_entry,
 				      add_rfh_entry);
 	if (rc == -1) {
 		LogEvent(COMPONENT_CLIENTID,
@@ -963,6 +1196,8 @@ void fs_clean_old_recov_dir_impl(char *parent_path)
 		if (dentp->d_type == DT_REG) {
 			/* Remove regular files: revoked file handles */
 			/* and reclaim_complete marker now */
+			LogDebug(COMPONENT_CLIENTID, "Will remove %s", path);
+
 			if (unlink(path) < 0) {
 				LogEvent(COMPONENT_CLIENTID,
 					 "unlink of %s failed errno: %s (%d)",
@@ -972,6 +1207,7 @@ void fs_clean_old_recov_dir_impl(char *parent_path)
 			/* This is a directory, we need process files in it! */
 			fs_clean_old_recov_dir_impl(path);
 
+			LogDebug(COMPONENT_CLIENTID, "Will remove %s", path);
 			rc = rmdir(path);
 
 			if (rc == -1) {
@@ -1000,8 +1236,13 @@ void fs_add_revoke_fh(nfs_client_id_t *delr_clid, nfs_fh4 *delr_handle)
 	char path[PATH_MAX] = { 0 };
 	int length, position = 0, pathpos, rhdlstr_len;
 	int fd;
-
 	int __attribute__((unused)) retval;
+	char client_str[LOG_BUFF_LEN] = "\0";
+	struct display_buffer dspbuf = { sizeof(client_str), client_str,
+					 client_str };
+
+	display_client_id_rec(&dspbuf, delr_clid);
+	LogDebug(COMPONENT_CLIENTID, " %s", client_str);
 
 	/* Convert nfs_fh4_val into base64 encoded string */
 	retval = base64url_encode(delr_handle->nfs_fh4_val,

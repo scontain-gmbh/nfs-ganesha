@@ -118,6 +118,7 @@ clid_entry_t *nfs4_add_clid_entry(char *cl_name, bool reclaim_complete)
 
 	glist_init(&new_ent->cl_rfh_list);
 	(void)strlcpy(new_ent->cl_name, cl_name, sizeof(new_ent->cl_name));
+	LogDebug(COMPONENT_CLIENTID, "%s %d", cl_name, reclaim_complete);
 	new_ent->cl_reclaim_complete = reclaim_complete;
 	glist_add(&clid_list, &new_ent->cl_list);
 	++clid_count;

@@ -763,7 +763,8 @@ struct nfs_client_id_t {
 	time_t cid_last_renew; /*< Time of last renewal */
 	nfs_clientid_confirm_state_t cid_confirmed; /*< Confirm/expire state */
 	nfs_clientid_confirm_state_t
-		cid_confirmed_saved; /* hang on to cid_confirmed for v4.0 unmount cid cleanup */
+		cid_confirmed_saved; /* hang on to cid_confirmed for
+					v4.0 unmount cid cleanup */
 	bool cid_allow_reclaim; /*< Can still reclaim state? */
 	nfs_client_cred_t cid_credential; /*< Client credential */
 	char *cid_recov_tag; /*< Recovery tag */
