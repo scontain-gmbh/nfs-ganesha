@@ -154,6 +154,8 @@ struct pnfs_deviceid {
 struct fsal_layoutget_arg {
 	/** The type of layout being requested */
 	layouttype4 type;
+	/** The iomode of layout being requested */
+	layoutiomode4 iomode;
 	/** The minimum length that must be granted if a layout is to be
 	 *  granted at all. */
 	uint64_t minlength;

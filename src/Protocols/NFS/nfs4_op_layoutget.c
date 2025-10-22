@@ -406,6 +406,7 @@ enum nfs_req_result nfs4_op_layoutget(struct nfs_argop4 *op,
 	layouts = gsh_calloc(max_segment_count, sizeof(layout4));
 
 	arg.type = arg_LAYOUTGET4->loga_layout_type;
+	arg.iomode = arg_LAYOUTGET4->loga_iomode;
 	arg.minlength = arg_LAYOUTGET4->loga_minlength;
 	arg.export_id = op_ctx->ctx_export->export_id;
 	arg.maxcount = arg_LAYOUTGET4->loga_maxcount;
