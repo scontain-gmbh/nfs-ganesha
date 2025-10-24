@@ -318,7 +318,7 @@ static void rados_cluster_read_clids(nfs_grace_start_t *gsp,
 		set_recovery_object_for_takeover(gsp);
 
 	/* ceph client reclaim action for nodeid takeover */
-	if (takeover && (gsp->event == EVENT_TAKE_NODEID)) {
+	if (takeover && gsp && (gsp->event == EVENT_TAKE_NODEID)) {
 		ret = nfs_recovery_fsal_reclaim_client(object_takeover);
 		if (ret)
 			LogCrit(COMPONENT_CLIENTID,
