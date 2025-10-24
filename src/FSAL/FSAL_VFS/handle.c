@@ -1740,7 +1740,7 @@ static fsal_status_t vfs_getxattrs(struct fsal_obj_handle *obj_hdl,
 	rc = snprintf(name, sizeof(name), "user.%.*s", xa_name->utf8string_len,
 		      xa_name->utf8string_val);
 	if (rc >= sizeof(name))
-		return posix2fsal_status(-ENAMETOOLONG);
+		return posix2fsal_status(ENAMETOOLONG);
 
 	fd = (obj_hdl->type == DIRECTORY)
 		     ? vfs_fsal_open(myself, O_DIRECTORY, &fsal_error)
@@ -1787,7 +1787,7 @@ static fsal_status_t vfs_setxattrs(struct fsal_obj_handle *obj_hdl,
 	rc = snprintf(name, sizeof(name), "user.%.*s", xa_name->utf8string_len,
 		      xa_name->utf8string_val);
 	if (rc >= sizeof(name))
-		return posix2fsal_status(-ENAMETOOLONG);
+		return posix2fsal_status(ENAMETOOLONG);
 
 	fd = (obj_hdl->type == DIRECTORY)
 		     ? vfs_fsal_open(myself, O_DIRECTORY, &fsal_error)
@@ -1844,7 +1844,7 @@ static fsal_status_t vfs_removexattrs(struct fsal_obj_handle *obj_hdl,
 	rc = snprintf(name, sizeof(name), "user.%.*s", xa_name->utf8string_len,
 		      xa_name->utf8string_val);
 	if (rc >= sizeof(name))
-		return posix2fsal_status(-ENAMETOOLONG);
+		return posix2fsal_status(ENAMETOOLONG);
 
 	fd = (obj_hdl->type == DIRECTORY)
 		     ? vfs_fsal_open(myself, O_DIRECTORY, &fsal_error)
