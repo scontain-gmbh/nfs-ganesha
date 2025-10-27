@@ -274,14 +274,14 @@ static std::string trimIPv6Prefix(const std::string input)
 	if (input.find(prefix) == 0) {
 		return input.substr(prefix.size());
 	}
-	return input;
+	return std::move(input);
 }
 
 // SimpleMap is a simple thread-safe wrapper of std::map.
 template <class K, class T = std::string> class SimpleMap {
     public:
 	SimpleMap(std::function<T(const K &k)> get_value)
-		: get_value_(get_value)
+		: get_value_(std::move(get_value))
 	{
 	}
 

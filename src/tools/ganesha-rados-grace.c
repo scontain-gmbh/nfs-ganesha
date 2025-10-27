@@ -145,6 +145,14 @@ int main(int argc, char *const *argv)
 			bool prepend;
 
 			node_names = calloc(nodes, sizeof(char *));
+			if (!node_names) {
+				fprintf(stderr,
+					"Allocation failed for node_names\n");
+				ret = -ENOMEM;
+				/* ensures we don't do node_names[i]
+				 * when it's NULL */
+				goto out;
+			}
 			/* create the node names */
 			for (i = 0; i < nodes; ++i) {
 				prepend = true;
