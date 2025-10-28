@@ -383,15 +383,6 @@ int nfs3_read(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 		size = MaxRead;
 	}
 
-	if (size == 0) {
-		struct fsal_io_arg read_arg;
-
-		memset(&read_arg, 0, sizeof(read_arg));
-
-		nfs_read_ok(&res->res_read3.READ3res_u.resok, &read_arg, obj);
-		goto return_ok;
-	}
-
 	/* Check for delegation conflict. */
 	if (state_deleg_conflict(obj, false)) {
 		res->res_read3.status = NFS3ERR_JUKEBOX;
@@ -411,6 +402,15 @@ int nfs3_read(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 	resok->data.iov[0].iov_base = NULL;
 	resok->data.last_iov_buf_size = 0;
 	resok->data.release = read3_io_data_release;
+
+	if (size == 0) {
+		struct fsal_io_arg read_arg;
+
+		memset(&read_arg, 0, sizeof(read_arg));
+
+		nfs_read_ok(&res->res_read3.READ3res_u.resok, &read_arg, obj);
+		goto return_ok;
+	}
 
 	/* Set up args, allocate from heap */
 	read_data = gsh_calloc(1, sizeof(*read_data));
