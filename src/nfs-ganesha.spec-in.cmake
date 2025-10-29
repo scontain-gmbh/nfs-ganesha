@@ -675,11 +675,6 @@ install -p -m 644 selinux/ganesha.if %{buildroot}%{_selinux_store_path}/devel/in
 install -m 0644 selinux/ganesha.pp.bz2 %{buildroot}%{_selinux_store_path}/packages
 %endif
 
-%if ( ! 0%{?with_legacy_python_install} )
-%if ( 0%{?with_gpfs} )
-mv %{buildroot}/usr/bin/gpfs-epoch %{buildroot}/usr/libexec/ganesha/
-%endif
-%endif
 
 %if ( 0%{?rhel} && 0%{?rhel} < 8 )
 rm -rf %{buildroot}/%{python_sitelib}/gpfs*
@@ -844,9 +839,6 @@ exit 0
 %config(noreplace) %{_sysconfdir}/ganesha/gpfs.ganesha.main.conf
 %config(noreplace) %{_sysconfdir}/ganesha/gpfs.ganesha.log.conf
 %config(noreplace) %{_sysconfdir}/ganesha/gpfs.ganesha.exports.conf
-%if %{with utils}
-%{_libexecdir}/ganesha/gpfs-epoch
-%endif
 %if %{with man_page}
 %{_mandir}/*/ganesha-gpfs-config.8.gz
 %endif
@@ -958,6 +950,11 @@ exit 0
 %{_bindir}/ganesha_conf
 %{_bindir}/ganesha-top
 %{_mandir}/*/ganesha_conf.8.gz
+%if %{with gpfs}
+%{_libexecdir}/ganesha/gpfs-epoch
+%else
+%exclude %{_libexecdir}/ganesha/gpfs-epoch
+%endif
 %endif
 
 %changelog
