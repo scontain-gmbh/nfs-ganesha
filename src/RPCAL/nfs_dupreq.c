@@ -132,7 +132,7 @@ struct drc_st {
 	drc_t udp_drc; /* shared DRC */
 	struct rbtree_x tcp_drc_recycle_t;
 	TAILQ_HEAD(drc_st_tailq, drc) tcp_drc_recycle_q; /* fifo */
-	int32_t tcp_drc_recycle_qlen;
+	uint32_t tcp_drc_recycle_qlen;
 	time_t last_expire_check;
 	uint32_t expire_delta;
 };
@@ -1510,5 +1510,11 @@ int for_each_tcp_drc(void (*cb)(drc_t *drc, void *state), void *state)
  */
 uint32_t get_tcp_drc_recycle_qlen(void)
 {
-	return drc_st->tcp_drc_recycle_qlen;
+	uint32_t len;
+
+	DRC_ST_LOCK();
+	len = drc_st->tcp_drc_recycle_qlen;
+	DRC_ST_UNLOCK();
+
+	return len;
 }
