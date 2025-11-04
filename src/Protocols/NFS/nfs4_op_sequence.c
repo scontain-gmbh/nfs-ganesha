@@ -319,11 +319,8 @@ enum nfs_req_result nfs4_op_sequence(struct nfs_argop4 *op,
 		/* Check if there are actually any revoked delegations left
 		 * for this client.
 		 */
-		bool has_revoked = false;
-
-		if (session->clientid_record != NULL)
-			has_revoked = has_revoked_delegations_for_client(
-				session->clientid_record);
+		bool has_revoked = has_revoked_delegations_for_client(
+			session->clientid_record);
 
 		if (has_revoked) {
 			/* Set the flag to indicate there are revoked
