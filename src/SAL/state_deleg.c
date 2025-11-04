@@ -616,12 +616,12 @@ void mark_sessions_have_revoked_delegations(nfs_client_id_t *clientid)
 		return;
 	}
 
-	pthread_mutex_lock(&clientid->cid_mutex);
+	PTHREAD_MUTEX_lock(&clientid->cid_mutex);
 	glist_for_each(glist, &clientid->cid_cb.v41.cb_session_list) {
 		session = glist_entry(glist, nfs41_session_t, session_link);
 		session->has_revoked_delegations = true;
 	}
-	pthread_mutex_unlock(&clientid->cid_mutex);
+	PTHREAD_MUTEX_unlock(&clientid->cid_mutex);
 
 	LogDebug(COMPONENT_STATE, "Marked the sessions for client 0x%llx",
 		 (unsigned long long)clientid->cid_clientid);
@@ -645,7 +645,7 @@ void remove_revoked_stateid(const stateid4 *stateid)
 	struct revoked_delegation *entry;
 	bool found = false;
 
-	pthread_mutex_lock(&revoked_delegations_lock);
+	PTHREAD_MUTEX_lock(&revoked_delegations_lock);
 	glist_for_each_safe(pos, tmp, &revoked_delegations_list) {
 		entry = glist_entry(pos, struct revoked_delegation, list);
 		if (memcmp(&entry->stateid, stateid, sizeof(stateid4)) == 0) {
@@ -662,7 +662,7 @@ void remove_revoked_stateid(const stateid4 *stateid)
 			COMPONENT_STATE,
 			"Did not find revoked delegation stateid in revoked list");
 	}
-	pthread_mutex_unlock(&revoked_delegations_lock);
+	PTHREAD_MUTEX_unlock(&revoked_delegations_lock);
 }
 
 /**
@@ -685,7 +685,7 @@ bool is_stateid_revoked(const stateid4 *stateid)
 	struct glist_head *pos;
 	struct revoked_delegation *entry;
 
-	pthread_mutex_lock(&revoked_delegations_lock);
+	PTHREAD_MUTEX_lock(&revoked_delegations_lock);
 	glist_for_each(pos, &revoked_delegations_list) {
 		entry = glist_entry(pos, struct revoked_delegation, list);
 		if (memcmp(&entry->stateid, stateid, sizeof(stateid4)) == 0) {
@@ -693,7 +693,7 @@ bool is_stateid_revoked(const stateid4 *stateid)
 			break;
 		}
 	}
-	pthread_mutex_unlock(&revoked_delegations_lock);
+	PTHREAD_MUTEX_unlock(&revoked_delegations_lock);
 
 	return found;
 }
@@ -725,9 +725,9 @@ static void add_to_revoked_delegations(state_t *state)
 	memcpy(entry->stateid.other, state->stateid_other,
 	       sizeof(entry->stateid.other));
 
-	pthread_mutex_lock(&revoked_delegations_lock);
+	PTHREAD_MUTEX_lock(&revoked_delegations_lock);
 	glist_add(&revoked_delegations_list, &entry->list);
-	pthread_mutex_unlock(&revoked_delegations_lock);
+	PTHREAD_MUTEX_unlock(&revoked_delegations_lock);
 
 	LogDebug(
 		COMPONENT_NFS_V4,
