@@ -1068,10 +1068,37 @@ retry_open_file:
 		/* We need an extra reference below. */
 		file_obj->obj_ops->get_ref(file_obj);
 	} else {
-		/* Open upgrade */
-		LogFullDebug(COMPONENT_STATE, "Calling reopen2");
+		/* Check if this is a same-client operation with existing
+		 * delegation that would trigger Ceph delegation recall.
+		 * If so, skip fsal_reopen2 to prevent the recall, but
+		 * still allow delegation granting later.
+		 */
+		bool has_delegations =
+			(file_obj->state_hdl != NULL &&
+			 file_obj->state_hdl->file.fdeleg_stats
+					 .fds_curr_delegations > 0);
+		bool conflict_detected = state_deleg_conflict_impl(
+			file_obj,
+			(arg->share_access & OPEN4_SHARE_ACCESS_WRITE) != 0);
 
-		status = fsal_reopen2(file_obj, *file_state, openflags, true);
+		LogFullDebug(COMPONENT_STATE,
+			     "has_delegations=%d, conflict_detected=%d",
+			     has_delegations, conflict_detected);
+
+		/* Only skip fsal_reopen2 if there's an active delegation and
+		 * no conflict (same client). Otherwise, call fsal_reopen2 to
+		 * get proper capabilities.
+		 */
+		if (has_delegations && !conflict_detected) {
+			LogFullDebug(COMPONENT_STATE,
+				     "Skipping fsal_reopen2 to prevent recall");
+			status = fsalstat(ERR_FSAL_NO_ERROR, 0);
+		} else {
+			LogFullDebug(COMPONENT_STATE,
+				     "open4_ex: calling fsal_reopen2 normally");
+			status = fsal_reopen2(file_obj, *file_state, openflags,
+					      true);
+		}
 
 		if (FSAL_IS_ERROR(status)) {
 			res_OPEN4->status = nfs4_Errno_status(status);
