@@ -368,12 +368,12 @@ void fs_add_clid(nfs_client_id_t *clientid)
 		pathpos = v4_recov_dir_len;
 	}
 
-	if (isMidDebug(COMPONENT_STATE)) {
+	if (isMidDebug(COMPONENT_CLIENTID)) {
 		char ipstring[SOCK_NAME_MAX];
 		struct display_buffer dspbuf = { sizeof(ipstring), ipstring,
 						 ipstring };
 		display_sockip(&dspbuf, saddr);
-		LogDebug(COMPONENT_STATE, "server_addr=%s recov_dir=%s",
+		LogDebug(COMPONENT_CLIENTID, "server_addr=%s recov_dir=%s",
 			 ipstring, recov_dir);
 	}
 
@@ -619,7 +619,7 @@ void fs_rm_clid(nfs_client_id_t *clientid)
 		return;
 
 	display_client_id_rec(&dspbuf, clientid);
-	LogDebug(COMPONENT_STATE,
+	LogDebug(COMPONENT_CLIENTID,
 		 "v4_recov_dir=%s recov_dir=%s client=%s saved=%d confirmed=%d",
 		 v4_recov_dir, recov_dir, client_str,
 		 clientid->cid_confirmed_saved, clientid->cid_confirmed);
@@ -647,7 +647,7 @@ void fs_rm_clid(nfs_client_id_t *clientid)
 		if ((clientid->cid_confirmed == CONFIRMED_CLIENT_ID) ||
 		    (clientid->cid_minorversion == 0 &&
 		     clientid->cid_confirmed_saved == CONFIRMED_CLIENT_ID)) {
-			LogDebug(COMPONENT_STATE,
+			LogDebug(COMPONENT_CLIENTID,
 				 "Will cleanup %s %s: client=%s", ip_recov_dir,
 				 recov_dir, client_str);
 			fs_rm_clid_impl(0, recov_dir, strlen(recov_dir),
@@ -659,7 +659,7 @@ void fs_rm_clid(nfs_client_id_t *clientid)
 			ip_recov_dir[pathpos++] = '/';
 			memcpy(ip_recov_dir + pathpos, recov_dir,
 			       strlen(recov_dir) + 1);
-			LogDebug(COMPONENT_STATE,
+			LogDebug(COMPONENT_CLIENTID,
 				 "should expire client records %s",
 				 ip_recov_dir);
 		}
@@ -1052,7 +1052,7 @@ void fs_read_recov_clids_takeover(nfs_grace_start_t *gsp,
 					 gsp->ipaddr);
 				rc = ip_str_to_sockaddr(gsp->ipaddr, &saddr);
 				if (rc != 0) {
-					LogWarn(COMPONENT_STATE,
+					LogWarn(COMPONENT_CLIENTID,
 						"Unable to convert IP string %s",
 						gsp->ipaddr);
 					return;
@@ -1153,7 +1153,7 @@ void fs_read_recov_clids_takeover(nfs_grace_start_t *gsp,
 		}
 		break;
 	default:
-		LogWarn(COMPONENT_STATE, "Recovery unknown event");
+		LogWarn(COMPONENT_CLIENTID, "Recovery unknown event");
 		return;
 	}
 
