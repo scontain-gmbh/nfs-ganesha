@@ -67,8 +67,7 @@ int cidr_family(CIDR *);
 int cidr_proto(CIDR *);
 int cidr_version(CIDR *);
 
-int cmp_sockaddr(sockaddr_t *, sockaddr_t *, bool);
-int sockaddr_cmpf(sockaddr_t *, sockaddr_t *, bool);
+int sockaddr_cmp(sockaddr_t *, sockaddr_t *, bool);
 uint64_t hash_sockaddr(sockaddr_t *, bool);
 int ip_str_to_sockaddr(char *, sockaddr_t *);
 

@@ -2021,12 +2021,12 @@ int compare_client_record(struct gsh_buffdesc *buff1,
 		return 1;
 	}
 
-	rc = cmp_sockaddr(&pkey1->cr_server_addr, &pkey2->cr_server_addr, true);
+	rc = sockaddr_cmp(&pkey1->cr_server_addr, &pkey2->cr_server_addr, true);
 
-	if (rc == 0) {
+	if (rc != 0) {
 		if (isDebug(COMPONENT_HASHTABLE))
 			LogFullDebug(COMPONENT_CLIENTID, "sockaddr mismatch");
-		return rc;
+		return 1;
 	}
 
 	rc = memcmp(pkey1->cr_client_val, pkey2->cr_client_val,

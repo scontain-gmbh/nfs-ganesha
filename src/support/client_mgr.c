@@ -116,7 +116,7 @@ static int client_ip_cmpf(const struct avltree_node *lhs,
 	lk = avltree_container_of(lhs, struct gsh_client, node_k);
 	rk = avltree_container_of(rhs, struct gsh_client, node_k);
 
-	return sockaddr_cmpf(&lk->cl_addrbuf, &rk->cl_addrbuf, true);
+	return sockaddr_cmp(&lk->cl_addrbuf, &rk->cl_addrbuf, true);
 }
 
 /**

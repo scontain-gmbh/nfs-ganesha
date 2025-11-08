@@ -96,7 +96,8 @@ uint64_t ip_name_rbt_hash_func(hash_parameter_t *hparam,
  */
 int compare_ip_name(struct gsh_buffdesc *buff1, struct gsh_buffdesc *buff2)
 {
-	return (cmp_sockaddr(buff1->addr, buff2->addr, true) != 0) ? 0 : 1;
+	/* Do != 0 compare to convert -1, 0, 1 to 0 (identical), 1 (not) */
+	return sockaddr_cmp(buff1->addr, buff2->addr, true) != 0;
 }
 
 /**

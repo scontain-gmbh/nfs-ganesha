@@ -216,7 +216,7 @@ int ip_str_to_sockaddr(char *ip_str, sockaddr_t *sp)
  *
  * @return Comparator trichotomy
  */
-int sockaddr_cmpf(sockaddr_t *addr1, sockaddr_t *addr2, bool ignore_port)
+int sockaddr_cmp(sockaddr_t *addr1, sockaddr_t *addr2, bool ignore_port)
 {
 	sockaddr_t addr_ipv4_1 = {};
 	sockaddr_t addr_ipv4_2 = {};
@@ -288,21 +288,6 @@ int sockaddr_cmpf(sockaddr_t *addr1, sockaddr_t *addr2, bool ignore_port)
 		/* unhandled AF */
 		return -2;
 	}
-}
-
-/**
- *
- * @brief Compare 2 sockaddrs, including ports
- *
- * @param[in] addr_1      First address
- * @param[in] addr_2      Second address
- * @param[in] ignore_port Whether to ignore the port
- *
- * @return Comparator true/false,
- */
-int cmp_sockaddr(sockaddr_t *addr_1, sockaddr_t *addr_2, bool ignore_port)
-{
-	return (sockaddr_cmpf(addr_1, addr_2, ignore_port) == 0);
 }
 
 int get_port(sockaddr_t *addr)

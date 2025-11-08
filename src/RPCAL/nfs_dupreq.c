@@ -195,7 +195,7 @@ static inline int dupreq_shared_cmpf(const struct opr_rbtree_node *lhs,
 	lk = opr_containerof(lhs, dupreq_entry_t, rbt_k);
 	rk = opr_containerof(rhs, dupreq_entry_t, rbt_k);
 
-	switch (sockaddr_cmpf(&lk->hin.addr, &rk->hin.addr, false)) {
+	switch (sockaddr_cmp(&lk->hin.addr, &rk->hin.addr, false)) {
 	case -1:
 		return -1;
 	case 0:
@@ -262,7 +262,7 @@ static inline int drc_recycle_cmpf(const struct opr_rbtree_node *lhs,
 	lk = opr_containerof(lhs, drc_t, d_u.tcp.recycle_k);
 	rk = opr_containerof(rhs, drc_t, d_u.tcp.recycle_k);
 
-	return sockaddr_cmpf(&lk->d_u.tcp.addr, &rk->d_u.tcp.addr, false);
+	return sockaddr_cmp(&lk->d_u.tcp.addr, &rk->d_u.tcp.addr, false);
 }
 
 /**

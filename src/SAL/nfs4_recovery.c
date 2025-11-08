@@ -1064,8 +1064,8 @@ restart:
 			pdata = RBT_OPAQ(pn);
 			nlm_cp = (state_nlm_client_t *)pdata->val.addr;
 
-			if (cmp_sockaddr(&release_addr,
-					 &nlm_cp->slc_server_addr, true)) {
+			if (sockaddr_cmp(&release_addr,
+					 &nlm_cp->slc_server_addr, true) == 0) {
 				nsm_cp = nlm_cp->slc_nsm_client;
 				inc_nsm_client_ref(nsm_cp);
 				PTHREAD_RWLOCK_unlock(
@@ -1080,9 +1080,9 @@ restart:
 #endif /* _USE_NLM */
 }
 
-static int ip_match(sockaddr_t *ip, nfs_client_id_t *cid)
+static bool ip_match(sockaddr_t *ip, nfs_client_id_t *cid)
 {
-	int rc;
+	bool rc;
 	sockaddr_t *saddr = &cid->cid_client_record->cr_server_addr;
 
 	if (isFullDebug(COMPONENT_STATE)) {
@@ -1094,7 +1094,7 @@ static int ip_match(sockaddr_t *ip, nfs_client_id_t *cid)
 		display_sockaddr_port(&db2, saddr, true);
 		LogDebug(COMPONENT_STATE, "Match %s with %s", addr1, addr2);
 	}
-	rc = cmp_sockaddr(ip, saddr, true);
+	rc = sockaddr_cmp(ip, saddr, true) == 0;
 	LogDebug(COMPONENT_STATE, "Match ret=%d", rc);
 	return rc;
 }

@@ -353,8 +353,8 @@ int compare_nlm_client(state_nlm_client_t *client1, state_nlm_client_t *client2)
 			       client2->slc_nsm_client) != 0)
 		return 1;
 
-	if (cmp_sockaddr(&client1->slc_server_addr, &client2->slc_server_addr,
-			 true) == 0)
+	if (sockaddr_cmp(&client1->slc_server_addr, &client2->slc_server_addr,
+			 true) != 0)
 		return 1;
 
 	if (client1->slc_client_type != client2->slc_client_type)
