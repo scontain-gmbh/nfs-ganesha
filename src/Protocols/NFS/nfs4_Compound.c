@@ -1053,6 +1053,9 @@ void complete_nfs4_compound(compound_data_t *data, int status,
 	if (data->preserved_clientid != NULL) {
 		/* Update and release lease */
 		update_lease_simple(data->preserved_clientid);
+
+		/* Release the reference taken on the clientid */
+		dec_client_id_ref(data->preserved_clientid);
 	}
 
 	if (status != NFS4_OK)

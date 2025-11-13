@@ -983,6 +983,9 @@ check_it:
 				 */
 				update_lease_simple(data->preserved_clientid);
 
+				/* Release the reference we hold on
+				 * preserved_clientid */
+				dec_client_id_ref(data->preserved_clientid);
 				data->preserved_clientid = NULL;
 			}
 
@@ -1011,6 +1014,10 @@ check_it:
 				 * compound.
 				 */
 				data->preserved_clientid = pclientid;
+
+				/* Take a reference on the new
+				 * preserved_clientid */
+				inc_client_id_ref(data->preserved_clientid);
 			}
 
 			/* Replayed close, it's ok, but stateid doesn't exist */
@@ -1064,6 +1071,9 @@ check_it:
 			 */
 			update_lease_simple(data->preserved_clientid);
 
+			/* Release the reference we hold on
+			 * preserved_clientid */
+			dec_client_id_ref(data->preserved_clientid);
 			data->preserved_clientid = NULL;
 		}
 
@@ -1079,6 +1089,9 @@ check_it:
 
 		data->preserved_clientid =
 			owner2->so_owner.so_nfs4_owner.so_clientrec;
+
+		/* Take a reference on the new preserved_clientid */
+		inc_client_id_ref(data->preserved_clientid);
 	}
 
 	/* Sanity check : Is this the right file ? */

@@ -184,6 +184,11 @@ enum nfs_req_result nfs4_op_sequence(struct nfs_argop4 *op,
 
 	data->preserved_clientid = session->clientid_record;
 
+	/* Take a reference on the clientid to prevent it from being freed
+	 * during compound execution.
+	 */
+	inc_client_id_ref(data->preserved_clientid);
+
 	slotid = arg_SEQUENCE4->sa_slotid;
 
 	/* Check is slot is compliant with ca_maxrequests */

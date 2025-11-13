@@ -166,6 +166,11 @@ enum nfs_req_result nfs4_op_bind_conn(struct nfs_argop4 *op,
 
 	data->preserved_clientid = session->clientid_record;
 
+	/* Take a reference on the clientid to prevent it from being freed
+	 * during compound execution.
+	 */
+	inc_client_id_ref(data->preserved_clientid);
+
 	/* Keep memory of the session in the COMPOUND's data and indicate no
 	 * slot in use. We assume the server will never support UINT32_MAX + 1
 	 * slots...
