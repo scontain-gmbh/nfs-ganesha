@@ -306,6 +306,8 @@ NFSV4 {}
 	Max_Alive_Time_For_Expired_Client(uint64, range 0 to UINT64_MAX,
 					  default 86400)
 
+	Blocking_Locks(bool, default true)
+
 DIRECTORY_SERVICES {}
 ---------------------
 

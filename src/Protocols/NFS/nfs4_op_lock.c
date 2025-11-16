@@ -241,6 +241,16 @@ enum nfs_req_result nfs4_op_lock(struct nfs_argop4 *op, compound_data_t *data,
 		return NFS_REQ_ERROR;
 	}
 
+	/* If blocking locks are disabled, treat blocking locks
+	 * as non-blocking. */
+	if (blocking == STATE_BLOCKING &&
+	    !nfs_param.nfsv4_param.allow_blocking_locks) {
+		LogDebug(
+			COMPONENT_NFS_V4_LOCK,
+			"Blocking locks are disabled, treating as non-blocking lock");
+		blocking = STATE_NON_BLOCKING;
+	}
+
 	lock_desc.lock_start = arg_LOCK4->offset;
 	lock_desc.lock_sle_type = FSAL_POSIX_LOCK;
 	lock_desc.lock_reclaim = arg_LOCK4->reclaim;

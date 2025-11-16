@@ -614,6 +614,13 @@ Max_Alive_Time_For_Expired_Client(uint64, range 0 to UINT64_MAX, default 86400)
     in memory, beyond which Ganesha would start reaping and expire it off.
     Comes to play if the config Expired_Client_Threshold is not set to ZERO.
 
+Blocking_Locks(bool, default true)
+    Whether to allow blocking locks (READW_LT/WRITEW_LT) for NFSv4. When set
+    to false, blocking lock requests will be treated as non-blocking locks
+    (READ_LT/WRITE_LT). This means that if a lock cannot be granted immediately
+    due to a conflict, the server will return NFS4ERR_DENIED instead of
+    blocking the request and waiting for the lock to become available.
+
 RADOS_KV {}
 --------------------------------------------------------------------------------
 

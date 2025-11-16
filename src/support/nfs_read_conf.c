@@ -685,6 +685,8 @@ static struct config_item version4_params[] = {
 	CONF_ITEM_UI64("Max_Alive_Time_For_Expired_Client", 0, UINT64_MAX,
 		       86400, nfs_version4_parameter,
 		       max_alive_time_for_expired_client),
+	CONF_ITEM_BOOL("Blocking_Locks", true, nfs_version4_parameter,
+		       allow_blocking_locks),
 	CONFIG_EOL
 };
 

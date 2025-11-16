@@ -707,6 +707,9 @@ typedef struct nfs_version4_parameter {
 	 * in memory, beyond which Ganesha would start reaping & expire it off.
 	 */
 	uint64_t max_alive_time_for_expired_client;
+	/** Whether to allow blocking locks (READW_LT/WRITEW_LT). Defaults to
+	 * true and settable with Blocking_Locks. */
+	bool allow_blocking_locks;
 
 } nfs_version4_parameter_t;
 
