@@ -177,13 +177,13 @@ bool set_idmapping_status(bool status_enabled)
 	bool rc;
 
 	/* Acquire mutex to prevent interference by another invocation */
-	mutex_lock(&idmapping_status_lock);
+	PTHREAD_MUTEX_lock(&idmapping_status_lock);
 
 	pwnam_wrappers__set_implementation(
 		nfs_param.directory_services_param.pwnam_implementation);
 
 	if (idmapping_enabled == status_enabled) {
-		mutex_unlock(&idmapping_status_lock);
+		PTHREAD_MUTEX_unlock(&idmapping_status_lock);
 		LogInfo(COMPONENT_IDMAPPER,
 			"Idmapping status is already set to %d",
 			status_enabled);
@@ -194,13 +194,13 @@ bool set_idmapping_status(bool status_enabled)
 		/* Set the domainname for idmapping */
 		rc = idmapper_set_owner_domain();
 		if (!rc) {
-			mutex_unlock(&idmapping_status_lock);
+			PTHREAD_MUTEX_unlock(&idmapping_status_lock);
 			LogWarn(COMPONENT_IDMAPPER,
 				"Could not set owner-domain while enabling Idmapping");
 			return false;
 		}
 		idmapping_enabled = true;
-		mutex_unlock(&idmapping_status_lock);
+		PTHREAD_MUTEX_unlock(&idmapping_status_lock);
 		LogInfo(COMPONENT_IDMAPPER, "Idmapping is now enabled");
 		return true;
 	}
@@ -214,7 +214,7 @@ bool set_idmapping_status(bool status_enabled)
 	/* Clear uid2grp data */
 	uid2grp_clear_cache();
 
-	mutex_unlock(&idmapping_status_lock);
+	PTHREAD_MUTEX_unlock(&idmapping_status_lock);
 
 	LogInfo(COMPONENT_IDMAPPER, "Idmapping is now disabled");
 	return true;
