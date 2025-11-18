@@ -58,6 +58,7 @@
 
 #include "log.h"
 #include "abstract_mem.h"
+#include "common_utils.h"
 
 struct cidr_addr {
 	sockaddr_t ip_addr;
@@ -447,7 +448,10 @@ CIDR *cidr_from_str(const char *addr)
 	char *mask_str = NULL;
 	int ret;
 
-	strcpy(addr_str, addr);
+	if (strlcpy(addr_str, addr, sizeof(addr_str)) >= sizeof(addr_str)) {
+		errno = ENAMETOOLONG;
+		return NULL;
+	}
 
 	slash = strchr(addr_str, '/');
 
@@ -608,7 +612,7 @@ CIDR *cidr_from_inaddr(const struct in_addr *addr)
 
 	cidr = cidr_alloc();
 	memcpy(&((struct sockaddr_in *)&cidr->ip_addr)->sin_addr.s_addr, addr,
-	       sizeof(sockaddr_t));
+	       sizeof(struct in_addr));
 	cidr->ip_addr.ss_family = AF_INET;
 	cidr->mask = 32;
 
