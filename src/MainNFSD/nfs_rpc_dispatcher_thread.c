@@ -1104,6 +1104,8 @@ static bool enable_udp_listener(protos prot)
 	if (prot == P_MNT &&
 	    (nfs_param.core_param.enable_UDP & UDP_LISTENER_MOUNT))
 		return true;
+#endif
+#ifdef _USE_NLM
 	if (prot == P_NLM &&
 	    (nfs_param.core_param.enable_UDP & UDP_LISTENER_NLM))
 		return true;

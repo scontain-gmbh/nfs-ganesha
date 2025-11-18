@@ -121,7 +121,7 @@ enum nfs_req_result nfs4_op_free_stateid(struct nfs_argop4 *op,
 				 (unsigned long long)clientid->cid_clientid);
 		}
 
-		res_FREE_STATEID4->fsr_status = NFS_OK;
+		res_FREE_STATEID4->fsr_status = NFS4_OK;
 		return NFS_REQ_OK;
 	}
 
