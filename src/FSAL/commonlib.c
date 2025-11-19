@@ -2688,11 +2688,15 @@ fsal_status_t fsal_start_io(struct fsal_fd **out_fd,
 	struct fsal_fd *state_fd;
 	struct state_t *openstate;
 
+	if (state == NULL) {
+		LogFullDebug(COMPONENT_FSAL,
+			     "State is NULL, using global fd, openflags = %x",
+			     openflags);
+		goto global;
+	}
+
 	LogFullDebug(COMPONENT_FSAL, "Open State = %p, State Type = %d", state,
 		     state->state_type);
-
-	if (state == NULL)
-		goto global;
 
 	/* Handle delegation states: if this is a delegation (read or write),
 	 * retrieve the associated openstate. Use the fd from that openstate
@@ -2842,7 +2846,11 @@ fsal_status_t fsal_start_io(struct fsal_fd **out_fd,
 
 		if (openstate == NULL) {
 			/* The open state was not usable so use the global fd.
-			 */
+			*/
+			LogFullDebug(
+				COMPONENT_FSAL,
+				"Lock state %p has no associated openstate, using global fd, openflags = %x",
+				state, openflags);
 			goto global;
 		}
 
@@ -2900,6 +2908,10 @@ use_related_fd:
 	 * Note that we do not allow write locks on read-only opens and read
 	 * locks on write only opens.
 	 */
+
+	LogFullDebug(COMPONENT_FSAL,
+		     "Falling back to global fd, state = %p, openflags = %x",
+		     state, openflags);
 
 global:
 
