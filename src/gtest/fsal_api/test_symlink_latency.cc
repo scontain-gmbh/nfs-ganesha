@@ -90,7 +90,7 @@ class SymlinkEmptyLatencyTest : public gtest::GaneshaFSALBaseTest {
 	{
 		fsal_status_t status;
 
-		gsh_free(bfr_content.addr);
+		gsh_free(bfr_content.utf8string_val);
 
 		status = root_entry->obj_ops->unlink(root_entry, test_symlink,
 						     TEST_SYMLINK, nullptr,
@@ -103,7 +103,7 @@ class SymlinkEmptyLatencyTest : public gtest::GaneshaFSALBaseTest {
 	}
 
 	struct fsal_obj_handle *test_symlink = nullptr;
-	struct gsh_buffdesc bfr_content;
+	utf8string bfr_content;
 };
 
 class SymlinkFullLatencyTest : public SymlinkEmptyLatencyTest {
@@ -142,12 +142,13 @@ TEST_F(SymlinkEmptyLatencyTest, SIMPLE)
 
 	status = symlink->obj_ops->readlink(symlink, &link_content, false);
 	EXPECT_EQ(status.major, 0);
-	if (link_content.len == bfr_content.len)
-		ret = memcmp(link_content.addr, bfr_content.addr,
-			     link_content.len);
+	if (link_content.utf8string_len == bfr_content.utf8string_len)
+		ret = memcmp(link_content.utf8string_val,
+			     bfr_content.utf8string_val,
+			     link_content.utf8string_len);
 	EXPECT_EQ(ret, 0);
 
-	gsh_free(link_content.addr);
+	gsh_free(link_content.utf8string_val);
 
 	symlink->obj_ops->put_ref(symlink);
 	lookup->obj_ops->put_ref(lookup);
@@ -181,12 +182,13 @@ TEST_F(SymlinkEmptyLatencyTest, SIMPLE_BYPASS)
 
 	status = symlink->obj_ops->readlink(symlink, &link_content, false);
 	EXPECT_EQ(status.major, 0);
-	if (link_content.len == bfr_content.len)
-		ret = memcmp(link_content.addr, bfr_content.addr,
-			     link_content.len);
+	if (link_content.utf8string_len == bfr_content.utf8string_len)
+		ret = memcmp(link_content.utf8string_val,
+			     bfr_content.utf8string_val,
+			     link_content.utf8string_len);
 	EXPECT_EQ(ret, 0);
 
-	gsh_free(link_content.addr);
+	gsh_free(link_content.utf8string_val);
 
 	symlink->obj_ops->put_ref(symlink);
 	lookup->obj_ops->put_ref(lookup);

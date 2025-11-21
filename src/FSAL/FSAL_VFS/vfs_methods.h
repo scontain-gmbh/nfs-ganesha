@@ -177,7 +177,7 @@ struct vfs_fsal_obj_handle {
 		} file;
 		struct {
 			unsigned char *link_content;
-			int link_size;
+			int link_length;
 		} symlink;
 		struct {
 			vfs_file_handle_t *dir;

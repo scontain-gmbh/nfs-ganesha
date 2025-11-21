@@ -58,7 +58,7 @@ int vfs_readlink(struct vfs_fsal_obj_handle *myself, fsal_errors_t *fsal_error)
 	if (myself->u.symlink.link_content != NULL) {
 		gsh_free(myself->u.symlink.link_content);
 		myself->u.symlink.link_content = NULL;
-		myself->u.symlink.link_size = 0;
+		myself->u.symlink.link_length = 0;
 	}
 
 #ifndef __FreeBSD__
@@ -77,16 +77,21 @@ int vfs_readlink(struct vfs_fsal_obj_handle *myself, fsal_errors_t *fsal_error)
 		goto error;
 #endif
 
-	myself->u.symlink.link_size = st.st_size + 1;
-	myself->u.symlink.link_content =
-		gsh_malloc(myself->u.symlink.link_size);
+	/* Make room for NUL termination */
+	myself->u.symlink.link_content = gsh_malloc(st.st_size + 1);
 
+	/* readlink fills the buffer up to specified size, not NUL terminated,
+	 * return is the number of bytes read.
+	 */
 	retlink = vfs_readlink_by_handle(myself->handle, fd, "",
 					 myself->u.symlink.link_content,
-					 myself->u.symlink.link_size);
+					 st.st_size);
 	if (retlink < 0)
 		goto error;
+
+	/* Make sure the string is NUL terminated */
 	myself->u.symlink.link_content[retlink] = '\0';
+	myself->u.symlink.link_length = retlink;
 #ifndef __FreeBSD__
 	close(fd);
 #endif
@@ -102,7 +107,7 @@ error:
 	if (myself->u.symlink.link_content != NULL) {
 		gsh_free(myself->u.symlink.link_content);
 		myself->u.symlink.link_content = NULL;
-		myself->u.symlink.link_size = 0;
+		myself->u.symlink.link_length = 0;
 	}
 	return retval;
 }

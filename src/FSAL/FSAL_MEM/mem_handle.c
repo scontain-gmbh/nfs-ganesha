@@ -1201,6 +1201,7 @@ static fsal_status_t mem_symlink(struct fsal_obj_handle *dir_hdl,
 	hdl = container_of(*new_obj, struct mem_fsal_obj_handle, obj_handle);
 
 	hdl->mh_symlink.link_contents = gsh_strdup(link_path);
+	hdl->mh_symlink.link_length = strlen(link_path);
 
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
@@ -1214,8 +1215,7 @@ static fsal_status_t mem_symlink(struct fsal_obj_handle *dir_hdl,
  * @return FSAL status
  */
 static fsal_status_t mem_readlink(struct fsal_obj_handle *obj_hdl,
-				  struct gsh_buffdesc *link_content,
-				  bool refresh)
+				  utf8string *link_content, bool refresh)
 {
 	struct mem_fsal_obj_handle *myself =
 		container_of(obj_hdl, struct mem_fsal_obj_handle, obj_handle);
@@ -1226,8 +1226,8 @@ static fsal_status_t mem_readlink(struct fsal_obj_handle *obj_hdl,
 		return fsalstat(ERR_FSAL_INVAL, 0);
 	}
 
-	link_content->len = strlen(myself->mh_symlink.link_contents) + 1;
-	link_content->addr = gsh_strdup(myself->mh_symlink.link_contents);
+	copy_into_utf8string(link_content, myself->mh_symlink.link_contents,
+			     myself->mh_symlink.link_length);
 
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }

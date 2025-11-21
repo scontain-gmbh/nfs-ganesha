@@ -158,16 +158,16 @@ struct vfs_fsal_obj_handle *alloc_handle(int dirfd, vfs_file_handle_t *fh,
 		hdl->u.file.fd.fd = -1; /* no open on this yet */
 	} else if (hdl->obj_handle.type == SYMBOLIC_LINK) {
 		ssize_t retlink;
-		size_t len = stat->st_size + 1;
-		char *link_content = gsh_malloc(len);
+		size_t len = stat->st_size;
+		char *link_content = gsh_malloc(len + 1);
 
 		retlink = vfs_readlink_by_handle(fh, dirfd, path, link_content,
 						 len);
-		if (retlink < 0 || retlink == len)
+		if (retlink < 0 || retlink == (len + 1))
 			goto spcerr;
 		link_content[retlink] = '\0';
 		hdl->u.symlink.link_content = link_content;
-		hdl->u.symlink.link_size = len;
+		hdl->u.symlink.link_length = retlink;
 	} else if (vfs_unopenable_type(hdl->obj_handle.type)) {
 		/* AF_UNIX sockets, character special, and block
 		   special files  require craziness */
@@ -1143,8 +1143,7 @@ hdlerr:
 }
 
 static fsal_status_t readsymlink(struct fsal_obj_handle *obj_hdl,
-				 struct gsh_buffdesc *link_content,
-				 bool refresh)
+				 utf8string *link_content, bool refresh)
 {
 	struct vfs_fsal_obj_handle *myself = NULL;
 	int retval = 0;
@@ -1177,11 +1176,8 @@ static fsal_status_t readsymlink(struct fsal_obj_handle *obj_hdl,
 		goto out;
 	}
 
-	link_content->len = myself->u.symlink.link_size;
-	link_content->addr = gsh_malloc(myself->u.symlink.link_size);
-
-	memcpy(link_content->addr, myself->u.symlink.link_content,
-	       link_content->len);
+	copy_into_utf8string(link_content, myself->u.symlink.link_content,
+			     myself->u.symlink.link_length);
 
 hdlerr:
 	fsal_error = posix2fsal_error(retval);

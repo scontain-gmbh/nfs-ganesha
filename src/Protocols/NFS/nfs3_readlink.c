@@ -67,7 +67,7 @@ int nfs3_readlink(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 {
 	struct fsal_obj_handle *obj = NULL;
 	fsal_status_t fsal_status;
-	struct gsh_buffdesc link_buffer = { .addr = NULL, .len = 0 };
+	utf8string link_buffer;
 	int rc = NFS_REQ_OK;
 	READLINK3resfail *resfail = &res->res_readlink3.READLINK3res_u.resfail;
 	READLINK3resok *resok = &res->res_readlink3.READLINK3res_u.resok;
@@ -106,7 +106,7 @@ int nfs3_readlink(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 	}
 
 	/* Reply to the client */
-	resok->data = link_buffer.addr;
+	resok->data = link_buffer.utf8string_val;
 
 	nfs_SetPostOpAttr(obj, &resok->symlink_attributes, NULL);
 	res->res_readlink3.status = NFS3_OK;

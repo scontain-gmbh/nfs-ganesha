@@ -1958,7 +1958,7 @@ struct fsal_obj_ops {
  * terminator.
  *
  * @param[in]  obj_hdl      Link to read
- * @param[out] link_content Buffdesc to which the FSAL will store
+ * @param[out] link_content utf8string to which the FSAL will store
  *                          the address of the buffer holding the
  *                          link and the link length.
  * @param[out] refresh      true if the content are to be retrieved
@@ -1968,8 +1968,7 @@ struct fsal_obj_ops {
  * @return FSAL status.
  */
 	fsal_status_t (*readlink)(struct fsal_obj_handle *obj_hdl,
-				  struct gsh_buffdesc *link_content,
-				  bool refresh);
+				  utf8string *link_content, bool refresh);
 
 	/**
  * @brief Check access for a given user against a given object

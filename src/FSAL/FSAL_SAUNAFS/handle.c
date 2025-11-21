@@ -2068,7 +2068,7 @@ static fsal_status_t mknode(struct fsal_obj_handle *directoryHandle,
  * @returns: FSAL status
  */
 static fsal_status_t readlink_(struct fsal_obj_handle *objectHandle,
-			       struct gsh_buffdesc *buffer, bool refresh)
+			       utf8string *buffer, bool refresh)
 {
 	(void)refresh;
 	struct SaunaFSExport *export = NULL;
@@ -2094,8 +2094,7 @@ static fsal_status_t readlink_(struct fsal_obj_handle *objectHandle,
 	if (size < 0)
 		return fsalLastError();
 
-	size = MIN(size, SAUNAFS_MAX_READLINK_LENGTH);
-	buffer->addr = gsh_strldup(result, size, &buffer->len);
+	copy_into_utf8string(buffer, result, size);
 
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }

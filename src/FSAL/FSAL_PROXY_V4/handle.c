@@ -1730,8 +1730,7 @@ static fsal_status_t proxyv4_symlink(
 }
 
 static fsal_status_t proxyv4_readlink(struct fsal_obj_handle *obj_hdl,
-				      struct gsh_buffdesc *link_content,
-				      bool refresh)
+				      utf8string *link_content, bool refresh)
 {
 	int rc;
 	int opcnt = 0;
@@ -1753,24 +1752,24 @@ static fsal_status_t proxyv4_readlink(struct fsal_obj_handle *obj_hdl,
 	   the \NUL terminator. The link length should be cached in
 	   the file handle. */
 
-	link_content->len = fsal_default_linksize;
-	link_content->addr = gsh_malloc(link_content->len);
-
 	rlok = &resoparray[opcnt].nfs_resop4_u.opreadlink.READLINK4res_u.resok4;
-	rlok->link.utf8string_val = link_content->addr;
-	rlok->link.utf8string_len = link_content->len;
+	rlok->link.utf8string_val = gsh_malloc(fsal_default_linksize + 1);
+	rlok->link.utf8string_len = fsal_default_linksize;
 	COMPOUNDV4_ARG_ADD_OP_READLINK(opcnt, argoparray);
 
 	rc = proxyv4_nfsv4_call(&op_ctx->creds, opcnt, argoparray, resoparray);
 	if (rc != NFS4_OK) {
-		gsh_free(link_content->addr);
-		link_content->addr = NULL;
-		link_content->len = 0;
+		gsh_free(rlok->link.utf8string_val);
 		return nfsstat4_to_fsal(rc);
 	}
 
-	rlok->link.utf8string_val[rlok->link.utf8string_len] = '\0';
-	link_content->len = rlok->link.utf8string_len + 1;
+	/* Since we set up a utf8string properly above, we just need to copy
+	 * it into link_content to return it, but we make sure it's NUL
+	 * terminated.
+	 */
+	*link_content = rlok->link;
+	link_content->utf8string_val[link_content->utf8string_len] = '\0';
+
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
 

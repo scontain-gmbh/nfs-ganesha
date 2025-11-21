@@ -111,6 +111,7 @@ struct mem_fsal_obj_handle {
 		} mh_node;
 		struct {
 			char *link_contents;
+			int link_length;
 		} mh_symlink;
 	};
 	struct glist_head dirents; /**< List of dirents pointing to obj */

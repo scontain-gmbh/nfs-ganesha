@@ -214,8 +214,8 @@ int vfs_readlink(struct vfs_fsal_obj_handle *hdl, fsal_errors_t *ferr)
 	ldata[retval] = '\0';
 
 	hdl->u.symlink.link_content = gsh_strdup(ldata);
+	hdl->u.symlink.link_length = retval;
 
-	hdl->u.symlink.link_size = retval + 1;
 	retval = 0;
 
 out:

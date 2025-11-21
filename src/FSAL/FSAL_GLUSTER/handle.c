@@ -763,8 +763,7 @@ out:
  */
 
 static fsal_status_t readsymlink(struct fsal_obj_handle *obj_hdl,
-				 struct gsh_buffdesc *link_content,
-				 bool refresh)
+				 utf8string *link_content, bool refresh)
 {
 	int rc = 0;
 	fsal_status_t status = { ERR_FSAL_NO_ERROR, 0 };
@@ -773,19 +772,17 @@ static fsal_status_t readsymlink(struct fsal_obj_handle *obj_hdl,
 			     export);
 	struct glusterfs_handle *objhandle =
 		container_of(obj_hdl, struct glusterfs_handle, handle);
+	char content[MAXPATHLEN];
 #ifdef GLTIMING
 	struct timespec s_time, e_time;
 
 	now(&s_time);
 #endif
 
-	link_content->len = MAXPATHLEN; /* Max link path */
-	link_content->addr = gsh_malloc(link_content->len);
-
 	SET_GLUSTER_CREDS_OP_CTX(glfs_export);
 
 	rc = glfs_h_readlink(glfs_export->gl_fs->fs, objhandle->glhandle,
-			     link_content->addr, link_content->len);
+			     content, MAXPATHLEN);
 
 	RESET_GLUSTER_CREDS(glfs_export);
 
@@ -799,16 +796,15 @@ static fsal_status_t readsymlink(struct fsal_obj_handle *obj_hdl,
 		goto out;
 	}
 
-	/* rc is the number of bytes copied into link_content->addr
+	/* rc is the number of bytes copied into link_content
 	 * without including '\0' character. */
-	*(char *)(link_content->addr + rc) = '\0';
-	link_content->len = rc + 1;
+	copy_into_utf8string(link_content, content, rc);
 
 out:
 	if (status.major != ERR_FSAL_NO_ERROR) {
-		gsh_free(link_content->addr);
-		link_content->addr = NULL;
-		link_content->len = 0;
+		gsh_free(link_content->utf8string_val);
+		link_content->utf8string_val = NULL;
+		link_content->utf8string_val = 0;
 	}
 #ifdef GLTIMING
 	now(&e_time);

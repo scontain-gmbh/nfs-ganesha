@@ -1157,8 +1157,7 @@ static fsal_status_t proxyv3_hardlink(
  */
 
 static fsal_status_t proxyv3_readlink(struct fsal_obj_handle *obj_hdl,
-				      struct gsh_buffdesc *link_content,
-				      bool refresh)
+				      utf8string *link_content, bool refresh)
 {
 	LogDebug(COMPONENT_FSAL, "readlink of %p of type %d", obj_hdl,
 		 obj_hdl->type);
@@ -1196,8 +1195,9 @@ static fsal_status_t proxyv3_readlink(struct fsal_obj_handle *obj_hdl,
 	}
 
 	/* The result is a char*. */
-	link_content->addr = gsh_strdup(result.READLINK3res_u.resok.data);
-	link_content->len = strlen(link_content->addr) + 1;
+	copy_into_utf8string(link_content, result.READLINK3res_u.resok.data,
+			     strlen(result.READLINK3res_u.resok.data));
+
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
 

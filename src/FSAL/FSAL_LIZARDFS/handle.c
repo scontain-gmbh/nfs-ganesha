@@ -403,8 +403,7 @@ static fsal_status_t lzfs_fsal_symlink(
  * \see fsal_api.h for more information
  */
 static fsal_status_t lzfs_fsal_readlink(struct fsal_obj_handle *link_hdl,
-					struct gsh_buffdesc *content_buf,
-					bool refresh)
+					utf8string *content_buf, bool refresh)
 {
 	struct lzfs_fsal_export *lzfs_export;
 	struct lzfs_fsal_handle *lzfs_link;
@@ -425,8 +424,7 @@ static fsal_status_t lzfs_fsal_readlink(struct fsal_obj_handle *link_hdl,
 		return lzfs_fsal_last_err();
 	}
 
-	rc = MIN(rc, LIZARDFS_MAX_READLINK_LENGTH);
-	content_buf->addr = gsh_strldup(result, rc, &content_buf->len);
+	copy_into_utf8string(content_buf, result, rc);
 
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }

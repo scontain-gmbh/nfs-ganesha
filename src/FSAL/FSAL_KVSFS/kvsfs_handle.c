@@ -457,14 +457,15 @@ err:
 }
 
 static fsal_status_t kvsfs_readsymlink(struct fsal_obj_handle *obj_hdl,
-				       struct gsh_buffdesc *link_content,
-				       bool refresh)
+				       utf8string *link_content, bool refresh)
 {
 	struct kvsfs_fsal_obj_handle *myself = NULL;
 	int retval = 0;
 	int retlink = 0;
 	fsal_errors_t fsal_error = ERR_FSAL_NO_ERROR;
 	kvsns_cred_t cred;
+	char content[fsal_default_linksize];
+	size_t len = fsal_default_linksize;
 
 	if (obj_hdl->type != SYMBOLIC_LINK) {
 		fsal_error = ERR_FSAL_FAULT;
@@ -481,21 +482,16 @@ static fsal_status_t kvsfs_readsymlink(struct fsal_obj_handle *obj_hdl,
 
 	/* The link length should be cached in the file handle */
 
-	link_content->len = fsal_default_linksize;
-	link_content->addr = gsh_malloc(link_content->len);
-
-	retlink = kvsns_readlink(&cred, &myself->handle->kvsfs_handle,
-				 link_content->addr, &link_content->len);
+	retlink = kvsns_readlink(&cred, &myself->handle->kvsfs_handle, content,
+				 &len);
 
 	if (retlink) {
 		fsal_error = posix2fsal_error(-retlink);
-		gsh_free(link_content->addr);
-		link_content->addr = NULL;
-		link_content->len = 0;
 		goto out;
 	}
 
-	link_content->len = strlen(link_content->addr) + 1;
+	copy_into_utf8string(link_content, content, len);
+
 out:
 	return fsalstat(fsal_error, -retval);
 }

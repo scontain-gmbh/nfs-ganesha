@@ -634,12 +634,13 @@ fsal_status_t fsal_setattr(struct fsal_obj_handle *obj, bool bypass,
 /**
  * @brief Read the contents of a symlink
  *
- * @param[in] obj	Symlink to read
+ * @param[in] obj	        Symlink to read
  * @param[out] link_content	Buffer to fill with link contents
+ *
  * @return FSAL status
  */
 fsal_status_t fsal_readlink(struct fsal_obj_handle *obj,
-			    struct gsh_buffdesc *link_content)
+			    utf8string *link_content)
 {
 	if (obj->type != SYMBOLIC_LINK)
 		return fsalstat(ERR_FSAL_BADTYPE, 0);

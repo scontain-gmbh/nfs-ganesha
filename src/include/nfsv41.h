@@ -9761,6 +9761,27 @@ static inline bool xdr_CB_COMPOUND4res(XDR *xdrs, CB_COMPOUND4res *objp)
 	return true;
 }
 
+/**
+ * @brief Copy an arbitrary character array into a utf8string
+ *
+ * Our convention is that the utf8string is always NUL terminated. Do not assume
+ * input character array is NUL terminated, so handle that.
+ *
+ * @param[in/out] dest  The utf8string to fill
+ * @param[in]     src   The source character array
+ * @param[in]     len   The number of characters in the source array
+ *
+ */
+
+static inline void copy_into_utf8string(utf8string *dest, const char *src,
+					int len)
+{
+	dest->utf8string_val = gsh_malloc(len + 1);
+	dest->utf8string_len = len;
+	memcpy(dest->utf8string_val, src, len);
+	dest->utf8string_val[len] = '\0';
+}
+
 #ifdef __cplusplus
 }
 #endif /* extern "C" */

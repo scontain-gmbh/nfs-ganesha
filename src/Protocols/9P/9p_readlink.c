@@ -52,7 +52,7 @@ int _9p_readlink(struct _9p_request_data *req9p, u32 *plenout, char *preply)
 	struct _9p_fid *pfid = NULL;
 
 	fsal_status_t fsal_status;
-	struct gsh_buffdesc link_buffer = { .addr = NULL, .len = 0 };
+	utf8string link_buffer;
 
 	/* Get data */
 	_9p_getptr(cursor, msgtag, u16);
@@ -83,14 +83,15 @@ int _9p_readlink(struct _9p_request_data *req9p, u32 *plenout, char *preply)
 	_9p_setinitptr(cursor, preply, _9P_RREADLINK);
 	_9p_setptr(cursor, msgtag, u16);
 
-	_9p_setstr(cursor, link_buffer.len - 1, link_buffer.addr);
+	_9p_setstr(cursor, link_buffer.utf8string_len,
+		   link_buffer.utf8string_val);
 
 	_9p_setendptr(cursor, preply);
 	_9p_checkbound(cursor, preply, plenout);
 
 	LogDebug(COMPONENT_9P, "RREADLINK: tag=%u fid=%u link=%s", *msgtag,
-		 (u32)*fid, (char *)link_buffer.addr);
+		 (u32)*fid, link_buffer.utf8string_val);
 
-	gsh_free(link_buffer.addr);
+	gsh_free(link_buffer.utf8string_val);
 	return 1;
 }

@@ -67,7 +67,7 @@ enum nfs_req_result nfs4_op_readlink(struct nfs_argop4 *op,
 {
 	READLINK4res *const res_READLINK4 = &resp->nfs_resop4_u.opreadlink;
 	fsal_status_t fsal_status = { 0, 0 };
-	struct gsh_buffdesc link_buffer = { .addr = NULL, .len = 0 };
+	utf8string *link_buffer = &res_READLINK4->READLINK4res_u.resok4.link;
 	uint32_t resp_size;
 
 	GSH_AUTO_TRACEPOINT(nfs4, op_readlink_start, TRACE_INFO,
@@ -86,23 +86,16 @@ enum nfs_req_result nfs4_op_readlink(struct nfs_argop4 *op,
 	if (res_READLINK4->status != NFS4_OK)
 		return NFS_REQ_ERROR;
 
-	fsal_status = fsal_readlink(data->current_obj, &link_buffer);
+	fsal_status = fsal_readlink(data->current_obj, link_buffer);
 	if (FSAL_IS_ERROR(fsal_status)) {
 		res_READLINK4->status = nfs4_Errno_status(fsal_status);
 		return NFS_REQ_ERROR;
 	}
 
-	res_READLINK4->READLINK4res_u.resok4.link.utf8string_val =
-		link_buffer.addr;
-
-	/* NFSv4 does not require the \NUL terminator. */
-	res_READLINK4->READLINK4res_u.resok4.link.utf8string_len =
-		link_buffer.len - 1;
-
 	/* Response size is space for nfsstat4, length, pointer, and the
 	 * link itself.
 	 */
-	resp_size = RNDUP(link_buffer.len) + 3 * sizeof(uint32_t);
+	resp_size = RNDUP(link_buffer->utf8string_len) + 3 * sizeof(uint32_t);
 
 	res_READLINK4->status = check_resp_room(data, resp_size);
 

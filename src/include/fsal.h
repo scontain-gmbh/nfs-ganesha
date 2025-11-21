@@ -310,7 +310,7 @@ fsal_status_t fsal_link(struct fsal_obj_handle *obj,
 			struct fsal_attrlist *destdir_pre_attrs_out,
 			struct fsal_attrlist *destdir_post_attrs_out);
 fsal_status_t fsal_readlink(struct fsal_obj_handle *obj,
-			    struct gsh_buffdesc *link_content);
+			    utf8string *link_content);
 fsal_status_t fsal_lookup(struct fsal_obj_handle *parent, const char *name,
 			  struct fsal_obj_handle **obj,
 			  struct fsal_attrlist *attrs_out);

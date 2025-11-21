@@ -391,8 +391,7 @@ static fsal_status_t makesymlink(struct fsal_obj_handle *dir_hdl,
 }
 
 static fsal_status_t readsymlink(struct fsal_obj_handle *obj_hdl,
-				 struct gsh_buffdesc *link_content,
-				 bool refresh)
+				 utf8string *link_content, bool refresh)
 {
 	struct gpfs_fsal_obj_handle *myself = NULL;
 	fsal_status_t status;
@@ -423,8 +422,8 @@ static fsal_status_t readsymlink(struct fsal_obj_handle *obj_hdl,
 	if (myself->u.symlink.link_content == NULL)
 		return fsalstat(ERR_FSAL_FAULT, 0);
 
-	link_content->len = myself->u.symlink.link_size;
-	link_content->addr = gsh_strdup(myself->u.symlink.link_content);
+	copy_into_utf8string(link_content, myself->u.symlink.link_content,
+			     myself->u.symlink.link_size);
 
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }

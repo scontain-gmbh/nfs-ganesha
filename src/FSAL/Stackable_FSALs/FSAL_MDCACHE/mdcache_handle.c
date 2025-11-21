@@ -440,8 +440,7 @@ static fsal_status_t mdcache_symlink(
  * @return FSAL status
  */
 static fsal_status_t mdcache_readlink(struct fsal_obj_handle *obj_hdl,
-				      struct gsh_buffdesc *link_content,
-				      bool refresh)
+				      utf8string *link_content, bool refresh)
 {
 	mdcache_entry_t *entry =
 		container_of(obj_hdl, mdcache_entry_t, obj_handle);

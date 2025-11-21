@@ -90,7 +90,7 @@ class ReadlinkEmptyLatencyTest : public gtest::GaneshaFSALBaseTest {
 	{
 		fsal_status_t status;
 
-		gsh_free(bfr_content.addr);
+		gsh_free(bfr_content.utf8string_val);
 
 		status = symlink_test_root->obj_ops->unlink(root_entry,
 							    symlink_test_root,
@@ -104,7 +104,7 @@ class ReadlinkEmptyLatencyTest : public gtest::GaneshaFSALBaseTest {
 	}
 
 	struct fsal_obj_handle *symlink_test_root = nullptr;
-	struct gsh_buffdesc bfr_content;
+	utf8string bfr_content;
 };
 
 class ReadlinkFullLatencyTest : public ReadlinkEmptyLatencyTest {
@@ -129,43 +129,45 @@ class ReadlinkFullLatencyTest : public ReadlinkEmptyLatencyTest {
 TEST_F(ReadlinkEmptyLatencyTest, SIMPLE)
 {
 	fsal_status_t status;
-	struct gsh_buffdesc link_content;
+	utf8string link_content;
 	int ret = -1;
 
 	status = symlink_test_root->obj_ops->readlink(symlink_test_root,
 						      &link_content, false);
 	EXPECT_EQ(status.major, 0);
-	if (link_content.len == bfr_content.len)
-		ret = memcmp(link_content.addr, bfr_content.addr,
-			     link_content.len);
+	if (link_content.utf8string_len == bfr_content.utf8string_len)
+		ret = memcmp(link_content.utf8string_val,
+			     bfr_content.utf8string_val,
+			     link_content.utf8string_len);
 	EXPECT_EQ(ret, 0);
 
-	gsh_free(link_content.addr);
+	gsh_free(link_content.utf8string_val);
 }
 
 TEST_F(ReadlinkEmptyLatencyTest, SIMPLE_BYPASS)
 {
 	fsal_status_t status;
 	struct fsal_obj_handle *sub_hdl;
-	struct gsh_buffdesc link_content;
+	utf8string link_content;
 	int ret = -1;
 
 	sub_hdl = mdcdb_get_sub_handle(symlink_test_root);
 	ASSERT_NE(sub_hdl, nullptr);
 	status = sub_hdl->obj_ops->readlink(sub_hdl, &link_content, false);
 	EXPECT_EQ(status.major, 0);
-	if (link_content.len == bfr_content.len)
-		ret = memcmp(link_content.addr, bfr_content.addr,
-			     link_content.len);
+	if (link_content.utf8string_len == bfr_content.utf8string_len)
+		ret = memcmp(link_content.utf8string_val,
+			     bfr_content.utf8string_val,
+			     link_content.utf8string_len);
 	EXPECT_EQ(ret, 0);
 
-	gsh_free(link_content.addr);
+	gsh_free(link_content.utf8string_val);
 }
 
 TEST_F(ReadlinkEmptyLatencyTest, LOOP)
 {
 	fsal_status_t status;
-	struct gsh_buffdesc link_content;
+	utf8string link_content;
 	struct timespec s_time, e_time;
 
 	now(&s_time);
@@ -174,7 +176,7 @@ TEST_F(ReadlinkEmptyLatencyTest, LOOP)
 		status = symlink_test_root->obj_ops->readlink(
 			symlink_test_root, &link_content, false);
 		EXPECT_EQ(status.major, 0);
-		gsh_free(link_content.addr);
+		gsh_free(link_content.utf8string_val);
 	}
 
 	now(&e_time);
@@ -186,7 +188,7 @@ TEST_F(ReadlinkEmptyLatencyTest, LOOP)
 TEST_F(ReadlinkEmptyLatencyTest, FSALREADLINK)
 {
 	fsal_status_t status;
-	struct gsh_buffdesc link_content;
+	utf8string link_content;
 	struct timespec s_time, e_time;
 
 	now(&s_time);
@@ -194,7 +196,7 @@ TEST_F(ReadlinkEmptyLatencyTest, FSALREADLINK)
 	for (int i = 0; i < LOOP_COUNT; ++i) {
 		status = fsal_readlink(symlink_test_root, &link_content);
 		EXPECT_EQ(status.major, 0);
-		gsh_free(link_content.addr);
+		gsh_free(link_content.utf8string_val);
 	}
 
 	now(&e_time);
@@ -206,7 +208,7 @@ TEST_F(ReadlinkEmptyLatencyTest, FSALREADLINK)
 TEST_F(ReadlinkFullLatencyTest, BIG)
 {
 	fsal_status_t status;
-	struct gsh_buffdesc link_content;
+	utf8string link_content;
 	struct timespec s_time, e_time;
 
 	now(&s_time);
@@ -216,7 +218,7 @@ TEST_F(ReadlinkFullLatencyTest, BIG)
 			symlink_test_root, &link_content, false);
 		ASSERT_EQ(status.major, 0)
 			<< " failed to readlink " << TEST_ROOT_LINK;
-		gsh_free(link_content.addr);
+		gsh_free(link_content.utf8string_val);
 	}
 
 	now(&e_time);
@@ -229,7 +231,7 @@ TEST_F(ReadlinkFullLatencyTest, BIG_BYPASS)
 {
 	fsal_status_t status;
 	struct fsal_obj_handle *sub_hdl;
-	struct gsh_buffdesc link_content;
+	utf8string link_content;
 	struct timespec s_time, e_time;
 
 	sub_hdl = mdcdb_get_sub_handle(symlink_test_root);
@@ -240,7 +242,7 @@ TEST_F(ReadlinkFullLatencyTest, BIG_BYPASS)
 						    false);
 		ASSERT_EQ(status.major, 0)
 			<< " failed to readlink " << TEST_ROOT_LINK;
-		gsh_free(link_content.addr);
+		gsh_free(link_content.utf8string_val);
 	}
 
 	now(&e_time);
