@@ -3889,7 +3889,7 @@ static void handle_nfsv4_lock(state_block_data_t *pblock,
 			found_entry, lock_poll_check, TRACE_INFO,
 			"poll eligibility check_time {} next_poll_time {}",
 			check_time, next_poll_time);
-
+		pblock->sbd_prot.sbd_v4.snbd_last_poll_time = time(NULL);
 		lock_entry_inc_ref(found_entry);
 		if (test_blocking_lock_eligibility_schedule(found_entry) !=
 		    STATE_SUCCESS) {

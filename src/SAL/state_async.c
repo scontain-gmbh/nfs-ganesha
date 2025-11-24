@@ -154,6 +154,8 @@ static void test_blocking_lock_eligibility(struct fridgethr_context *ctx)
 		     lock_test_status);
 	if (lock_test_status == STATE_SUCCESS)
 		process_blocked_lock_upcall(lock_entry);
+	lock_entry->sle_block_data->sbd_prot.sbd_v4.snbd_last_poll_time =
+		time(NULL);
 
 	lock_entry_dec_ref(lock_entry);
 	release_op_context();
