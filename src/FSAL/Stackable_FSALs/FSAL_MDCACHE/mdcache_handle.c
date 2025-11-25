@@ -516,6 +516,11 @@ static fsal_status_t mdcache_link(struct fsal_obj_handle *obj_hdl,
 		status = mdcache_dirent_add(dest, name, entry, &invalidate);
 
 		PTHREAD_RWLOCK_unlock(&dest->content_lock);
+	} else {
+		/* Need to refresh destination directory attributes
+		 * when readdir cache is disabled.
+		 */
+		invalidate = false;
 	}
 
 	/* Invalidate attributes, so refresh will be forced */
