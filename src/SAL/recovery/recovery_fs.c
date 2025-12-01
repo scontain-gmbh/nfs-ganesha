@@ -1005,7 +1005,7 @@ static void fs_read_recov_clids_recover(char *recov_dir, char *old_dir,
 		return;
 	}
 
-	rc = fs_read_recov_clids_impl(v4_recov_dir, NULL, old_dir, 0,
+	rc = fs_read_recov_clids_impl(recov_dir, NULL, old_dir, 0,
 				      add_clid_entry, add_rfh_entry);
 	if (rc == -1) {
 		LogEvent(COMPONENT_CLIENTID,
