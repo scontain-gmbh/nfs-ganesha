@@ -844,6 +844,8 @@ fsal_status_t mdcache_refresh_attrs(mdcache_entry_t *entry, bool need_acl,
 	bool file_deleg = false;
 	cbgetattr_t *cbgetattr;
 	uint32_t original_generation;
+	fsal_acl_t *old_acl = NULL;
+	time_t old_acl_time = 0;
 
 	/* Assume no invalidation. */
 	if (invalidate != NULL)
@@ -899,6 +901,13 @@ fsal_status_t mdcache_refresh_attrs(mdcache_entry_t *entry, bool need_acl,
 	if (entry->attrs.acl != NULL) {
 		/* request_mask & ATTR_ACL must match attrs.acl */
 		entry->attrs.request_mask |= ATTR_ACL;
+
+		if (!need_acl) {
+			/* Use this to restore the acl_time
+			 * when ACL is preserved */
+			old_acl_time = entry->acl_time;
+			old_acl = entry->attrs.acl;
+		}
 	}
 	if (entry->attrs.fs_locations != NULL) {
 		/* request_mask & ATTR_FS_LOCATIONS must match
@@ -928,6 +937,12 @@ fsal_status_t mdcache_refresh_attrs(mdcache_entry_t *entry, bool need_acl,
 		atomic_clear_uint32_t_bits(&entry->mde_flags,
 					   MDCACHE_TRUST_ATTRS);
 	}
+
+	/* If the ACL is preserved and not refreshed,
+	 * undo the acl_time update
+	 */
+	if (old_acl && old_acl == entry->attrs.acl)
+		entry->acl_time = old_acl_time;
 
 out:
 	/* Done with the attrs (we didn't need to call this since the
