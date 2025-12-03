@@ -410,15 +410,9 @@ state_status_t layoutrecall(const struct fsal_up_vector *vec,
 	   every state on the list before we start executing returns. */
 	rc = create_file_recall(obj, layout_type, segment, cookie, spec,
 				&recall);
-	STATELOCK_unlock(obj);
 	if (rc != STATE_SUCCESS)
 		goto out;
 
-	/**
-	 * @todo This leaves us open to a race if a return comes in
-	 * while we're traversing the work list. However, the race may now
-	 * be harmless since everything is refcounted.
-	 */
 	glist_for_each(wi, &recall->state_list) {
 		/* The current entry in the queue */
 		struct recall_state_list *g =
@@ -470,13 +464,16 @@ state_status_t layoutrecall(const struct fsal_up_vector *vec,
 
 		dec_state_owner_ref(owner);
 
-		layoutrecall_one_call(cb_data);
+		delayed_submit(layoutrecall_one_call, cb_data, 0);
 	}
 
 out:
 
 	/* Free the recall list resources */
 	destroy_recall(recall);
+
+	STATELOCK_unlock(obj);
+
 	obj->obj_ops->put_ref(obj);
 
 	return rc;
