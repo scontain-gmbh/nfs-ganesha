@@ -355,6 +355,9 @@ static enum nfs_req_result nfs4_op_ds_read_resume(struct nfs_argop4 *op,
 	/* Free op_data and return */
 	gsh_free(read_data);
 	data->op_data = NULL;
+
+	server_stats_io_done(arg_READ4->count, resok->data.data_len,
+			     res_READ4->status == NFS4_OK, false);
 	return nfsstat4_to_nfs_req_result(res_READ4->status);
 }
 #endif
@@ -525,6 +528,7 @@ static enum nfs_req_result op_dsread(struct nfs_argop4 *op,
 		resok->iov0.iov_len = 0;
 		resok->iov0.iov_base = NULL;
 		res_READ4->status = NFS4_OK;
+		server_stats_io_done(0, 0, true, false);
 		return NFS_REQ_OK;
 	}
 
@@ -566,6 +570,7 @@ static enum nfs_req_result op_dsread(struct nfs_argop4 *op,
 		&eof);
 
 	if (nfs_status != NFS4_OK) {
+		server_stats_io_done(arg_READ4->count, 0, false, false);
 		if (!op_ctx->is_rdma_buff_used) {
 			gsh_free(buffer);
 		}
@@ -580,6 +585,9 @@ static enum nfs_req_result op_dsread(struct nfs_argop4 *op,
 
 	res_READ4->status = nfs_status;
 
+	server_stats_io_done(arg_READ4->count,
+			     res_READ4->READ4res_u.resok4.data.data_len,
+			     res_READ4->status == NFS4_OK, false);
 	return nfsstat4_to_nfs_req_result(res_READ4->status);
 }
 
@@ -622,6 +630,7 @@ static enum nfs_req_result op_dsread_plus(struct nfs_argop4 *op,
 		contentp->data.d_data.data_len = 0;
 		contentp->data.d_data.data_val = NULL;
 		res_RPLUS->rpr_status = NFS4_OK;
+		server_stats_io_done(0, 0, true, false);
 		return NFS_REQ_OK;
 	}
 
@@ -635,6 +644,7 @@ static enum nfs_req_result op_dsread_plus(struct nfs_argop4 *op,
 
 	res_RPLUS->rpr_status = nfs_status;
 	if (nfs_status != NFS4_OK) {
+		server_stats_io_done(arg_READ4->count, 0, false, false);
 		gsh_free(buffer);
 		return NFS_REQ_ERROR;
 	}
@@ -646,6 +656,9 @@ static enum nfs_req_result op_dsread_plus(struct nfs_argop4 *op,
 	if (info->io_content.what == NFS4_CONTENT_HOLE) {
 		contentp->hole.di_offset = info->io_content.hole.di_offset;
 		contentp->hole.di_length = info->io_content.hole.di_length;
+		server_stats_io_done(arg_READ4->count,
+				     info->io_content.hole.di_length, true,
+				     false);
 	}
 	if (info->io_content.what == NFS4_CONTENT_DATA) {
 		contentp->data.d_offset = info->io_content.data.d_offset;
@@ -653,6 +666,9 @@ static enum nfs_req_result op_dsread_plus(struct nfs_argop4 *op,
 			info->io_content.data.d_data.data_len;
 		contentp->data.d_data.data_val =
 			info->io_content.data.d_data.data_val;
+		server_stats_io_done(arg_READ4->count,
+				     info->io_content.data.d_data.data_len,
+				     true, false);
 	}
 	return nfsstat4_to_nfs_req_result(res_RPLUS->rpr_status);
 }

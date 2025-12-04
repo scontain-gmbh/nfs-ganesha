@@ -163,6 +163,9 @@ static enum nfs_req_result nfs4_op_ds_write_resume(struct nfs_argop4 *op,
 		data->op_data = NULL;
 	}
 
+	server_stats_io_done(arg_WRITE4->data.data_len,
+			     res_WRITE4->WRITE4res_u.resok4.count,
+			     res_WRITE4->status == NFS4_OK, true /*is_write*/);
 	return nfsstat4_to_nfs_req_result(res_WRITE4->status);
 }
 #endif
@@ -301,6 +304,9 @@ static enum nfs_req_result op_dswrite(struct nfs_argop4 *op,
 		&res_WRITE4->WRITE4res_u.resok4.writeverf,
 		&res_WRITE4->WRITE4res_u.resok4.committed);
 
+	server_stats_io_done(arg_WRITE4->data.data_len,
+			     res_WRITE4->WRITE4res_u.resok4.count,
+			     res_WRITE4->status == NFS4_OK, true /*is_write*/);
 	return nfsstat4_to_nfs_req_result(res_WRITE4->status);
 }
 
