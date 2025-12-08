@@ -63,6 +63,58 @@
 		     (chan_attrs)->ca_maxrequests)
 
 /**
+ * Minimal async probe: send a single CB_NULL via existing callback stack
+ * Uses nfs_test_cb_chan() already implemented in nfs_rpc_callback.c.
+ * The CB_NULL is executed asynchronously via a bounded fridge thread
+ * pool to avoid unbounded thread creation.Failures are logged but do
+ * not affect CREATE_SESSION outcome.
+*/
+
+static void initial_cb_null_call(struct fridgethr_context *ctx)
+{
+	nfs_client_id_t *cl = (nfs_client_id_t *)ctx->arg;
+	enum clnt_stat st;
+
+	if (cl == NULL)
+		return;
+
+	/* call existing helper that does CB_NULL on an available backchannel */
+	st = nfs_test_cb_chan(cl);
+
+	if (st == RPC_SUCCESS) {
+		LogInfo(COMPONENT_SESSIONS,
+			"initial_cb_null: CB_NULL succeeded for client (%p)",
+			cl);
+	} else {
+		LogWarn(COMPONENT_SESSIONS,
+			"initial_cb_null: CB_NULL failed for client (%p) rc=%d",
+			cl, st);
+	}
+
+	/* Drop reference taken before submitting job */
+	dec_client_id_ref(cl);
+}
+
+static void schedule_initial_cb_null(nfs_client_id_t *cl)
+{
+	int rc;
+
+	if (cl == NULL)
+		return;
+
+	/* take a ref so the clientid stays valid while thread runs */
+	inc_client_id_ref(cl);
+
+	rc = fridgethr_submit(general_fridge, initial_cb_null_call, cl);
+
+	if (rc != 0) {
+		LogWarn(COMPONENT_SESSIONS, "%s: fridgethr_submit failed",
+			__func__);
+		dec_client_id_ref(cl);
+	}
+}
+
+/**
  * @brief Populate nfs41_session with callback params
  */
 static void populate_callback_params_in_session(
@@ -643,6 +695,7 @@ enum nfs_req_result nfs4_op_create_session(struct nfs_argop4 *op,
 			res_CREATE_SESSION4ok->csr_flags |=
 				CREATE_SESSION4_FLAG_CONN_BACK_CHAN;
 			LogDebug(component, "Session backchannel created");
+			schedule_initial_cb_null(found);
 		}
 	}
 
