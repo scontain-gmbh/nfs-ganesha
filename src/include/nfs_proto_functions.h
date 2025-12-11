@@ -366,6 +366,8 @@ enum nfs_req_result nfs4_op_destroy_session(struct nfs_argop4 *,
 enum nfs_req_result nfs4_op_layoutget(struct nfs_argop4 *, compound_data_t *,
 				      struct nfs_resop4 *);
 
+void nfs4_op_layoutget_Free(nfs_resop4 *resp);
+
 enum nfs_req_result nfs4_op_layoutcommit(struct nfs_argop4 *, compound_data_t *,
 					 struct nfs_resop4 *);
 
