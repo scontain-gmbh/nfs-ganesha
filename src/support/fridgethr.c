@@ -1344,7 +1344,7 @@ int general_fridge_init(void)
 	int rc = 0;
 
 	memset(&frp, 0, sizeof(struct fridgethr_params));
-	frp.thr_max = 4;
+	frp.thr_max = 32;
 	frp.thr_min = 0;
 	frp.flavor = fridgethr_flavor_worker;
 	frp.deferment = fridgethr_defer_queue;

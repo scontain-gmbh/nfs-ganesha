@@ -1219,7 +1219,10 @@ void delegrecall_one(struct fsal_obj_handle *obj, struct state_t *state,
 		clfl_stats->cfd_r_time = time(NULL);
 
 	if (str_valid)
-		LogFullDebug(COMPONENT_FSAL_UP, "Recalling delegation %s", str);
+		LogFullDebug(COMPONENT_FSAL_UP,
+			     "Recalling delegation %s, type %d, export %d", str,
+			     state->state_data.deleg.sd_type,
+			     state->state_export->export_id);
 
 	inc_recalls(p_cargs->drc_clid->gsh_client);
 
@@ -1432,134 +1435,160 @@ static int schedule_delegrevoke_check(struct delegrecall_context *ctx,
 	return rc;
 }
 
-state_status_t delegrecall_impl(struct fsal_obj_handle *obj)
+/* Delegrecall per state helper: MUST be called with STATELOCK held */
+state_status_t delegrecall_impl_per_state(struct fsal_obj_handle *obj,
+					  struct state_t *state)
 {
-	struct glist_head *glist, *glist_n;
 	state_status_t rc = 0;
 	uint32_t *deleg_state = NULL;
-	struct state_t *state;
 	state_owner_t *owner;
 	struct delegrecall_context *drc_ctx;
 	struct req_op_context op_context;
 	nfs_client_id_t *client_id = NULL;
 
+	/* Check to skip recalling non delegation states */
+	if (state->state_type != STATE_TYPE_DELEG)
+		return rc;
+
+	if (isDebug(COMPONENT_NFS_CB)) {
+		char str[LOG_BUFF_LEN] = "\0";
+		struct display_buffer dspbuf = { sizeof(str), str, str };
+
+		display_stateid(&dspbuf, state);
+		LogDebug(COMPONENT_NFS_CB, "Delegation for %s", str);
+	}
+
+	deleg_state = &state->state_data.deleg.sd_state;
+
+	if (*deleg_state != DELEG_GRANTED) {
+		LogDebug(COMPONENT_FSAL_UP,
+			 "Delegation already being recalled, NOOP");
+		return rc;
+	}
+
+	*deleg_state = DELEG_RECALL_WIP;
+
+	drc_ctx = gsh_malloc(sizeof(struct delegrecall_context));
+
+	/* Get references on the owner and the export. The
+	 * export reference we will hold while we perform the recall.
+	 * The owner reference will be used to get access to the
+	 * clientid and reserve the lease.
+	 */
+	if (!get_state_obj_export_owner_refs(state, NULL, &drc_ctx->drc_exp,
+					     &owner)) {
+		LogDebug(
+			COMPONENT_FSAL_UP,
+			"Something is going stale, no need to recall delegation");
+
+		gsh_free(drc_ctx);
+		*deleg_state = DELEG_GRANTED;
+		return rc;
+	}
+
+	client_id = owner->so_owner.so_nfs4_owner.so_clientrec;
+
+	if (!client_id || !atomic_fetch_int32_t(&client_id->cid_refcount)) {
+		/* Let's release the export and owner ref */
+		put_gsh_export(drc_ctx->drc_exp);
+		dec_state_owner_ref(owner);
+
+		LogDebug(
+			COMPONENT_FSAL_UP,
+			"Client id within owner has gone stale, no need to recall delegation");
+		gsh_free(drc_ctx);
+		*deleg_state = DELEG_GRANTED;
+		return rc;
+	}
+
+	inc_client_id_ref(client_id);
+	dec_state_owner_ref(owner);
+
+	/* Being an area in which there are/could be a lot of races,
+	 * updating the logic so that multiple ASync recalls as part of
+	 * conflciting IOs on same or different objects could happen
+	 * concurrently and in parallel the reaper wiping off the
+	 * expired clients with its states.
+	 * Steps:
+	 * 1) For an expired client, proceed directly to recall off the
+	 *    conflciting state as part of delegrecall_one() below.
+	 * 2) For a non-expired client -
+	 *     a) Prevent client's lease expiring until we complete this
+	 *        recall/revoke operation, be renewing/reserving lease.
+	 *     b) If reserve lease fails, then we cleanup and set the
+	 *        deleg state back to GRANTED, so that reaper could
+	 *        clean this up proper later, else below path ignores
+	 *        the deleg state to be revoked.
+	 *            nfs_client_id_expire -> revoke_owner_delegs ->
+	 *            state_deleg_revoke -> state_deleg_revoke
+	 * 3) Once deleg state is marked properly, then further ops on
+	 *    this state would return NFS4ERR_REVOKED or NFS4ERR_EXPIRED
+	 * 4) Continue to check for other conflicting delegation holders
+	 *    holding the state lock
+	 */
+	PTHREAD_MUTEX_lock(&client_id->cid_mutex);
+
+	if (client_id->cid_confirmed != EXPIRED_CLIENT_ID &&
+	    !reserve_lease(client_id)) {
+		PTHREAD_MUTEX_unlock(&client_id->cid_mutex);
+
+		/* Let's release the client and export ref */
+		dec_client_id_ref(client_id);
+		put_gsh_export(drc_ctx->drc_exp);
+
+		LogDebug(COMPONENT_FSAL_UP,
+			 "Failed to reserve client's lease.");
+		gsh_free(drc_ctx);
+
+		/* Reset the state for reaper to clean  */
+		*deleg_state = DELEG_GRANTED;
+
+		return rc;
+	}
+
+	PTHREAD_MUTEX_unlock(&client_id->cid_mutex);
+
+	/* Get a ref to the drc_ctx->drc_exp and initialize op_context
+	 * in case state_del_locks and others need it.
+	 */
+	get_gsh_export_ref(drc_ctx->drc_exp);
+
+	init_op_context_simple(&op_context, drc_ctx->drc_exp,
+			       drc_ctx->drc_exp->fsal_export);
+
+	drc_ctx->drc_clid = client_id;
+	COPY_STATEID(&drc_ctx->drc_stateid, state);
+
+	obj->state_hdl->file.fdeleg_stats.fds_last_recall = time(NULL);
+
+	delegrecall_one(obj, state, drc_ctx);
+	release_op_context();
+
+	return rc;
+}
+
+state_status_t delegrecall_impl(struct fsal_obj_handle *obj)
+{
+	struct glist_head *glist, *glist_n;
+	struct state_t *state;
+	state_status_t rc = 0;
+
 	LogDebug(COMPONENT_FSAL_UP, "FSAL_UP_DELEG: obj %p type %u", obj,
 		 obj->type);
 
+	assert(obj->type == REGULAR_FILE);
+
 	STATELOCK_lock(obj);
+
+	/* Iterate all states on this file */
 	glist_for_each_safe(glist, glist_n,
 			    &obj->state_hdl->file.list_of_states) {
 		state = glist_entry(glist, struct state_t, state_list);
 
-		if (state->state_type != STATE_TYPE_DELEG)
-			continue;
-
-		if (isDebug(COMPONENT_NFS_CB)) {
-			char str[LOG_BUFF_LEN] = "\0";
-			struct display_buffer dspbuf = { sizeof(str), str,
-							 str };
-
-			display_stateid(&dspbuf, state);
-			LogDebug(COMPONENT_NFS_CB, "Delegation for %s", str);
-		}
-
-		deleg_state = &state->state_data.deleg.sd_state;
-		if (*deleg_state != DELEG_GRANTED) {
-			LogDebug(COMPONENT_FSAL_UP,
-				 "Delegation already being recalled, NOOP");
-			continue;
-		}
-		*deleg_state = DELEG_RECALL_WIP;
-
-		drc_ctx = gsh_malloc(sizeof(struct delegrecall_context));
-
-		/* Get references on the owner and the export. The
-		 * export reference we will hold while we perform the recall.
-		 * The owner reference will be used to get access to the
-		 * clientid and reserve the lease.
-		 */
-		if (!get_state_obj_export_owner_refs(
-			    state, NULL, &drc_ctx->drc_exp, &owner)) {
-			LogDebug(
-				COMPONENT_FSAL_UP,
-				"Something is going stale, no need to recall delegation");
-			gsh_free(drc_ctx);
-			*deleg_state = DELEG_GRANTED;
-			continue;
-		}
-
-		client_id = owner->so_owner.so_nfs4_owner.so_clientrec;
-		if (!client_id ||
-		    !atomic_fetch_int32_t(&client_id->cid_refcount)) {
-			/* Let's release the export and owner ref */
-			put_gsh_export(drc_ctx->drc_exp);
-			dec_state_owner_ref(owner);
-
-			LogDebug(
-				COMPONENT_FSAL_UP,
-				"Client id within owner has gone stale, no need to recall delegation");
-			gsh_free(drc_ctx);
-			*deleg_state = DELEG_GRANTED;
-			continue;
-		}
-		inc_client_id_ref(client_id);
-		dec_state_owner_ref(owner);
-
-		/* Being an area in which there are/could be a lot of races,
-		 * updating the logic so that multiple ASync recalls as part of
-		 * conflciting IOs on same or different objects could happen
-		 * concurrently and in parallel the reaper wiping off the
-		 * expired clients with its states.
-		 * Steps:
-		 * 1) For an expired client, proceed directly to recall off the
-		 *    conflciting state as part of delegrecall_one() below.
-		 * 2) For a non-expired client -
-		 *     a) Prevent client's lease expiring until we complete this
-		 *        recall/revoke operation, be renewing/reserving lease.
-		 *     b) If reserve lease fails, then we cleanup and set the
-		 *        deleg state back to GRANTED, so that reaper could
-		 *        clean this up proper later, else below path ignores
-		 *        the deleg state to be revoked.
-		 *            nfs_client_id_expire -> revoke_owner_delegs ->
-		 *            state_deleg_revoke -> state_deleg_revoke
-		 * 3) Once deleg state is marked properly, then further ops on
-		 *    this state would return NFS4ERR_REVOKED or NFS4ERR_EXPIRED
-		 * 4) Continue to check for other conflicting delegation holders
-		 *    holding the state lock
-		 */
-		PTHREAD_MUTEX_lock(&client_id->cid_mutex);
-		if (client_id->cid_confirmed != EXPIRED_CLIENT_ID &&
-		    !reserve_lease(client_id)) {
-			PTHREAD_MUTEX_unlock(&client_id->cid_mutex);
-			/* Let's release the client and export ref */
-			dec_client_id_ref(client_id);
-			put_gsh_export(drc_ctx->drc_exp);
-
-			LogDebug(COMPONENT_FSAL_UP,
-				 "Failed to reserve client's lease.");
-			gsh_free(drc_ctx);
-			/* Reset the state for reaper to clean  */
-			*deleg_state = DELEG_GRANTED;
-
-			continue;
-		}
-		PTHREAD_MUTEX_unlock(&client_id->cid_mutex);
-
-		/* Get a ref to the drc_ctx->drc_exp and initialize op_context
-		 * in case state_del_locks and others need it.
-		 */
-		get_gsh_export_ref(drc_ctx->drc_exp);
-		init_op_context_simple(&op_context, drc_ctx->drc_exp,
-				       drc_ctx->drc_exp->fsal_export);
-
-		drc_ctx->drc_clid = client_id;
-		COPY_STATEID(&drc_ctx->drc_stateid, state);
-
-		obj->state_hdl->file.fdeleg_stats.fds_last_recall = time(NULL);
-
-		delegrecall_one(obj, state, drc_ctx);
-		release_op_context();
+		/* Calling delegrecall logic helper */
+		delegrecall_impl_per_state(obj, state);
 	}
+
 	STATELOCK_unlock(obj);
 
 	return rc;

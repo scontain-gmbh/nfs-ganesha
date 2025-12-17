@@ -381,5 +381,9 @@ void remove_all_exports(void);
 
 extern struct timespec nfs_stats_time;
 void nfs_init_stats_time(void);
+
+extern int async_deleg_transition_handler(struct fridgethr *fr,
+					  struct gsh_export *probe_exp);
+
 #endif /* !EXPORT_MGR_H */
 /** @} */

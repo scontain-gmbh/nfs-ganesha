@@ -930,6 +930,18 @@ static int fsal_update_cfg_commit(void *node, void *link_mem, void *self_struct,
 	LogDebug(COMPONENT_EXPORT, "Export %d FSAL config update processed",
 		 export->export_id);
 
+	/* Invoke asynchronous dynamic delegation option parsing implementation.
+	 * Check if the delegation option was updated and recall an outstanding
+	 * delegation if necessary.
+	 */
+	if (async_deleg_transition_handler(general_fridge, probe_exp) != 0)
+		LogCrit(COMPONENT_STATE,
+			"Failed to start thread to deleg transition");
+
+	/* Call enable_delegations() here so that we set the deleg timeout
+	 * if delegation option was enabled dynamically.
+	 */
+	mdcache_enable_delegations(probe_exp->fsal_export, export);
 err:
 
 	release_op_context();

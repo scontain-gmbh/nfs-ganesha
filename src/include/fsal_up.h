@@ -324,6 +324,9 @@ fsal_status_t up_async_delegrecall(struct fridgethr *fr,
 
 /** @} */
 int async_delegrecall(struct fridgethr *fr, struct fsal_obj_handle *obj);
+int async_delegrecall_per_state(struct fridgethr *fr,
+				struct fsal_obj_handle *obj,
+				struct state_t *state);
 
 int async_cbgetattr(struct fridgethr *fr, struct fsal_obj_handle *obj,
 		    nfs_client_id_t *client);

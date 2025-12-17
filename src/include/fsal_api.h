@@ -651,6 +651,19 @@ struct fsal_ops {
 				       const struct fsal_up_vector *up_ops);
 
 	/**
+ * @brief Enable delegations by setting the deleg timeout
+ *
+ * This function is a wrapper around enable_delegations() function
+ * which will allow the deleg timeout to be set in the
+ * underlying FSAL.
+ *
+ * @param[in]     orig      FSAL export
+ * @param[in]     exp       GSH export
+ */
+	void (*fsal_enable_delegations)(struct fsal_export *orig,
+					struct gsh_export *exp);
+
+	/**
  * @brief Update an existing export
  *
  * This will result in a temporary fsal_export being created, and built into

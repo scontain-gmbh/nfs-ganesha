@@ -313,7 +313,7 @@ static struct config_block export_param_block = {
 };
 
 #ifdef USE_FSAL_CEPH_LL_DELEGATION
-static void enable_delegations(struct ceph_mount *cm)
+void enable_delegations(struct ceph_mount *cm, struct gsh_export *export)
 {
 	/* Skip setting delegation timeout if delegation is disabled
 	 * in the NFSv4 stanza.
@@ -346,7 +346,7 @@ static void enable_delegations(struct ceph_mount *cm)
 	 * We only need to know if the delegation option is set in
 	 * any stanza, not which specific EXPORT or CLIENT enabled it.
 	 */
-	uint32_t eff_options = export_check_client_options(op_ctx->ctx_export);
+	uint32_t eff_options = export_check_client_options(export);
 
 	if (eff_options & EXPORT_OPTION_DELEGATIONS) {
 		/*
@@ -386,6 +386,16 @@ static void enable_delegations(struct ceph_mount *cm)
 		LogDebug(COMPONENT_FSAL, "No deleg option set in the config");
 	}
 }
+
+/* Wrapper around enable_delegations() function. */
+void fsal_enable_delegations(struct fsal_export *orig, struct gsh_export *exp)
+{
+	struct ceph_export *ce =
+		container_of(orig->sub_export, struct ceph_export, export);
+
+	enable_delegations(ce->cm, exp);
+}
+
 #else /* !USE_FSAL_CEPH_LL_DELEGATION */
 static inline void enable_delegations(struct ceph_mount *cm)
 {
@@ -981,7 +991,7 @@ has_cmount:
 	 */
 	LogFullDebug(COMPONENT_FSAL, "Export ID: %d, Cmount: %p, Refcount: %d",
 		     cm->cm_export_id, cm, cm->cm_refcnt);
-	enable_delegations(cm);
+	enable_delegations(cm, op_ctx->ctx_export);
 
 	PTHREAD_RWLOCK_unlock(&cmount_lock);
 
@@ -1050,6 +1060,7 @@ MODULE_INIT void init(void)
 	myself->m_ops.create_export = create_export;
 	myself->m_ops.init_config = init_config;
 	myself->m_ops.fsal_reclaim_client = node_takeover_reclaim;
+	myself->m_ops.fsal_enable_delegations = fsal_enable_delegations;
 
 	/* Initialize the fsal_obj_handle ops for FSAL CEPH */
 	handle_ops_init(&CephFSM.handle_ops);

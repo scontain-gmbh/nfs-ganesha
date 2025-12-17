@@ -270,4 +270,6 @@ struct ceph_mount *ceph_mount_lookup(const struct avltree_node *key);
 void ceph_mount_insert(struct avltree_node *key);
 void ceph_mount_remove(struct avltree_node *key);
 
+extern void enable_delegations(struct ceph_mount *cm,
+			       struct gsh_export *export);
 #endif /* !FSAL_CEPH_INTERNAL_INTERNAL__ */

@@ -232,6 +232,17 @@ mdcache_fsal_create_export(struct fsal_module *sub_fsal, void *parse_node,
 }
 
 /**
+ * @brief MDCACHE wrapper for enable_delegations() function
+ * @param[in] orig       FSAL export
+ * @param[in] exp        GSH export
+ */
+void mdcache_enable_delegations(struct fsal_export *orig,
+				struct gsh_export *exp)
+{
+	orig->sub_export->fsal->m_ops.fsal_enable_delegations(orig, exp);
+}
+
+/**
  * @brief Update an export for MDCACHE
  *
  * Create the stacked export for MDCACHE to allow metadata caching on another
