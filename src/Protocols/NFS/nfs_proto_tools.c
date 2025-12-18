@@ -2606,6 +2606,25 @@ static fattr_xdr_result decode_xattr_support(XDR *xdr,
 }
 
 /*
+ * FATTR4_OFFLINE
+ */
+
+static fattr_xdr_result encode_offline(XDR *xdr, struct xdr_attrs_args *args)
+{
+	uint32_t offline = FALSE;
+
+	if (!inline_xdr_bool(xdr, &offline))
+		return FATTR_XDR_FAILED;
+
+	return FATTR_XDR_SUCCESS;
+}
+
+static fattr_xdr_result decode_offline(XDR *xdr, struct xdr_attrs_args *args)
+{
+	return FATTR_XDR_NOOP;
+}
+
+/*
  * NFSv4.2 Delegation Timestamp Extensions (RFC 9754)
  */
 
@@ -3524,6 +3543,14 @@ const struct fattr4_dent fattr4tab[FATTR4_MAX_ATTR_INDEX + 1] = {
 				   .encode = encode_xattr_support,
 				   .decode = decode_xattr_support,
 				   .access = FATTR4_ATTR_READ },
+	[FATTR4_OFFLINE] = { .name = "FATTR4_OFFLINE",
+			     .supported = 0,
+			     .encoded = 1,
+			     .size_fattr4 = sizeof(fattr4_offline),
+			     .attrmask = 0,
+			     .encode = encode_offline,
+			     .decode = decode_offline,
+			     .access = FATTR4_ATTR_READ },
 	[FATTR4_TIME_DELEG_ACCESS] = { .name = "FATTR4_TIME_DELEG_ACCESS",
 				       .supported = 1,
 				       .encoded = 1,

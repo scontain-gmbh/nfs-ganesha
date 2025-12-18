@@ -776,6 +776,8 @@ typedef fs_charset_cap4 fattr4_fs_charset_cap;
 
 typedef uint32_t fattr4_layout_alignment;
 
+typedef bool_t fattr4_offline;
+
 typedef uint32_t fattr4_layout_blksize;
 
 typedef layouthint4 fattr4_layout_hint;
@@ -919,6 +921,7 @@ typedef nfstime4 fattr4_time_deleg_modify;
 #define FATTR4_SEC_LABEL 80
 
 #define FATTR4_XATTR_SUPPORT 82
+#define FATTR4_OFFLINE 83
 
 /* NFSv4.2 Delegation Timestamp Extensions (RFC 9754) */
 #define FATTR4_TIME_DELEG_ACCESS 84
