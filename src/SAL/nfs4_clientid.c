@@ -1108,7 +1108,7 @@ bool nfs_client_id_expire(nfs_client_id_t *clientid, bool make_stale,
 		return false;
 	}
 
-	if (!make_stale && !force_expire &&
+	if (clientid->cid_confirmed && !make_stale && !force_expire &&
 	    nfs_param.nfsv4_param.expired_client_threshold) {
 		/* Judging the amount of states the client owns.
 		 * If it has large number of opened files, we may not want
