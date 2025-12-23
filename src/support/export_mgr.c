@@ -66,10 +66,7 @@
 #include "nfs_proto_functions.h"
 #include "pnfs_utils.h"
 #include "idmapper.h"
-
 #include "sal_functions.h"
-#include "../FSAL/FSAL_CEPH/internal.h"
-#include "mdcache.h"
 
 /** Mutex to serialize export admin operations.
  */
