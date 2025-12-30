@@ -53,6 +53,7 @@
 #include "city.h"
 #include "nfs_core.h"
 #include "nfs_proto_tools.h"
+#include "nfs_exports.h"
 
 /* helpers
  */
@@ -263,6 +264,7 @@ static fsal_status_t check_filesystem(struct vfs_fsal_obj_handle *parent_hdl,
 
 again:
 
+	LogDebug(COMPONENT_FSAL, "path=%s", path);
 	retval = fstatat(dirfd, path, stat, AT_SYMLINK_NOFOLLOW);
 
 	if (retval < 0) {
@@ -285,6 +287,8 @@ again:
 	}
 
 	dev = posix2fsal_devt(stat->st_dev);
+	LogDebug(COMPONENT_FSAL, "dev.major=%lx dev.minor=%lx", dev.major,
+		 dev.minor);
 
 	fs = parent_hdl->obj_handle.fs;
 
@@ -305,7 +309,7 @@ again:
 			".%" PRIu64 " - reloading filesystems to find it",
 			path, dev.major, dev.minor);
 
-		retval = populate_posix_file_systems(path);
+		retval = populate_posix_file_systems(path, NULL);
 
 		if (retval != 0) {
 			LogCrit(COMPONENT_FSAL,
@@ -1993,7 +1997,13 @@ fsal_status_t vfs_lookup_path(struct fsal_export *exp_hdl, const char *path,
 		goto errout;
 	}
 
-	dev = posix2fsal_devt(stat.st_dev);
+	if (nfs_param.core_param.fsid_override &&
+	    op_ctx_export_has_option_set(EXPORT_OPTION_FSID_SET)) {
+		dev.major = exp_hdl->owning_export->filesystem_id.major;
+		dev.minor = exp_hdl->owning_export->filesystem_id.minor;
+	} else {
+		dev = posix2fsal_devt(stat.st_dev);
+	}
 	fs = lookup_dev(&dev);
 
 	if (fs == NULL) {
@@ -2144,6 +2154,8 @@ fsal_status_t vfs_check_handle(struct fsal_export *exp_hdl,
 		if (fslocked && !(*dummy) &&
 		    !is_filesystem_exported(*fs, exp_hdl)) {
 			/* We've got a handle with a spoofed fsid/export_id */
+			LogDebug(COMPONENT_FSAL,
+				 "handle with a spoofed fsid/export_id");
 			retval = ESTALE;
 			fsal_error = posix2fsal_error(retval);
 			goto errout;
@@ -2153,6 +2165,11 @@ fsal_status_t vfs_check_handle(struct fsal_export *exp_hdl,
 			 "Found filesystem %s for handle for FSAL %s",
 			 (*fs)->path,
 			 (*fs)->fsal != NULL ? (*fs)->fsal->name : "(none)");
+		LogDebug(COMPONENT_FSAL,
+			 "fsid=0x%016" PRIx64 ".0x%016" PRIx64
+			 "  found fsid=0x%016" PRIx64 ".0x%016" PRIx64,
+			 fsid.major, fsid.minor, (*fs)->fsid.major,
+			 (*fs)->fsid.minor);
 	} else {
 		LogDebug(COMPONENT_FSAL, "Could not map handle to fsid");
 		fsal_error = ERR_FSAL_BADHANDLE;
@@ -2197,6 +2214,8 @@ fsal_status_t vfs_create_handle(struct fsal_export *exp_hdl,
 	*handle = NULL; /* poison it first */
 
 	status = vfs_check_handle(exp_hdl, hdl_desc, &fs, fh, &dummy);
+	LogDebug(COMPONENT_FSAL, "exportId=%d path=%s dummy=%d",
+		 exp_hdl->export_id, fs->path, dummy);
 
 	if (FSAL_IS_ERROR(status))
 		return status;

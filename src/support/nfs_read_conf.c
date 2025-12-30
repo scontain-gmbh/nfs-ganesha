@@ -355,6 +355,7 @@ static struct config_item core_params[] = {
 	CONF_ITEM_UI32("heartbeat_freq", 0, 5000, 1000, nfs_core_param,
 		       heartbeat_freq),
 	CONF_ITEM_BOOL("fsid_device", false, nfs_core_param, fsid_device),
+	CONF_ITEM_BOOL("fsid_override", false, nfs_core_param, fsid_override),
 	CONF_ITEM_UI32("resolve_fs_retries", 1, 1000, 10, nfs_core_param,
 		       resolve_fs_retries),
 	CONF_ITEM_UI32("resolve_fs_delay", 1, 1000, 100, nfs_core_param,

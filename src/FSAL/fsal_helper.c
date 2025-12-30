@@ -786,6 +786,8 @@ fsal_status_t fsal_lookup_path(const char *path,
 	const char *start, *exppath;
 	int len;
 
+	LogDebug(COMPONENT_FSAL, "path=%s", path);
+
 	/* First we need to strip off the export path, paying heed to
 	 * nfs_param.core_param.mount_path_pseudo. Since our callers have used
 	 * get_gsh_export_by_pseudo or get_gsh_export_by_path to find the

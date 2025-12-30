@@ -481,6 +481,8 @@ typedef struct nfs_core_param {
 	uint32_t heartbeat_freq;
 	/** Whether to use device major/minor for fsid. Defaults to false. */
 	bool fsid_device;
+	/** Whether to use export Filesystem_id for fsid. Defaults to false. */
+	bool fsid_override;
 	/** How many times to attempt retry of stat while resolving POSIX
 	 *  filesystems */
 	uint32_t resolve_fs_retries;

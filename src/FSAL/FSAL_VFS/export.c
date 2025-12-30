@@ -412,6 +412,7 @@ fsal_status_t vfs_create_export(struct fsal_module *fsal_hdl, void *parse_node,
 	int retval = 0;
 	fsal_status_t fsal_status = { 0, 0 };
 
+	LogDebug(COMPONENT_FSAL, "vfs_create_export");
 	vfs_state_init();
 
 	myself = gsh_calloc(1, sizeof(struct vfs_fsal_export));

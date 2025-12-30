@@ -29,6 +29,7 @@
 
 #include "FSAL/fsal_localfs.h"
 #include "idmapper.h"
+#include "nfs_exports.h"
 #ifdef LINUX
 #include <sys/sysmacros.h> /* for major(3), minor(3) */
 #endif
@@ -528,7 +529,8 @@ out:
 	return true;
 }
 
-static void posix_create_file_system(struct mntent *mnt, struct stat *mnt_stat);
+static void posix_create_file_system(struct gsh_export *exp, struct mntent *mnt,
+				     struct stat *mnt_stat);
 
 static void posix_create_fs_btrfs_subvols(struct fsal_filesystem *fs)
 {
@@ -594,7 +596,7 @@ static void posix_create_fs_btrfs_subvols(struct fsal_filesystem *fs)
 				LogInfo(COMPONENT_FSAL,
 					"Adding btrfs subvol %s", mnt.mnt_dir);
 
-				posix_create_file_system(&mnt, &st);
+				posix_create_file_system(NULL, &mnt, &st);
 			} else {
 				int err = errno;
 
@@ -624,11 +626,13 @@ out:
 #endif
 }
 
-static void posix_create_file_system(struct mntent *mnt, struct stat *mnt_stat)
+static void posix_create_file_system(struct gsh_export *exp, struct mntent *mnt,
+				     struct stat *mnt_stat)
 {
 	struct fsal_filesystem *fs;
 	struct avltree_node *node;
 
+	LogDebug(COMPONENT_FSAL, "exp=%p fsname=%s", exp, mnt->mnt_fsname);
 	fs = gsh_calloc(1, sizeof(*fs));
 
 	fs->path = gsh_strdup(mnt->mnt_dir);
@@ -638,7 +642,24 @@ static void posix_create_file_system(struct mntent *mnt, struct stat *mnt_stat)
 
 	if (!posix_get_fsid(fs, mnt_stat)) {
 		free_fs(fs);
+		LogDebug(COMPONENT_FSAL, "Unable to get fsid");
 		return;
+	}
+	if (!strcmp(fs->type, "overlay")) {
+		LogDebug(COMPONENT_FSAL, "overlay!!! type=%s", fs->type);
+	} else {
+		LogDebug(COMPONENT_FSAL, "overlay vs %s", fs->type);
+	}
+	if (strcmp(fs->type, "overlay") && nfs_param.core_param.fsid_override &&
+	    op_ctx_export_has_option_set(EXPORT_OPTION_FSID_SET) &&
+	    exp != NULL) {
+		LogDebug(COMPONENT_FSAL,
+			 "EXPORT_OPTION_FSID_SET fsid.major=%lx fsid.minor=%lx",
+			 exp->filesystem_id.major, exp->filesystem_id.minor);
+		fs->fsid.major = exp->filesystem_id.major;
+		fs->fsid.minor = exp->filesystem_id.minor;
+		fs->dev.major = fs->fsid.major;
+		fs->dev.minor = fs->fsid.minor;
 	}
 
 	fs->pathlen = strlen(mnt->mnt_dir);
@@ -814,7 +835,7 @@ static bool path_is_subset(const char *path, const char *of)
 	return true;
 }
 
-int populate_posix_file_systems(const char *path)
+int populate_posix_file_systems(const char *path, struct gsh_export *exp)
 {
 	FILE *fp;
 	struct mntent *mnt;
@@ -825,6 +846,7 @@ int populate_posix_file_systems(const char *path)
 
 	PTHREAD_RWLOCK_wrlock(&fs_lock);
 
+	LogDebug(COMPONENT_FSAL, "path=%s exp=%p", path, exp);
 	if (!fs_initialized) {
 		LogDebug(COMPONENT_FSAL, "Initializing posix file systems");
 		avltree_init(&avl_fsid, fsal_fs_cmpf_fsid, 0);
@@ -854,6 +876,10 @@ int populate_posix_file_systems(const char *path)
 	while (glist != &posix_file_systems) {
 		fs = glist_entry(glist, struct fsal_filesystem, filesystems);
 
+		LogDebug(
+			COMPONENT_FSAL,
+			"fs->path=%s fs->fsid.major=%lx fs->fsid.minor=%lx parent=%p",
+			fs->path, fs->fsid.major, fs->fsid.minor, fs->parent);
 		if (fs->parent == NULL) {
 			/* Top level file system done */
 			break;
@@ -871,6 +897,11 @@ int populate_posix_file_systems(const char *path)
 		while (glistn != &posix_file_systems) {
 			fsn = glist_entry(glistn, struct fsal_filesystem,
 					  filesystems);
+			LogDebug(
+				COMPONENT_FSAL,
+				"fsn->path=%s fsn->fsid.major=%lx fsn->fsid.minor=%lx fsn->parent=%p",
+				fsn->path, fsn->fsid.major, fsn->fsid.minor,
+				fs->parent);
 			if (fsn->parent == NULL) {
 				/* Top level file system done */
 				break;
@@ -957,7 +988,7 @@ int populate_posix_file_systems(const char *path)
 			continue;
 		}
 
-		posix_create_file_system(mnt, &st);
+		posix_create_file_system(exp, mnt, &st);
 	}
 
 #ifdef USE_BLKID
@@ -988,7 +1019,17 @@ int resolve_posix_filesystem(const char *path, struct fsal_module *fsal,
 	int retval = EAGAIN;
 	struct stat statbuf;
 	uint32_t retries_left = nfs_param.core_param.resolve_fs_retries;
+	struct gsh_export *owning_export;
 
+	owning_export = exp->owning_export;
+
+	LogDebug(COMPONENT_FSAL, "path=%s", path);
+	if (owning_export != NULL) {
+		LogDebug(COMPONENT_FSAL,
+			 "owning_export fsid.major=%lx fsid.minor=%lx",
+			 owning_export->filesystem_id.major,
+			 owning_export->filesystem_id.minor);
+	}
 	while (retval == EAGAIN && retries_left > 0) {
 		struct timespec how_long = {
 			/* 1M micros per second */
@@ -1051,7 +1092,7 @@ int resolve_posix_filesystem(const char *path, struct fsal_module *fsal,
 		return retval;
 	}
 
-	retval = populate_posix_file_systems(path);
+	retval = populate_posix_file_systems(path, owning_export);
 
 	if (retval != 0) {
 		LogCrit(COMPONENT_FSAL,
@@ -1840,6 +1881,11 @@ int claim_posix_filesystems(const char *path, struct fsal_module *fsal,
 	struct fsal_filesystem *fs, *root = NULL;
 	struct glist_head *glist;
 	struct fsal_dev__ dev;
+	struct gsh_export *owning_export;
+
+	owning_export = exp->owning_export;
+
+	LogDebug(COMPONENT_FSAL, "path=%s", path);
 
 	PTHREAD_RWLOCK_wrlock(&fs_lock);
 
@@ -1848,9 +1894,27 @@ int claim_posix_filesystems(const char *path, struct fsal_module *fsal,
 	/* Scan POSIX file systems to find export root fs */
 	glist_for_each(glist, &posix_file_systems) {
 		fs = glist_entry(glist, struct fsal_filesystem, filesystems);
-		if (fs->dev.major == dev.major && fs->dev.minor == dev.minor) {
-			root = fs;
-			break;
+		LogDebug(
+			COMPONENT_FSAL,
+			"dev.major=%lx fs.major=%lx dev.minor=%lx fs.minor=%lx owning.major=%lx, owning.minor=%lx",
+			dev.major, fs->dev.major, dev.minor, fs->dev.minor,
+			owning_export->filesystem_id.major,
+			owning_export->filesystem_id.minor);
+		if (nfs_param.core_param.fsid_override &&
+		    op_ctx_export_has_option_set(EXPORT_OPTION_FSID_SET)) {
+			if (fs->dev.major ==
+				    owning_export->filesystem_id.major &&
+			    fs->dev.minor ==
+				    owning_export->filesystem_id.minor) {
+				root = fs;
+				break;
+			}
+		} else {
+			if (fs->dev.major == dev.major &&
+			    fs->dev.minor == dev.minor) {
+				root = fs;
+				break;
+			}
 		}
 	}
 
