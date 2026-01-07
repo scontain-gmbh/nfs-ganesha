@@ -2633,7 +2633,37 @@ exit:
 #endif
 
 #ifdef USE_FSAL_CEPH_LL_DELEGATION
-static void ceph_deleg_cb(Fh *fh, void *vhdl)
+/**
+ * @brief Async worker to join delegation
+ *
+ * This function is called by the fridgethr to asynchronously acknowledge
+ * a delegation recall to libcephfs. This avoids a deadlock where the
+ * callback thread holds a lock that libcephfs needs.
+ *
+ * @param[in] ctx  The fridge thread context containing ceph_join_deleg_arg
+ */
+void ceph_join_deleg(struct fridgethr_context *ctx)
+{
+	struct ceph_join_deleg_arg *arg = ctx->arg;
+
+	ceph_ll_delegation(arg->cmount, arg->fh, CEPH_DELEGATION_NONE,
+			   ceph_deleg_cb, arg->priv);
+
+	/* Release the export reference taken in the callback */
+	put_gsh_export(arg->exp);
+	gsh_free(arg);
+}
+
+/**
+ * @brief Callback for delegation recall
+ *
+ * This function is called by libcephfs when a delegation is recalled.
+ * It queues an async job to acknowledge the recall to avoid deadlock.
+ *
+ * @param[in] fh    The file handle being recalled
+ * @param[in] vhdl  The void pointer to the fsal_obj_handle
+ */
+void ceph_deleg_cb(Fh *fh, void *vhdl)
 {
 	fsal_status_t fsal_status;
 	struct fsal_obj_handle *obj_hdl = vhdl;
@@ -2641,6 +2671,7 @@ static void ceph_deleg_cb(Fh *fh, void *vhdl)
 		container_of(obj_hdl, struct ceph_handle, handle);
 	struct gsh_buffdesc key = { .addr = &hdl->key.hhdl,
 				    .len = sizeof(hdl->key.hhdl) };
+	struct gsh_export *exp = get_gsh_export(hdl->key.export_id);
 
 	LogDebug(COMPONENT_FSAL, "Recalling delegations on %p", hdl);
 
@@ -2650,6 +2681,48 @@ static void ceph_deleg_cb(Fh *fh, void *vhdl)
 		LogCrit(COMPONENT_FSAL,
 			"Unable to queue delegrecall for 0x%p: %s", hdl,
 			fsal_err_txt(fsal_status));
+
+	if (exp) {
+		struct fsal_export *scan = exp->fsal_export;
+
+		/* Scan the export stack to find the one matching our handle's
+		 * FSAL. This ensures we get the Ceph export even if MDCACHE
+		 * is on top.
+		 */
+		while (scan && scan->fsal != obj_hdl->fsal)
+			scan = scan->sub_export;
+
+		if (scan) {
+			struct ceph_export *ceph_exp =
+				container_of(scan, struct ceph_export, export);
+			struct ceph_join_deleg_arg *arg =
+				gsh_calloc(1, sizeof(*arg));
+			int rc;
+
+			arg->cmount = ceph_exp->cmount;
+			arg->fh = fh;
+			arg->priv = vhdl;
+			/* Thread takes ownership of ref */
+			arg->exp = exp;
+
+			/* Submit to fridge to avoid synchronous lock
+			 * recursion.
+			 */
+			rc = fridgethr_submit(general_fridge, ceph_join_deleg,
+					      arg);
+			if (rc == 0)
+				return;
+
+			LogCrit(COMPONENT_FSAL,
+				"Failed to submit async join deleg: %d", rc);
+			gsh_free(arg);
+		}
+
+		/* If we didn't submit successfully, we must put the export
+		 * ref here.
+		 */
+		put_gsh_export(exp);
+	}
 }
 
 static fsal_status_t ceph_fsal_lease_op2(struct fsal_obj_handle *obj_hdl,

@@ -140,6 +140,13 @@ struct ceph_state_fd {
 	struct ceph_fd ceph_fd;
 };
 
+struct ceph_join_deleg_arg {
+	struct ceph_mount_info *cmount;
+	Fh *fh;
+	void *priv;
+	struct gsh_export *exp;
+};
+
 /**
  * The 'private' Ceph FSAL handle
  */
@@ -272,4 +279,6 @@ void ceph_mount_remove(struct avltree_node *key);
 
 extern void enable_delegations(struct ceph_mount *cm,
 			       struct gsh_export *export);
+void ceph_join_deleg(struct fridgethr_context *ctx);
+void ceph_deleg_cb(Fh *fh, void *vhdl);
 #endif /* !FSAL_CEPH_INTERNAL_INTERNAL__ */
