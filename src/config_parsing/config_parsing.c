@@ -1146,11 +1146,8 @@ static int do_block_load(struct config_node *blk, struct config_item *params,
 				}
 				break;
 			case CONFIG_LIST:
-				if (item->u.lst.def ==
-				    (*(uint32_t *)param_addr &
-				     item->u.lst.mask))
-					*(uint32_t *)param_addr &=
-						~item->u.lst.mask;
+				/* clear up before setting up new value */
+				*(uint32_t *)param_addr &= ~item->u.lst.mask;
 				if (convert_list(node, item, &num32,
 						 err_type)) {
 					*(uint32_t *)param_addr |= num32;
@@ -1173,11 +1170,8 @@ static int do_block_load(struct config_node *blk, struct config_item *params,
 					*(uint32_t *)param_addr);
 				break;
 			case CONFIG_ENUM:
-				if (item->u.lst.def ==
-				    (*(uint32_t *)param_addr &
-				     item->u.lst.mask))
-					*(uint32_t *)param_addr &=
-						~item->u.lst.mask;
+				/* clear up before setting up new value */
+				*(uint32_t *)param_addr &= ~item->u.lst.mask;
 				if (convert_enum(term_node, item, &num32,
 						 err_type)) {
 					*(uint32_t *)param_addr |= num32;
