@@ -2456,7 +2456,7 @@ static fsal_status_t glusterfs_lock_op2(struct fsal_obj_handle *obj_hdl,
 		container_of(op_ctx->fsal_export, struct glusterfs_export,
 			     export);
 	struct glusterfs_handle *myself;
-	bool open_for_locks;
+	bool open_for_locks = false;
 
 	myself = container_of(obj_hdl, struct glusterfs_handle, handle);
 
