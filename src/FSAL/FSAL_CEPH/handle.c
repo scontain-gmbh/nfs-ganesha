@@ -2193,16 +2193,14 @@ static void ceph_fsal_write2(struct fsal_obj_handle *obj_hdl, bool bypass,
 	struct ceph_export *export =
 		container_of(op_ctx->fsal_export, struct ceph_export, export);
 	uint64_t offset = write_arg->offset;
-#if USE_FSAL_CEPH_FS_NONBLOCKING_IO
-	struct ceph_fsal_cb_info *cbi;
-	int64_t result;
-#else
 	ssize_t nb_written;
 	struct ceph_fd temp_fd = { FSAL_FD_INIT, NULL };
 	int i, retval = 0;
-#endif
 
 #if USE_FSAL_CEPH_FS_NONBLOCKING_IO
+	struct ceph_fsal_cb_info *cbi;
+	int64_t result;
+
 	if (write_arg->fsal_resume) {
 		ceph_write2_cb(write_arg->cbi);
 		return;
@@ -2216,15 +2214,19 @@ static void ceph_fsal_write2(struct fsal_obj_handle *obj_hdl, bool bypass,
 
 	/* Indicate a desire to start io and get a usable file descritor */
 #if USE_FSAL_CEPH_FS_NONBLOCKING_IO
-	status = fsal_start_io(&out_fd, obj_hdl, &myself->fd.fsal_fd,
-			       &cbi->temp_fd.fsal_fd, write_arg->state,
-			       FSAL_O_WRITE, false, NULL, bypass,
-			       &myself->share);
-#else
-	status = fsal_start_io(&out_fd, obj_hdl, &myself->fd.fsal_fd,
-			       &temp_fd.fsal_fd, write_arg->state, FSAL_O_WRITE,
-			       false, NULL, bypass, &myself->share);
+	if (CephFSM.async) {
+		status = fsal_start_io(&out_fd, obj_hdl, &myself->fd.fsal_fd,
+				       &cbi->temp_fd.fsal_fd, write_arg->state,
+				       FSAL_O_WRITE, false, NULL, bypass,
+				       &myself->share);
+	} else
 #endif
+	{
+		status = fsal_start_io(&out_fd, obj_hdl, &myself->fd.fsal_fd,
+				       &temp_fd.fsal_fd, write_arg->state,
+				       FSAL_O_WRITE, false, NULL, bypass,
+				       &myself->share);
+	}
 
 	if (FSAL_IS_ERROR(status)) {
 		LogFullDebug(COMPONENT_FSAL,
@@ -2236,6 +2238,9 @@ static void ceph_fsal_write2(struct fsal_obj_handle *obj_hdl, bool bypass,
 	my_fd = container_of(out_fd, struct ceph_fd, fsal_fd);
 
 #if USE_FSAL_CEPH_FS_NONBLOCKING_IO
+	if (!CephFSM.async)
+		goto old_style;
+
 	cbi->io_info.callback = ceph_write2_cb;
 	cbi->io_info.priv = cbi;
 	cbi->io_info.fh = my_fd->fd;
@@ -2281,7 +2286,10 @@ static void ceph_fsal_write2(struct fsal_obj_handle *obj_hdl, bool bypass,
 		/* I/O actually completed... */
 		write_arg->io_amount = result;
 	}
-#else
+	goto out;
+
+old_style:
+#endif
 	for (i = 0; i < write_arg->iov_count; i++) {
 		nb_written = ceph_ll_write(export->cmount, my_fd->fd, offset,
 					   write_arg->iov[i].iov_len,
@@ -2310,12 +2318,8 @@ static void ceph_fsal_write2(struct fsal_obj_handle *obj_hdl, bool bypass,
 	GSH_UNIQUE_AUTO_TRACEPOINT(fsal_ceph, ceph_write, TRACE_DEBUG,
 				   "Write. fileid: {}, nb_written: {}",
 				   obj_hdl->fileid, nb_written);
-#endif
 
-#if USE_FSAL_CEPH_FS_NONBLOCKING_IO
-#else
 out:
-#endif
 
 	status2 = fsal_complete_io(obj_hdl, out_fd);
 
@@ -2328,7 +2332,7 @@ out:
 		 */
 
 		/* Release the share reservation now by updating the counters.
-		 */
+		*/
 		update_share_counters_locked(obj_hdl, &myself->share,
 					     FSAL_O_WRITE, FSAL_O_CLOSED);
 	}
