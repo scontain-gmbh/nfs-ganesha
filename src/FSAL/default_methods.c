@@ -191,6 +191,18 @@ fsal_status_t update_export(struct fsal_module *fsal_hdl, void *parse_node,
 }
 
 /**
+ * @brief Default deleg transition handler method
+ *
+ * Do nothing.
+ */
+
+static void handle_deleg_transition(struct fsal_export *orig,
+				    struct gsh_export *exp)
+{
+	/* return */
+}
+
+/**
  * @brief Default emergency cleanup method
  *
  * Do nothing.
@@ -300,6 +312,7 @@ struct fsal_ops def_fsal_ops = {
 	.dump_config = dump_config,
 	.create_export = create_export,
 	.update_export = update_export,
+	.handle_deleg_transition = handle_deleg_transition,
 	.emergency_cleanup = emergency_cleanup,
 	.getdeviceinfo = getdeviceinfo,
 	.fs_da_addr_size = fs_da_addr_size,

@@ -58,9 +58,9 @@ fsal_status_t mdcache_pkginit(void);
 int mdcache_set_param_from_conf(config_file_t parse_tree,
 				struct config_error_type *err_type);
 
-/* Wrapper function for enable_delegation() method */
-void mdcache_enable_delegations(struct fsal_export *orig,
-				struct gsh_export *exp);
+/* Runtime delegation option transitions handler*/
+void mdcache_handle_deleg_transition(struct fsal_export *orig,
+				     struct gsh_export *exp);
 
 void init_fds_limit(void);
 #endif /* MDCACHE_H */

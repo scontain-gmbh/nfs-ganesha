@@ -2,6 +2,7 @@
   ace_count;
   admin_halt;
   admin_shutdown;
+  async_deleg_transition_handler;
   avltree_do_insert;
   avltree_init;
   avltree_next;

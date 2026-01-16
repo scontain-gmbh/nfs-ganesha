@@ -232,14 +232,14 @@ mdcache_fsal_create_export(struct fsal_module *sub_fsal, void *parse_node,
 }
 
 /**
- * @brief MDCACHE wrapper for enable_delegations() function
+ * @brief MDCACHE wrapper for handle_deleg_transition() function
  * @param[in] orig       FSAL export
  * @param[in] exp        GSH export
  */
-void mdcache_enable_delegations(struct fsal_export *orig,
-				struct gsh_export *exp)
+void mdcache_handle_deleg_transition(struct fsal_export *orig,
+				     struct gsh_export *exp)
 {
-	orig->sub_export->fsal->m_ops.fsal_enable_delegations(orig, exp);
+	orig->sub_export->fsal->m_ops.handle_deleg_transition(orig, exp);
 }
 
 /**

@@ -387,12 +387,25 @@ void enable_delegations(struct ceph_mount *cm, struct gsh_export *export)
 	}
 }
 
-/* Wrapper around enable_delegations() function. */
-void fsal_enable_delegations(struct fsal_export *orig, struct gsh_export *exp)
+/* Handle delegation option transition during run-time.*/
+void handle_deleg_transition(struct fsal_export *orig, struct gsh_export *exp)
 {
 	struct ceph_export *ce =
 		container_of(orig->sub_export, struct ceph_export, export);
 
+	struct gsh_export *probe_exp = orig->owning_export;
+
+	/* Invoke asynchronous dynamic delegation option parsing implementation
+	 * Check if the delegation option was updated and recall an outstanding
+	 * delegation if necessary.
+	 */
+	if (async_deleg_transition_handler(general_fridge, probe_exp) != 0)
+		LogCrit(COMPONENT_STATE,
+			"Failed to start thread to deleg transition");
+
+	/* Invoke enable_delegations in case the delegation option was enabled
+	 * at the run time.
+	 */
 	enable_delegations(ce->cm, exp);
 }
 
@@ -1060,7 +1073,7 @@ MODULE_INIT void init(void)
 	myself->m_ops.create_export = create_export;
 	myself->m_ops.init_config = init_config;
 	myself->m_ops.fsal_reclaim_client = node_takeover_reclaim;
-	myself->m_ops.fsal_enable_delegations = fsal_enable_delegations;
+	myself->m_ops.handle_deleg_transition = handle_deleg_transition;
 
 	/* Initialize the fsal_obj_handle ops for FSAL CEPH */
 	handle_ops_init(&CephFSM.handle_ops);
