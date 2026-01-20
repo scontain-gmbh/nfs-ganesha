@@ -296,7 +296,10 @@ void *PrometheusExposer::server_thread(void *arg)
 
 		SocketStreambuf<> socket_streambuf(client_fd);
 		std::ostream socket_ostream(&socket_streambuf);
-		socket_ostream << "HTTP/1.1 200 OK\r\n\r\n";
+		socket_ostream << "HTTP/1.1 200 OK\r\n";
+		socket_ostream
+			<< "Content-Type: text/plain; version=0.0.4; charset=utf-8\r\n";
+		socket_ostream << "\r\n";
 		prometheus::TextSerializer::Serialize(socket_ostream, families);
 		socket_ostream.flush();
 
