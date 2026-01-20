@@ -1271,6 +1271,25 @@ uint32_t export_check_client_options(struct gsh_export *exp)
 }
 
 /**
+ * @brief Validate EXPORT Pseudo path
+ * Pseudo paths are virtual identifiers, not filesystem paths.
+ * Validation is intentionally minimal to preserve backward compatibility.
+ */
+static bool valid_pseudopath(const char *path)
+{
+	const unsigned char *p;
+
+	if (!path || path[0] != '/')
+		return false;
+
+	for (p = (const unsigned char *)path; *p; p++)
+		if (*p < 0x20 || *p == 0x7f)
+			return false;
+
+	return true;
+}
+
+/**
  * @brief Commit an export block
  *
  * Validate the export level parameters.  fsal and client
@@ -1296,8 +1315,7 @@ static int export_commit_common(void *node, void *link_mem, void *self_struct,
 	LogFullDebug(COMPONENT_EXPORT, "Processing %p", export);
 
 	/* Validate the pseudo path if present is an absolute path. */
-	if (export->cfg_pseudopath != NULL &&
-	    export->cfg_pseudopath[0] != '/') {
+	if (!valid_pseudopath(export->cfg_pseudopath)) {
 		LogCrit(COMPONENT_CONFIG,
 			"A Pseudo path must be an absolute path");
 		err_type->invalid = true;
