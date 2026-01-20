@@ -2772,10 +2772,11 @@ fsal_status_t fsal_start_io(struct fsal_fd **out_fd,
 		status = wait_to_start_io(obj_hdl, state_fd, FSAL_O_RDWR, true,
 					  false);
 
-		if (status.major == ERR_FSAL_ACCESS &&
+		if ((status.major == ERR_FSAL_ACCESS ||
+		     status.major == ERR_FSAL_ROFS) &&
 		    state->state_type == STATE_TYPE_LOCK) {
-			/* Got an EACCESS and openstate may be available, try
-			 * again with it's openflags. Otherwise leave the
+			/* Got an EACCESS/EROFS and openstate may be available,
+			 * try again with it's openflags. Otherwise leave the
 			 * access error as is.
 			 */
 			struct state_t *openstate;
