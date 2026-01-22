@@ -641,6 +641,10 @@ typedef struct nfs_version4_parameter {
 	 *  server.
 	 */
 	bool virtual_server;
+	/** Distinguish between clients based on their source IP address
+	 * in addition to their client owner.
+	 */
+	bool ip_based_client_owner_separation;
 	/** This config param is deprecated. Use `domainname` defined
 	    in `directory_services_param` struct. */
 	char *domainname;

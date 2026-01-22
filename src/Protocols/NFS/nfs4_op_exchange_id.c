@@ -87,7 +87,8 @@ enum nfs_req_result nfs4_op_exchange_id(struct nfs_argop4 *op,
 	char *temp;
 	bool update;
 	uint32_t server_pnfs_flags = 0;
-	sockaddr_t *server_addr = 0;
+	sockaddr_t *server_addr = NULL;
+	sockaddr_t *client_addr = NULL;
 	/* Arguments and response */
 	EXCHANGE_ID4args *const arg_EXCHANGE_ID4 =
 		&op->nfs_argop4_u.opexchange_id;
@@ -189,12 +190,13 @@ enum nfs_req_result nfs4_op_exchange_id(struct nfs_argop4 *op,
 		  EXCHGID4_FLAG_UPD_CONFIRMED_REC_A) != 0;
 
 	server_addr = svc_getrpclocal(data->req->rq_xprt);
+	client_addr = svc_getrpccaller(data->req->rq_xprt);
 
 	/* Do we already have one or more records for client id (x)? */
 	client_record = get_client_record(
 		arg_EXCHANGE_ID4->eia_clientowner.co_ownerid.co_ownerid_val,
 		arg_EXCHANGE_ID4->eia_clientowner.co_ownerid.co_ownerid_len,
-		server_pnfs_flags, server_addr);
+		server_pnfs_flags, server_addr, client_addr);
 
 	if (client_record == NULL) {
 		/* Some major failure */

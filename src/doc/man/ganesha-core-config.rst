@@ -589,6 +589,10 @@ Virtual_Server(bool, default false)
     When set true, Ganesha will make each IP address appear to NFSv4 clients
     as a separate server (trunking will not be allowed).
 
+Ip_Based_Client_Owner_Separation(bool, default false)
+    Whether to distinguish between clients based on their IP address in addition
+    to the client owner identifier provided by them for NFS4.1 and above.
+
 Max_Open_States_Per_Client(uint32, range 0 to UINT32_MAX, default 0)
     Specify the maximum number of files that could be opened by a client. One
     misbehaving client could potentially open multiple files and exhaust the
