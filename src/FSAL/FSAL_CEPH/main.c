@@ -38,6 +38,7 @@
 
 #include <stdlib.h>
 #include <assert.h>
+#include <dlfcn.h>
 #include "fsal.h"
 #include "fsal_types.h"
 #include "FSAL/fsal_init.h"
@@ -128,6 +129,9 @@ static struct config_item ceph_items[] = {
 	CONF_ITEM_BOOL("async", false, ceph_fsal_module, async),
 	CONF_ITEM_BOOL("zerocopy", false, ceph_fsal_module, zerocopy),
 	CONF_ITEM_BOOL("use_old_uuid", false, ceph_fsal_module, use_old_uuid),
+	CONF_ITEM_BOOL("register_service", false, ceph_fsal_module,
+		       register_service),
+	CONF_ITEM_STR("nodeid", 1, MAXPATHLEN, NULL, ceph_fsal_module, nodeid),
 	CONFIG_EOL
 };
 
@@ -1042,6 +1046,52 @@ error:
 	return status;
 }
 
+/*
+ * Dynamically loads the Ceph RADOS service registration library
+ * and registers this NFS-Ganesha instance as a service in Ceph.
+ *
+ * This is used for service monitoring and status reporting.
+ * If the shared library cannot be loaded, the process exits.
+ */
+
+static void ceph_register_nfs_service(void)
+{
+	if (!CephFSM.register_service)
+		return;
+
+	void (*register_nfs_fun_ptr)(char *);
+	void *dl = NULL;
+	char *err = NULL;
+
+#if defined(LINUX) && !defined(SANITIZE_ADDRESS)
+	dl = dlopen("libganesha_rados_urls.so",
+		    RTLD_NOW | RTLD_LOCAL | RTLD_DEEPBIND);
+#elif defined(BSDBASED) || defined(SANITIZE_ADDRESS)
+	dl = dlopen("libganesha_rados_urls.so", RTLD_NOW | RTLD_LOCAL);
+#endif
+	if (dl == NULL) {
+		fprintf(stderr, "Failed to load libganesha_rados_urls.so\n");
+		exit(1);
+	}
+
+	dlerror(); /* Clear any existing dynamic loader errors */
+
+	/* Resolve the registration entry point from the shared library */
+	register_nfs_fun_ptr = dlsym(dl, "register_service_to_ceph");
+
+	err = dlerror(); /* check if dlsym failed */
+
+	if (err != NULL) {
+		LogDebug(
+			COMPONENT_FSAL,
+			"Unable to load register_service_to_ceph to register nfs service");
+		return;
+	}
+
+	/* Register this NFS instance with the Ceph backend */
+	register_nfs_fun_ptr(CephFSM.nodeid);
+}
+
 /**
  * @brief Initialize and register the FSAL
  *
@@ -1074,6 +1124,7 @@ MODULE_INIT void init(void)
 	myself->m_ops.init_config = init_config;
 	myself->m_ops.fsal_reclaim_client = node_takeover_reclaim;
 	myself->m_ops.handle_deleg_transition = handle_deleg_transition;
+	myself->m_ops.fsal_register_nfs_service = ceph_register_nfs_service;
 
 	/* Initialize the fsal_obj_handle ops for FSAL CEPH */
 	handle_ops_init(&CephFSM.handle_ops);

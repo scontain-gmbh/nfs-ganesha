@@ -75,6 +75,19 @@
 #include "gsh_dbus.h"
 #endif
 
+/* RW lock for fsal_registration_list and 'registered' state */
+static pthread_rwlock_t fsal_registration_lock = PTHREAD_RWLOCK_INITIALIZER;
+
+/* List head tracking FSAL modules for NFS registration */
+static struct glist_head fsal_registration_list =
+	GLIST_HEAD_INIT(fsal_registration_list);
+
+/*
+ * Set to true once the NFS server is fully initialized.
+ * Remains true across export reloads (SIGHUP).
+ */
+static bool nfs_service_ready;
+
 /* fsal_attach_export
  * called from the FSAL's create_export method with a reference on the fsal.
  */
@@ -3207,6 +3220,99 @@ void init_ctx_refstr(void)
 void destroy_ctx_refstr(void)
 {
 	gsh_refstr_put(no_export);
+}
+
+/* find entry by fsal pointer (read-locked by caller) */
+static fsal_registration_entry_t *find_fsal_entry(struct fsal_module *fsal_mod)
+{
+	struct glist_head *glist;
+
+	glist_for_each(glist, &fsal_registration_list) {
+		fsal_registration_entry_t *entry =
+			glist_entry(glist, fsal_registration_entry_t, list);
+
+		if (entry->fsal_mod == fsal_mod)
+			return entry;
+	}
+	return NULL;
+}
+
+/* @brief
+ * Unlink and free the registration entry for fsal_mod.
+ * Called during FSAL unregister; grabs write lock.
+ * No-op if NULL or not found.
+ */
+void unregister_nfs_service_with_fsal_backend(struct fsal_module *fsal_mod)
+{
+	fsal_registration_entry_t *entry;
+
+	if (!fsal_mod)
+		return;
+
+	PTHREAD_RWLOCK_wrlock(&fsal_registration_lock);
+	entry = find_fsal_entry(fsal_mod);
+
+	if (entry) {
+		fsal_mod->m_ops.fsal_unregister_nfs_service();
+		glist_del(&entry->list);
+		gsh_free(entry);
+	}
+	PTHREAD_RWLOCK_unlock(&fsal_registration_lock);
+}
+
+/* @brief
+ * Track fsal_mod; if the NFS service is ready and not yet registered with this
+ * FSAL, register the NFS service with the FSAL backend (idempotent).
+ */
+void fsal_registration_try_register(struct fsal_module *fsal_mod)
+{
+	fsal_registration_entry_t *entry;
+
+	if (!fsal_mod)
+		return;
+
+	PTHREAD_RWLOCK_wrlock(&fsal_registration_lock);
+
+	entry = find_fsal_entry(fsal_mod);
+
+	if (!entry) {
+		entry = gsh_malloc(sizeof(*entry));
+		entry->fsal_mod = fsal_mod;
+		entry->registered = false;
+		glist_add_tail(&fsal_registration_list, &entry->list);
+	}
+
+	/* If server is ready and this FSAL isn't registered yet, do it now. */
+	if (nfs_service_ready && !entry->registered) {
+		entry->fsal_mod->m_ops.fsal_register_nfs_service();
+		entry->registered = true;
+	}
+
+	PTHREAD_RWLOCK_unlock(&fsal_registration_lock);
+}
+
+/**
+ * @brief
+ * Mark the NFS service as ready and register the NFS service with all tracked
+ * FSAL backends that aren’t registered yet (idempotent).
+ */
+void register_nfs_service_with_fsal_backend(void)
+{
+	struct glist_head *glist;
+
+	PTHREAD_RWLOCK_wrlock(&fsal_registration_lock);
+	nfs_service_ready = true; /* mark readiness first */
+
+	glist_for_each(glist, &fsal_registration_list) {
+		fsal_registration_entry_t *entry =
+			glist_entry(glist, fsal_registration_entry_t, list);
+
+		if (!entry->registered) {
+			entry->fsal_mod->m_ops.fsal_register_nfs_service();
+			entry->registered = true;
+		}
+	}
+	PTHREAD_RWLOCK_unlock(&fsal_registration_lock);
 }
 
 /**

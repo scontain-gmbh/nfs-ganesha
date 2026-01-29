@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <regex.h>
+#include <pthread.h>
 #include "log.h"
 #include "sal_functions.h"
 #include <string.h>
@@ -35,6 +36,8 @@ static bool initialized;
 static rados_ioctx_t rados_watch_io_ctx;
 static uint64_t rados_watch_cookie;
 static char *rados_watch_oid;
+static pthread_t service_update;
+static bool service_update_started;
 
 static struct rados_url_parameter {
 	/** Path to ceph.conf */
@@ -125,24 +128,81 @@ static void cu_rados_url_early_init(void)
 
 extern struct config_error_type err_type;
 
-static void register_nfs_service(void)
+/**
+ * @brief Periodically update the Ceph service heartbeat.
+ *
+ * This thread function acts as a wrapper around
+ * rados_service_update_status(). After a Ganesha daemon is
+ * registered with the Ceph cluster service map, this loop
+ * continuously updates the daemon's heartbeat entry so that
+ * the monitor (MON) keeps the service marked as "alive".
+ *
+ * The function runs as long as the global 'initialized'
+ * flag remains true. Every 5 seconds it calls
+ * rados_service_update_status(cluster, ""), which refreshes
+ * the daemon's status in the Ceph service map.
+ *
+ * @return Always returns NULL when the thread exits.
+ */
+static void *rados_service_update(void *)
 {
-	if (!rados_url_param.userid) {
-		LogEvent(COMPONENT_CONFIG, "%s: userid is NULL", __func__);
+	while (initialized) {
+		rados_service_update_status(cluster, "");
+		sleep(5);
+	}
+	return NULL;
+}
+
+/**
+ * @brief
+ * 1) Service registration
+ * The NFS service is now registered in the FSAL_CEPH RADOS_URLS module after
+ * rados_connect() completes (i.e., once the client is fully initialized).
+ * This is where rados_service_register()(This is librados API) is called.
+ * Previously this happened immediately after rados_create(), which meant
+ * the mgr could see an instance(i.e nfs-ganesha) that wasn’t actually fully
+ * initialized.
+ *
+ * 2) Heartbeat thread startup
+ * After successful registration, a background thread is started. This thread
+ * is responsible for periodically refreshing the service state.
+ *
+ * 3) Service status updates
+ * The heartbeat thread calls rados_service_update_status() (this is
+ * librados API) at a fixed interval to keep the service marked healthy.
+ * This prevents the mgr from considering the instance stale and reporting
+ * it as a stray daemon.
+ *
+ */
+void register_service_to_ceph(char *nodeid)
+{
+	if (!nodeid) {
+		LogEvent(COMPONENT_CONFIG, "%s: nodeid is NULL", __func__);
 		return;
 	}
-	size_t len =
-		strlen(rados_url_param.userid) + 5; // "nfs." + userid + '\0'
-	char daemon_instance[len];
+	size_t len = strlen(nodeid) + 5; // "nfs." + nodeid + '\0'
+	char *daemon_instance = (char *)gsh_malloc(len);
 
-	snprintf(daemon_instance, len, "nfs.%s", rados_url_param.userid);
+	snprintf(daemon_instance, len, "nfs.%s", nodeid);
 	int ret = rados_service_register(cluster, "nfs-ganesha",
 					 daemon_instance, "");
 	if (ret < 0) {
 		LogEvent(COMPONENT_CONFIG,
 			 "%s: Failed to register nfs-ganesha service",
 			 __func__);
+		gsh_free(daemon_instance);
+		return;
 	}
+	gsh_free(daemon_instance);
+
+	if (pthread_create(&service_update, NULL, rados_service_update, NULL) !=
+	    0) {
+		LogEvent(COMPONENT_CONFIG,
+			 "Unable to start nfs service status update");
+		return;
+	}
+	service_update_started = true;
+	return;
 }
 
 static int rados_url_client_setup(void)
@@ -174,7 +234,6 @@ static int rados_url_client_setup(void)
 		rados_shutdown(cluster);
 		return ret;
 	}
-	register_nfs_service();
 	init_url_regex();
 	initialized = true;
 	return 0;
@@ -204,6 +263,15 @@ static void cu_rados_url_init(void)
 static void cu_rados_url_shutdown(void)
 {
 	if (initialized) {
+		if (service_update_started) {
+			int rc = pthread_join(service_update, NULL);
+
+			if (rc != 0)
+				LogWarn(COMPONENT_CONFIG,
+					"Failed to join service_update thread:%d",
+					rc);
+		}
+
 		rados_shutdown(cluster);
 		regfree(&url_regex);
 		initialized = false;

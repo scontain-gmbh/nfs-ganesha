@@ -79,6 +79,16 @@ use_old_uuid(bool, default false)
     using nodeid, userid, fs_name and mount path. For fresh deployments of 7.0
     and later versions do not set this parameter.
 
+register_service(bool, default false)
+    Enable registration of the NFS service with the Ceph cluster.
+    This allows Ceph to track the NFS service for health monitoring
+    and service discovery.
+
+nodeid(string, default "")
+    Identifier used when registering this NFS instance with Ceph.
+    This value must be unique per NFS node within the same Ceph cluster.
+    Required only when register_service is set to true.
+
 See also
 ==============================
 :doc:`ganesha-config <ganesha-config>`\(8)

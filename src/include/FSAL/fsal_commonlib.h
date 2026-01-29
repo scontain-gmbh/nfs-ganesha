@@ -42,9 +42,28 @@
 #include "sal_data.h"
 #include "sal_functions.h"
 
+/**
+ * @brief
+ * Structure to track FSALs modules requiring service registration
+ */
+typedef struct fsal_registration_entry {
+	struct glist_head list;
+	struct fsal_module *fsal_mod;
+	bool registered;
+} fsal_registration_entry_t;
+
+void fsal_registration_try_register(struct fsal_module *fsal_mod);
+void unregister_nfs_service_with_fsal_backend(struct fsal_module *fsal_mod);
+
 /*
  * fsal common utility functions
  */
+
+/*
+ * To register nfs service to backend FSAL layer.
+ */
+
+void register_nfs_service_with_fsal_backend(void);
 
 /* fsal_module to fsal_export helpers
  */

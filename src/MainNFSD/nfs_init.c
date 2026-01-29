@@ -1333,6 +1333,9 @@ void nfs_start(nfs_start_info_t *p_start_info)
 	LogEvent(COMPONENT_INIT,
 		 "-------------------------------------------------");
 
+	/* Register nfs service to backend FSAL Layer*/
+	register_nfs_service_with_fsal_backend();
+
 	/* Set the time of NFS stat counting */
 	nfs_init_stats_time();
 

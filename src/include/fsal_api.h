@@ -827,6 +827,18 @@ struct fsal_ops {
 	fsal_status_t (*fsal_reclaim_client)(struct fsal_module *const fsal_hdl,
 					     char *nodeid);
 
+	/**
+ * This function is used to register nfs service to its respective backend
+ * monitoring services.
+ */
+	void (*fsal_register_nfs_service)(void);
+
+	/**
+ * This function is used to unregister nfs service to its respective backend
+ * monitoring services.
+ */
+	void (*fsal_unregister_nfs_service)(void);
+
 	/**@}*/
 };
 
