@@ -68,7 +68,6 @@ LogVal = "dont find me" LogTest("But do find me");
 /* expected too much - need to figure out how to fix the script */
 
 LogComponents[dont find me];
-LogAlways("but find me on line 53");
 LogTest("and me", string, buff, compare);
 LogTest("and finally me");
 

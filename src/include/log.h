@@ -196,10 +196,6 @@ static inline bool isLevel(log_components_t comp, log_levels_t lvl)
 
 /* clang-format off */
 
-#define LogAlways(component, format, ...)                                 \
-	DisplayLogComponentLevel(component, __FILE__, __LINE__, __func__, \
-				 NIV_NULL, format, ##__VA_ARGS__)
-
 #define LogTest(format, ...)                                                  \
 	DisplayLogComponentLevel(COMPONENT_ALL, __FILE__, __LINE__, __func__, \
 				 NIV_NULL, format, ##__VA_ARGS__)
