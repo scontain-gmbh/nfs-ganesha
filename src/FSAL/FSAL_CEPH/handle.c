@@ -958,6 +958,7 @@ static fsal_status_t ceph_reopen_func(struct fsal_obj_handle *obj_hdl,
 	fsal_status_t status = { ERR_FSAL_NO_ERROR, 0 };
 	int rc;
 	struct ceph_export *export;
+	struct user_cred root_creds = {};
 
 	export = container_of(op_ctx->fsal_export, struct ceph_export, export);
 	myself = container_of(obj_hdl, struct ceph_handle, handle);
@@ -969,8 +970,9 @@ static fsal_status_t ceph_reopen_func(struct fsal_obj_handle *obj_hdl,
 		     "my_fd->fd = %p openflags = %x, posix_flags = %x",
 		     my_fd->fd, openflags, posix_flags);
 
+	/* call with root creds */
 	rc = fsal_ceph_ll_open(export->cmount, myself->i, posix_flags, &fd,
-			       &op_ctx->creds);
+			       &root_creds);
 
 	if (rc < 0) {
 		LogFullDebug(COMPONENT_FSAL, "open failed with %s",
