@@ -312,7 +312,8 @@ void *PrometheusExposer::server_thread(void *arg)
 			exposer->successLatencies_.Observe(elapsed_ms);
 
 #ifdef HAVE_PROCPS
-		update_mem_info();
+		if (nfs_param.core_param.enable_dynamic_metrics)
+			update_mem_info();
 #endif
 	}
 	return NULL;
