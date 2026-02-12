@@ -196,6 +196,13 @@ bool init_error_type(struct config_error_type *err_type)
 	return true;
 }
 
+void config_error_buf(char *buf, size_t siz, const char *fmt, va_list args)
+{
+	struct display_buffer dspbuf = { siz, buf, buf };
+
+	(void)display_vprintf(&dspbuf, fmt, args);
+}
+
 /**
  * @brief Log an error to the parse error stream
  *
@@ -212,14 +219,24 @@ void config_proc_error(void *cnode, struct config_error_type *err_type,
 	int linenumber = 0;
 	va_list arguments;
 
-	if (fp == NULL)
-		return; /* no stream, no message */
+	if (fp == NULL && err_type->diag_buf == NULL) {
+		/* no stream, no buffer, no message */
+		return;
+	}
+
 	if (node != NULL && node->filename != NULL) {
 		filename = node->filename;
 		linenumber = node->linenumber;
 	}
+
 	va_start(arguments, format);
-	config_error(fp, filename, linenumber, format, arguments);
+
+	if (fp != NULL)
+		config_error(fp, filename, linenumber, format, arguments);
+	else
+		config_error_buf(err_type->diag_buf, err_type->diag_buf_size,
+				 format, arguments);
+
 	va_end(arguments);
 }
 void config_errs_to_log(char *err, void *dest,

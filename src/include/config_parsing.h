@@ -938,6 +938,15 @@ const char *config_term_desc(enum term_type type);
 
 char *err_type_str(struct config_error_type *err_type);
 bool init_error_type(struct config_error_type *err_type);
+
+static inline void init_error_type_static(struct config_error_type *err_type,
+					  char *buf, size_t siz)
+{
+	memset(err_type, 0, sizeof(struct config_error_type));
+	err_type->diag_buf = buf;
+	err_type->diag_buf_size = siz;
+}
+
 void config_errs_to_log(char *err, void *, struct config_error_type *err_type);
 void config_proc_error(void *cnode, struct config_error_type *err_type,
 		       char *format, ...);
