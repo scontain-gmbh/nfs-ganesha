@@ -556,7 +556,8 @@ static enum nfs_req_result op_dsread(struct nfs_argop4 *op,
 
 	/* Must allocate buffer as a multiple of BYTES_PER_XDR_UNIT */
 	buffer = get_buffer_for_io_response(RNDUP(arg_READ4->count),
-					    &resok->data.last_iov_buf_size);
+					    &resok->data.last_iov_buf_size,
+					    false);
 
 	resok->iov0.iov_base = buffer;
 	resok->iov0.iov_len = arg_READ4->count;

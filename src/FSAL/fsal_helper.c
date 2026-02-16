@@ -1902,6 +1902,70 @@ static void fsal_iov_release(void *release_data)
 }
 
 /**
+ *
+ * @brief  API to get the buffer to fill the IO Payloads
+ *
+ * Will allocate a buffer for I/O, with preference for RDMA buffers if
+ * appropriate. Caller may indicate a preference not to allocate in the
+ * case of intent to make a call to a zero copy API (but RDMA buffer will
+ * override that).
+ *
+ * NOTE: In the case of RDMA forcing use of an RDMA mapped buffer,
+ *       op_ctx->is_rdma_buff_used will be set true. This allows the caller to
+ *       distinguish what kind of buffer was allocated if any.
+ *
+ * @param[in]  size               Requested size of buffer to be allocated.
+ * @param[out] buffer_size        Actual size of buffer allocated
+ * @param[in]  prefer_no_allocate When set true, caller would prefer not to
+ *                                allocate a buffer.
+ *
+ * @returns The address of the buffer to fill the payload
+ */
+void *get_buffer_for_io_response(uint64_t size, size_t *buffer_size,
+				 bool prefer_no_allocate)
+{
+#ifdef _USE_NFS_RDMA
+	struct nfs_request *nfs_req;
+	struct svc_req *req;
+
+	if (op_ctx->req_type != NFS_REQUEST)
+		goto not_nfs;
+
+	nfs_req = container_of(op_ctx, struct nfs_request, op_context);
+	req = &nfs_req->svc;
+
+	/* Whether it's RDMA enabled xprt and having data chunk */
+	if (req->rq_xprt->xp_rdma && req->data_chunk) {
+		LogDebug(COMPONENT_TIRPC,
+			 "Using data_chunk %p length %d from req %p xprt %p",
+			 req->data_chunk, req->data_chunk_length, req,
+			 req->rq_xprt);
+		assert(size <= req->data_chunk_length);
+		if (buffer_size)
+			*buffer_size = req->data_chunk_length;
+		op_ctx->is_rdma_buff_used = true;
+		return req->data_chunk;
+	}
+
+not_nfs:
+
+#endif /* _USE_NFS_RDMA */
+
+	if (prefer_no_allocate) {
+		/* Caller would prefer not to allocate as long as RDMA buffer is
+		 * not required.
+		 */
+		return NULL;
+	} else {
+		/* No special buffer requirements, allocate requested size */
+		if (buffer_size)
+			*buffer_size = size;
+
+		return gsh_malloc(size);
+	}
+}
+
+/**
  * @brief Read data from a file
  *
  * This function reads data from the given file. The FSAL must be able to
@@ -1931,6 +1995,9 @@ void fsal_read2(struct fsal_obj_handle *obj_hdl, bool bypass,
 		fsal_async_cb done_cb, struct fsal_io_arg *read_arg,
 		void *caller_arg)
 {
+	bool zero_copy = op_ctx->fsal_export->exp_ops.fs_supports(
+		op_ctx->fsal_export, fso_allocate_own_read_buffer);
+
 	assert(read_arg->iov_count > 0);
 	assert(read_arg->iov != NULL);
 
@@ -1945,20 +2012,14 @@ void fsal_read2(struct fsal_obj_handle *obj_hdl, bool bypass,
 	/* Check if someone else want's to allocate the buffer */
 	read_arg->iov[0].iov_base =
 		get_buffer_for_io_response(read_arg->iov[0].iov_len,
-					   read_arg->last_iov_buf_size);
+					   read_arg->last_iov_buf_size,
+					   zero_copy);
 
-	if (read_arg->iov[0].iov_base != NULL) {
-		/* Someone wanted to allocate the buffer, use it. */
-		goto call_read2;
-	}
-
-	/* Check if FSAL will allocate the buffer */
-	if (!op_ctx->fsal_export->exp_ops.fs_supports(
-		    op_ctx->fsal_export, fso_allocate_own_read_buffer)) {
-		/* FSAL will not allocate a buffer, so allocate one. */
-		read_arg->iov[0].iov_base =
-			gsh_malloc(read_arg->iov[0].iov_len);
-		/* Set up release function */
+	if (!zero_copy && !op_ctx->is_rdma_buff_used) {
+		/* This is not a case of RDMA buffer allocated or no buffer
+		 * allocated because of zero copy so a buffer has been
+		 * allocated. Set up release function
+		 */
 		read_arg->iov_release = fsal_iov_release;
 		read_arg->release_data = read_arg->iov[0].iov_base;
 	}

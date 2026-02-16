@@ -711,10 +711,10 @@ enum nfs_req_result nfs4_op_readdir(struct nfs_argop4 *op,
 		(uint32_t)dircount; /* 0 => unlimited per RFC */
 	tracker.dircount_hit = false;
 
-	tracker.entries = get_buffer_for_io_response(tracker.mem_avail, NULL);
-	/* If buffer was not assigned, let's allocate it */
-	if (tracker.entries == NULL)
-		tracker.entries = gsh_malloc(tracker.mem_avail);
+	/* Allocate the buffer for entried, preferring RDMA buffer if required.
+	 */
+	tracker.entries =
+		get_buffer_for_io_response(tracker.mem_avail, NULL, false);
 
 	tracker.error = NFS4_OK;
 	tracker.req_attr = &arg_READDIR4->attr_request;

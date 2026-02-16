@@ -651,6 +651,12 @@ struct async_process_data {
 	pthread_cond_t *fsa_cond;
 };
 
+/**
+ * API to get the buffer to fill the IO Payloads
+ */
+void *get_buffer_for_io_response(uint64_t size, size_t *buffer_size,
+				 bool prefer_no_allocate);
+
 extern void fsal_read2(struct fsal_obj_handle *obj_hdl, bool bypass,
 		       fsal_async_cb done_cb, struct fsal_io_arg *read_arg,
 		       void *caller_arg);

@@ -279,11 +279,6 @@ typedef struct io_data io_data;
 
 bool xdr_io_data(XDR *xdrs, io_data *objp);
 
-/**
- * API to get the buffer to fill the IO Payloads
- */
-void *get_buffer_for_io_response(uint64_t size, size_t *buffer_size);
-
 #ifdef __cplusplus
 }
 #endif
