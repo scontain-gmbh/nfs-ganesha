@@ -268,6 +268,8 @@ typedef struct nfs_core_param {
 	    listening port.  Set by the Bind_Addr option.
 	    Must be 8-byte aligned (see sockaddr_t). */
 	sockaddr_t bind_addr;
+	/** The interface to bind to. Set by the Interface_Name option. */
+	char *interface_name;
 	/** An array of port numbers, one for each protocol.  Set by
 	    the NFS_Port, MNT_Port, NLM_Port, and Rquota_Port options. */
 	uint16_t port[P_COUNT];

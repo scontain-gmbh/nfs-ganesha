@@ -1087,6 +1087,17 @@ static int alloc_socket_setopts(int p)
 		}
 	}
 
+	if (nfs_cp->interface_name != NULL) {
+		if (setsockopt(tcp_socket[p], SOL_SOCKET, SO_BINDTODEVICE,
+			       nfs_cp->interface_name,
+			       strlen(nfs_cp->interface_name))) {
+			LogWarn(COMPONENT_DISPATCH,
+				"Bad tcp socket option bindtodevice for %s, error %d(%s)",
+				tags[p], errno, strerror(errno));
+			return -1;
+		}
+	}
+
 	return 0;
 }
 

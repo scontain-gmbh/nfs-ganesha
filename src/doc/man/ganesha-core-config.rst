@@ -86,6 +86,11 @@ Enable_Metrics (bool, default false)
 Bind_addr(IPv4 or IPv6 addr, default 0.0.0.0)
     The address to which to bind for our listening port.
 
+Interface_Name(string, default NULL)
+    If present, binds all TCP sockets to the specified interface. If not
+    present, has no effect. On systems with mutliple NICs, this option
+    will ensure all TCP traffic goes through a specified interface.
+
 NFS_Program(uint32, range 1 to INT32_MAX, default 100003)
     RPC program number for NFS.
 

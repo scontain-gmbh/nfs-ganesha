@@ -86,6 +86,8 @@ NFS_CORE_PARAM {}
 
 	Bind_Addr(IPv4 or IPv6 addr, default 0.0.0.0)
 
+	Interface_Name(string, default NULL)
+
 	NFS_Program(uint32, range 1 to INT32_MAX, default  100003)
 
 	MNT_Program(uint32, range 1 to INT32_MAX, default  100005)
