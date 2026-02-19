@@ -253,9 +253,7 @@ typedef enum protos {
 #define NFS_RDMA_ENABLE_FOR_ALL                                   \
 	(NFS_RDMA_ENABLE_FOR_NFSV3 | NFS_RDMA_ENABLE_FOR_NFSV40 | \
 	 NFS_RDMA_ENABLE_FOR_NFSV41 | NFS_RDMA_ENABLE_FOR_NFSV42)
-#define NFS_RDMA_ENABLE_BY_DEFAULT                                 \
-	(NFS_RDMA_ENABLE_FOR_NFSV40 | NFS_RDMA_ENABLE_FOR_NFSV41 | \
-	 NFS_RDMA_ENABLE_FOR_NFSV42)
+#define NFS_RDMA_ENABLE_BY_DEFAULT NFS_RDMA_ENABLE_FOR_ALL
 #endif
 
 typedef struct nfs_core_param {
