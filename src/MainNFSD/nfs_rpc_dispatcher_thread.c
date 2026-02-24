@@ -622,6 +622,18 @@ void Create_RDMA(protos prot)
 	rpc_rdma_xa.port = strdup(str);
 	rpc_rdma_xa.credits = nfs_param.core_param.rpc.rdma_credits;
 
+	LogEvent(
+		COMPONENT_RDMA,
+		"RDMA: starting NFS/RDMA listener on port %s (sq_depth=%d rq_depth=%d credits=%d backlog=%d)",
+		rpc_rdma_xa.port, rpc_rdma_xa.sq_depth, rpc_rdma_xa.rq_depth,
+		rpc_rdma_xa.credits, rpc_rdma_xa.backlog);
+	LogDebug(
+		COMPONENT_RDMA,
+		"RDMA: send_buf_size=%d recv_buf_size=%d max_send_sge=%d max_recv_sge=%d",
+		nfs_param.core_param.rpc.max_send_buffer_size,
+		nfs_param.core_param.rpc.max_recv_buffer_size,
+		rpc_rdma_xa.max_send_sge, rpc_rdma_xa.max_recv_sge);
+
 	/* This has elements of both UDP and TCP setup */
 	tcp_xprt[prot] =
 		svc_rdma_create(&rpc_rdma_xa,
@@ -636,6 +648,11 @@ void Create_RDMA(protos prot)
 	/* Hook xp_free_user_data (finalize/free private data) */
 	(void)SVC_CONTROL(tcp_xprt[prot], SVCSET_XP_FREE_USER_DATA,
 			  nfs_rpc_free_user_data);
+
+	LogEvent(
+		COMPONENT_RDMA,
+		"RDMA: NFS Ganesha is now LISTENING for RPC/RDMA connections on port %s (xprt %p)",
+		rpc_rdma_xa.port, tcp_xprt[prot]);
 }
 #endif
 
@@ -657,8 +674,15 @@ void Create_SVCXPRTs(void)
 		Create_tcp(P_NFS_VSOCK);
 #endif /* RPC_VSOCK */
 #ifdef _USE_NFS_RDMA
-	if (rdma)
+	if (rdma) {
+		LogDebug(COMPONENT_RDMA,
+			 "RDMA: spawning RPC/RDMA SVCXPRT creation");
 		Create_RDMA(P_NFS_RDMA);
+	} else {
+		LogDebug(
+			COMPONENT_RDMA,
+			"RDMA: NFS/RDMA compiled in but NOT ENABLED, skipping SVCXPRT creation");
+	}
 #endif /* _USE_NFS_RDMA */
 }
 
@@ -1415,6 +1439,9 @@ void nfs_Init_svc(void)
 #endif
 #ifdef _USE_NFS_RDMA
 	rdma = NFS_options & CORE_OPTION_NFS_RDMA;
+	LogEvent(COMPONENT_RDMA,
+		 "RDMA: NFS/RDMA compiled in; runtime rdma flag = %s",
+		 rdma ? "enabled" : "disabled");
 #endif
 
 	/* New TI-RPC package init function */
@@ -1442,6 +1469,11 @@ void nfs_Init_svc(void)
 	svc_params.nfs_rdma_port = nfs_param.core_param.port[P_NFS_RDMA];
 	svc_params.max_rdma_connections =
 		nfs_param.core_param.rpc.max_rdma_connections;
+	LogEvent(
+		COMPONENT_RDMA,
+		"RDMA: svc_params configured: rdma_port=%d max_rdma_connections=%d rdma_credits=%d",
+		svc_params.nfs_rdma_port, svc_params.max_rdma_connections,
+		nfs_param.core_param.rpc.rdma_credits);
 #endif
 
 	/* Only after TI-RPC allocators, log channel are setup */

@@ -66,11 +66,15 @@
 #include "config_parsing.h"
 #include "sal_functions.h"
 
+/* clang-format off */
+
 #define COMPONENT_ARG \
 	{ .name = "component_name", .type = "s", .direction = "in" }
 #define LOG_LEVEL_ARG { .name = "log_level", .type = "s", .direction = "in" }
 #define MATCH_POLICY_ARG \
 	{ .name = "match_policy", .type = "s", .direction = "in" }
+
+/* clang-format on */
 
 /*
  * The usual PTHREAD_RWLOCK_xxx macros log messages for tracing if FULL
@@ -1600,6 +1604,7 @@ static log_levels_t default_log_levels[] = {
 	[COMPONENT_XPRT] = NIV_EVENT,
 	[COMPONENT_QOS] = NIV_EVENT,
 	[COMPONENT_RECOVERY] = NIV_EVENT,
+	[COMPONENT_RDMA] = NIV_EVENT,
 };
 
 /* Active set of log levels */
@@ -1787,6 +1792,9 @@ struct log_component_info LogComponents[COMPONENT_COUNT] = {
 	[COMPONENT_RECOVERY] = {
 		.comp_name = "COMPONENT_RECOVERY",
 		.comp_str = "RECOVERY",},
+	[COMPONENT_RDMA] = {
+		.comp_name = "COMPONENT_RDMA",
+		.comp_str = "RDMA",},
 };
 
 void DisplayLogComponentLevel(log_components_t component, const char *file,
@@ -1953,9 +1961,9 @@ HANDLE_PROP(NFS_MSK);
 HANDLE_PROP(XPRT);
 HANDLE_PROP(QOS);
 HANDLE_PROP(RECOVERY);
+HANDLE_PROP(RDMA);
 
 /* clang-format off */
-
 static struct gsh_dbus_prop *log_props[] = { LOG_PROPERTY_ITEM(ALL),
 					     LOG_PROPERTY_ITEM(LOG),
 					     LOG_PROPERTY_ITEM(MEM_ALLOC),
@@ -1995,8 +2003,8 @@ static struct gsh_dbus_prop *log_props[] = { LOG_PROPERTY_ITEM(ALL),
 					     LOG_PROPERTY_ITEM(XPRT),
 					     LOG_PROPERTY_ITEM(QOS),
 					     LOG_PROPERTY_ITEM(RECOVERY),
+					     LOG_PROPERTY_ITEM(RDMA),
 					     NULL };
-
 /* clang-format on */
 
 struct gsh_dbus_interface log_interface = {
@@ -2284,6 +2292,7 @@ static struct config_item component_levels[] = {
 	CONF_INDEX_TOKEN("QOS", NB_LOG_LEVEL, log_levels, COMPONENT_QOS, int),
 	CONF_INDEX_TOKEN("RECOVERY", NB_LOG_LEVEL, log_levels,
 			 COMPONENT_RECOVERY, int),
+	CONF_INDEX_TOKEN("RDMA", NB_LOG_LEVEL, log_levels, COMPONENT_RDMA, int),
 	CONFIG_EOL
 };
 

@@ -92,7 +92,8 @@ typedef enum log_components {
 	COMPONENT_XPRT,
 	COMPONENT_QOS,
 	COMPONENT_RECOVERY,
-	COMPONENT_COUNT
+	COMPONENT_RDMA, /*< RPC/RDMA transport */
+	COMPONENT_COUNT,
 } log_components_t;
 
 typedef enum cond_log_match_policies {
