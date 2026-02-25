@@ -1957,10 +1957,10 @@ not_nfs:
 		 */
 		return NULL;
 	} else {
-		/* No special buffer requirements, allocate requested size */
-		if (buffer_size)
-			*buffer_size = size;
-
+		/* No special buffer requirements, allocate requested size.
+		 * Don't return buffer_size, that is only necessary for RDMA,
+		 * in fact it seems to cause problems if set.
+		 */
 		return gsh_malloc(size);
 	}
 }
