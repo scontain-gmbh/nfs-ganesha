@@ -52,6 +52,7 @@
 #include "misc/queue.h"
 #include "gsh_intrinsic.h"
 #include "common_utils.h"
+#include "abstract_atomic.h"
 
 /**
  * @brief A list of tasks
@@ -112,6 +113,10 @@ static pthread_mutex_t dle_mtx;
 static pthread_cond_t dle_cv;
 /** The timer tree */
 static struct avltree tree;
+/** Flag to prevent new submissions during/after shutdown */
+static uint8_t deny_submission;
+/** Number of in-flight delayed_submit calls */
+static uint32_t active_submitters;
 
 /**
  * @brief Possible states for the delayed executor
@@ -272,6 +277,8 @@ void delayed_start(void)
 	PTHREAD_COND_init(&dle_cv, NULL);
 	LIST_INIT(&thread_list);
 	avltree_init(&tree, comparator, 0);
+	atomic_store_uint8_t(&deny_submission, 0);
+	atomic_store_uint32_t(&active_submitters, 0);
 
 	if (threads_to_start == 0) {
 		LogFatal(COMPONENT_THREAD,
@@ -308,6 +315,13 @@ void delayed_shutdown(void)
 {
 	int rc = -1;
 	struct timespec then;
+
+	/* Prevent new submissions. */
+	atomic_store_uint8_t(&deny_submission, 1);
+
+	/* Wait for in-flight submissions to finish. */
+	while (atomic_fetch_uint32_t(&active_submitters) > 0)
+		usleep(1000);
 
 	now(&then);
 	then.tv_sec += 120;
@@ -353,6 +367,13 @@ int delayed_submit(void (*func)(void *), void *arg, nsecs_elapsed_t delay)
 	struct avltree_node *collision = NULL;
 	struct avltree_node *first = NULL;
 
+	atomic_inc_int32_t(&active_submitters);
+
+	if (atomic_fetch_uint8_t(&deny_submission)) {
+		atomic_dec_uint32_t(&active_submitters);
+		return EAGAIN;
+	}
+
 	mul = gsh_malloc(sizeof(struct delayed_multi));
 	task = gsh_malloc(sizeof(struct delayed_task));
 
@@ -378,6 +399,8 @@ int delayed_submit(void (*func)(void *), void *arg, nsecs_elapsed_t delay)
 		PTHREAD_COND_broadcast(&dle_cv);
 
 	PTHREAD_MUTEX_unlock(&dle_mtx);
+
+	atomic_dec_uint32_t(&active_submitters);
 
 	return 0;
 }
