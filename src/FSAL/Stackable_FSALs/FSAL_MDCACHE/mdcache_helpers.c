@@ -1066,6 +1066,29 @@ fsal_status_t mdcache_locate_host(struct gsh_buffdesc *fh_desc,
 					   LRU_ACTIVE_REF | LRU_PROMOTE);
 
 	if (!FSAL_IS_ERROR(status)) {
+		/* Entry found in cache.  Verify the entry is still mapped to
+		 * the current export and that MDC_UNEXPORT is not set.
+		 * Without this check, NFSv3 operations can proceed while the
+		 * export is being unexported, leading to:
+		 *  - Use of entries whose fsal_export is being freed
+		 *  - Crashes in reopen_fsal_fd via stale export pointers
+		 *  - Security violations from wrong-export context
+		 */
+		status = mdc_check_mapping(*entry);
+		if (FSAL_IS_ERROR(status)) {
+			/* Export is being unexported or entry is no longer
+			 * mapped to the current export.  Release the ref we
+			 * took at lookup and return STALE to the caller.
+			 */
+			LogDebug(COMPONENT_MDCACHE,
+				 "entry %p rejected for export_id %d check:%s",
+				 *entry, sub_export->export_id,
+				 fsal_err_txt(status));
+			mdcache_lru_unref(*entry, LRU_ACTIVE_REF);
+			*entry = NULL;
+			return status;
+		}
+
 		status = get_optional_attrs(&(*entry)->obj_handle, attrs_out);
 		return status;
 	} else if (status.major != ERR_FSAL_NOENT) {
