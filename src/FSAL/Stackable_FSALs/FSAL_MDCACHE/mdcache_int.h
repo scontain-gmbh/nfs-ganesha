@@ -98,6 +98,11 @@ struct mdcache_fsal_export {
 	mdc_dirmap_t dirent_map;
 	/** Thread for dirmap processing */
 	struct fridgethr *dirmap_fridge;
+	/** Count of entries pending cleanup for this export before release.
+	 *  Incremented in unexport/unmount for each entry we mark; decremented
+	 *  in mdcache_lru_clean when that entry is fully cleaned. Always >= 0.
+	 */
+	int32_t cleanup_pending;
 };
 
 /**
@@ -305,6 +310,11 @@ struct mdcache_fsal_obj_handle {
 	 *  no mapped export.
 	 */
 	int32_t first_export_id;
+	/** Export waiting for this entry to be cleaned (unexport path only).
+	 *  Set to non-NULL only for entries that are fully unmapped from all
+	 *  exports (expmap == NULL path in unexport/unmount).
+	 */
+	struct mdcache_fsal_export *cleanup_export;
 	/** Lock on type-specific cached content.  See locking
 	    discipline for details. */
 	pthread_rwlock_t content_lock;

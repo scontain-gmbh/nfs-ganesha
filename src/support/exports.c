@@ -3390,6 +3390,10 @@ void release_export(struct gsh_export *export, bool config)
 		pseudo_unmount_export_tree(export);
 	}
 
+	/* Mark export stale before prepare_unexport so that no new IO should
+	 * entertained but exiting IO in progress should get completed.
+	 */
+	export->export_status = EXPORT_STALE;
 	export->fsal_export->exp_ops.prepare_unexport(export->fsal_export);
 
 	if (!config) {

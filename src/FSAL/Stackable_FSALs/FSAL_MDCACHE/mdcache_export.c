@@ -142,6 +142,14 @@ static void mdcache_unexport(struct fsal_export *exp_hdl,
 					   struct entry_export_map,
 					   export_per_entry);
 		if (expmap == NULL) {
+			/* Close any global FD before evicting this entry.
+			 * For stateless NFSv3 ops, state_release_export has
+			 * nothing to close (no NFS4 states). The global FD
+			 * would persist with a stale fsal_export pointer after
+			 * this export is freed. Close it now.
+			 */
+			(void)fsal_close(&entry->obj_handle);
+
 			/* Entry is unmapped, clear first_export_id.  This is to
 			 * close a race caused by lru_run_lane() taking a ref
 			 * before we call mdcache_lru_cleanup_try_push() below.
@@ -155,10 +163,20 @@ static void mdcache_unexport(struct fsal_export *exp_hdl,
 			LogFullDebug(COMPONENT_EXPORT, "Disposing of entry %p",
 				     entry);
 
+			/* Track this entry so exp_release waits for it.
+			 * Increment before try_push so we count it even if
+			 * the push fails (entry has active refs).
+			 */
+			entry->cleanup_export = exp;
+			atomic_inc_int32_t(&exp->cleanup_pending);
+
 			/* There are no exports referencing this entry, attempt
 			 * to push it to cleanup queue. Note that if the export
 			 * root is in fact only used by one export, it will
-			 * be unhashed here.
+			 * be unhashed here. If push fails (entry has active
+			 * refs)
+			 * cleanup_export/cleanup_pending stay set so the drain
+			 * still waits.
 			 */
 			mdcache_lru_cleanup_try_push(entry);
 		} else {
@@ -174,6 +192,15 @@ static void mdcache_unexport(struct fsal_export *exp_hdl,
 				COMPONENT_EXPORT,
 				"entry %p is still exported by export id %d",
 				entry, expmap->exp->mfe_exp.export_id);
+
+			/* Entry is still mapped to another export (e.g. a
+			 * nested exportB still serving this entry). Close the
+			 * global FD so it no longer holds a fsal_export pointer
+			 * to the being-freed export. The entry stays in cache
+			 * for the remaining export; the FD will be reopened
+			 * on demand under the correct export context.
+			 */
+			(void)fsal_close(&entry->obj_handle);
 		}
 
 		/* Release above ref */
@@ -262,6 +289,12 @@ static void mdcache_unmount(struct fsal_export *parent_exp_hdl,
 		PTHREAD_RWLOCK_unlock(&entry->attr_lock);
 		LogFullDebug(COMPONENT_EXPORT, "Disposing of entry %p", entry);
 
+		/* Track this junction entry so exp_release waits for it.
+		 * Increment before try_push so we count it even if push fails.
+		 */
+		entry->cleanup_export = exp;
+		atomic_inc_int32_t(&exp->cleanup_pending);
+
 		/* There are no exports referencing this entry, attempt
 		 * to push it to cleanup queue. Note that if the export
 		 * root is in fact only used by one export, it will
@@ -287,6 +320,32 @@ static void mdcache_unmount(struct fsal_export *parent_exp_hdl,
 }
 
 /**
+ * @brief Poll until all entries marked for this export's cleanup are done.
+ *
+ * Must be called before freeing the export so that no cache entries or their
+ * embedded FDs still reference the export struct when it is freed.
+ *
+ * Multi-export case: each export has its own cleanup_pending counter.  An
+ * entry is counted only for the export whose unexport/unmount made it
+ * export-less (expmap == NULL).  Entries that remain mapped to a sibling
+ * export (the else branch) are not counted here.
+ */
+static void mdcache_drain_export_cleanup(struct mdcache_fsal_export *exp)
+{
+	/*  10 ms */
+	struct timespec ts = { .tv_sec = 0, .tv_nsec = 10000000 };
+
+	while (atomic_fetch_int32_t(&exp->cleanup_pending) != 0) {
+		nanosleep(&ts, NULL);
+		if (atomic_fetch_int32_t(&exp->cleanup_pending) != 0)
+			LogDebug(COMPONENT_EXPORT,
+				 "Waiting entries %d to cleanup Ex_id %" PRIu16,
+				 atomic_fetch_int32_t(&exp->cleanup_pending),
+				 exp->mfe_exp.export_id);
+	}
+}
+
+/**
  * @brief Release an MDCACHE export
  *
  * @param[in] exp_hdl	Export to release
@@ -298,6 +357,12 @@ static void mdcache_exp_release(struct fsal_export *exp_hdl)
 	struct fsal_module *fsal_hdl;
 
 	fsal_hdl = sub_export->fsal;
+
+	/* Wait for all cache entries (and their FDs) that belong to this
+	 * export to finish LRU cleanup before freeing the export struct.
+	 * Prevents use-after-free in lru_try_one() and the LRU reaper.
+	 */
+	mdcache_drain_export_cleanup(exp);
 
 	LogInfo(COMPONENT_FSAL, "Releasing %s export %" PRIu16 " for %s",
 		fsal_hdl->name, op_ctx->ctx_export->export_id,
@@ -900,6 +965,14 @@ static void mdcache_prepare_unexport(struct fsal_export *exp_hdl)
 {
 	struct mdcache_fsal_export *exp = mdc_export(exp_hdl);
 	struct fsal_export *sub_export = exp->mfe_exp.sub_export;
+
+	/* Stop new I/O for this export immediately: mdc_check_mapping() will
+	 * return ERR_FSAL_STALE for new lookups, preventing new cache entries
+	 * or export mappings from being created on this dying export.
+	 * This runs before state_release_export and mdcache_unexport (SIGHUP
+	 * path), closing the window where NFSv3 threads could open new FDs.
+	 */
+	atomic_set_uint8_t_bits(&exp->flags, MDC_UNEXPORT);
 
 	subcall_raw(exp, sub_export->exp_ops.prepare_unexport(sub_export));
 }
