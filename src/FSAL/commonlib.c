@@ -2158,6 +2158,49 @@ fsal_status_t reopen_fsal_fd(struct fsal_obj_handle *obj_hdl,
 	}
 
 	fsal_openflags_t old_openflags = fsal_fd->openflags;
+
+	/* Revalidate fsal_fd->fsal_export before reopening.
+	 *
+	 * fsal_fd->fsal_export is set when the FD is first opened and is not
+	 * updated when exports change. It can become stale in two ways:
+	 *
+	 *   1. Freed memory: the export was removed and its memory freed.
+	 *      Dereferencing fsal_fd->fsal_export in insert_fd_lru or the LRU
+	 *      reaper causes a crash.
+	 *
+	 *   2. Reused memory: the old export's memory was reused for a new
+	 *      export (e.g. export_id=1 unexported then re-exported with the
+	 *	same id).  fsal_fd->fsal_export is a valid pointer but to the i
+	 *      WRONG export. FD is accounted under wrong export, silent data
+	 *      corruption and access-control violation.
+	 *
+	 * This is validated and in test able to hit the "2. Reused Memory",
+	 * causing lru_try_one() to crash with invalid fsal_export ptr access.
+	 * which was previously unexported and reexported again.
+	 *
+	 * op_ctx->fsal_export is set by the NFS dispatch layer for each request
+	 * and always points to the live export the client's FH belongs to.
+	 * Update fsal_fd->fsal_export to match before insert_fd_lru is called.
+	 */
+	if (fsal_fd->fsal_export != op_ctx->fsal_export) {
+		LogFullDebug(COMPONENT_FSAL, "stale fsal_export on fsal_fd %p",
+			     fsal_fd);
+		if (fsal_fd->fsal_export)
+			LogFullDebug(COMPONENT_FSAL,
+				     "old exp=%p, id=%d != new exp=%p id=%d",
+				     fsal_fd->fsal_export,
+				     fsal_fd->fsal_export->export_id,
+				     op_ctx->fsal_export,
+				     op_ctx->fsal_export->export_id);
+		else
+			LogFullDebug(COMPONENT_FSAL,
+				     "old exp=NULL, id=-1 != new exp=%p id=%d",
+				     op_ctx->fsal_export,
+				     op_ctx->fsal_export->export_id);
+
+		fsal_fd->fsal_export = op_ctx->fsal_export;
+	}
+
 	/* Now that we are actually about to open or re-open, let's
 	 * make sure we get the file opened however desired.
 	 *
