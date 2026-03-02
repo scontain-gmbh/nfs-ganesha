@@ -2055,7 +2055,7 @@ fsal_status_t fd_lru_pkgshutdown(void)
 fsal_status_t close_fsal_fd(struct fsal_obj_handle *obj_hdl,
 			    struct fsal_fd *fsal_fd, bool is_reclaiming)
 {
-	fsal_status_t status;
+	fsal_status_t status = { 0 };
 	bool is_globalfd = fsal_fd->fd_type == FSAL_FD_GLOBAL;
 
 	/* Assure that is_reclaiming is only set when it's a global fd */
@@ -2075,16 +2075,24 @@ fsal_status_t close_fsal_fd(struct fsal_obj_handle *obj_hdl,
 	 */
 	status = obj_hdl->obj_ops->close_func(obj_hdl, fsal_fd);
 
-	if (status.major != ERR_FSAL_NOT_OPENED) {
-		if (is_globalfd) {
-			/* Need to decrement the appropriate counter and remove
-			 * from LRU for globalfd.
-			 */
-			remove_fd_lru(fsal_fd);
-		}
-	} else {
-		/* Wasn't open.  Not an error, but shouldn't remove from LRU. */
+	/* Normalize: not-opened is not an error. */
+	if (status.major == ERR_FSAL_NOT_OPENED)
 		status = fsalstat(ERR_FSAL_NO_ERROR, 0);
+
+	/* For global FDs, always remove from the LRU list if still present.
+	 * The reaper and the release path can both call close_fsal_fd; the
+	 * first caller removes the entry, the second finds it already gone.
+	 * in Case of fd already in closed state, Skipping removal leaves a
+	 * dangling fd_lru pointer causing release() freeing this entry.
+	 */
+	if (is_globalfd) {
+		/* Check makes sure that alreday removed entry
+		 * is not getting removed causing ref count issue */
+		if (!glist_null(&fsal_fd->fd_lru))
+			remove_fd_lru(fsal_fd);
+		else
+			LogFullDebug(COMPONENT_FSAL,
+				     "fsal_fd %p (release path race)", fsal_fd);
 	}
 
 	fsal_complete_fd_work(fsal_fd);
