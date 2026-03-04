@@ -112,6 +112,10 @@ Requires: openSUSE-release
 
 %global dev_version %{lua: s = string.gsub('@GANESHA_EXTRA_VERSION@', '^%-', ''); s2 = string.gsub(s, '%-', '.'); print((s2 ~= nil and s2 ~= '') and s2 or "0.1") }
 
+@BCOND_NFS_RDMA@ nfs_rdma
+
+@BCOND_RPC_RDMA@ rpc_rdma
+
 %define sourcename @CPACK_SOURCE_PACKAGE_FILE_NAME@
 
 Name:		nfs-ganesha
@@ -585,7 +589,13 @@ cmake3 .	-DCMAKE_BUILD_TYPE=Debug			\
 	-DSANITIZE_ADDRESS=%{use_sanitize_address}	\
 	-DUSE_LEGACY_PYTHON_INSTALL=%{use_legacy_python_install}	\
 %if %{with jemalloc}
-	-DALLOCATOR=jemalloc
+	-DALLOCATOR=jemalloc 				\
+%endif
+%if %{with nfs_rdma}
+        -DUSE_NFS_RDMA=ON \
+%endif
+%if %{with rpc_rdma}
+        -DUSE_RPC_RDMA=ON \
 %endif
 %if %{with tcmalloc}
 	-DALLOCATOR=tcmalloc

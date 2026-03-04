@@ -1671,6 +1671,18 @@ else(${ALLOCATOR} STREQUAL "tcmalloc")
     set(BCOND_TCMALLOC "%bcond_with")
 endif(${ALLOCATOR} STREQUAL "tcmalloc")
 
+if(USE_NFS_RDMA)
+    set(BCOND_NFS_RDMA  "%bcond_without")
+else(USE_NFS_RDMA)
+    set(BCOND_NFS_RDMA "%bcond_with")
+endif(USE_NFS_RDMA)
+
+if(USE_RPC_RDMA)
+    set(BCOND_RPC_RDMA "%bcond_without")
+else(USE_RPC_RDMA)
+    set(BCOND_RPC_RDMA "%bcond_with")
+endif(USE_RPC_RDMA)
+
 if(USE_ADMIN_TOOLS)
     set(BCOND_UTILS "%bcond_without")
 else(USE_ADMIN_TOOLS)
