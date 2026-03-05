@@ -1104,11 +1104,12 @@ static int alloc_socket_setopts(int p)
 static bool enable_udp_listener(protos prot)
 {
 	LogDebug(COMPONENT_DISPATCH,
-		 "prot=%d enable_UDP=%d ALL=%d MOUNT=%d NLM=%d", prot,
+		 "prot=%d enable_UDP=%d ALL=%d MOUNT=%d NLM=%d RQUOTA=%d", prot,
 		 nfs_param.core_param.enable_UDP,
 		 nfs_param.core_param.enable_UDP & UDP_LISTENER_ALL,
 		 nfs_param.core_param.enable_UDP & UDP_LISTENER_MOUNT,
-		 nfs_param.core_param.enable_UDP & UDP_LISTENER_NLM);
+		 nfs_param.core_param.enable_UDP & UDP_LISTENER_NLM,
+		 nfs_param.core_param.enable_UDP & UDP_LISTENER_RQUOTA);
 	if (nfs_param.core_param.enable_UDP & UDP_LISTENER_ALL)
 		return true;
 #ifdef _USE_NFS3
@@ -1119,6 +1120,11 @@ static bool enable_udp_listener(protos prot)
 #ifdef _USE_NLM
 	if (prot == P_NLM &&
 	    (nfs_param.core_param.enable_UDP & UDP_LISTENER_NLM))
+		return true;
+#endif
+#ifdef _USE_RQUOTA
+	if (prot == P_RQUOTA &&
+	    (nfs_param.core_param.enable_UDP & UDP_LISTENER_RQUOTA))
 		return true;
 #endif
 	return false;

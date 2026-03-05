@@ -70,6 +70,7 @@ static struct config_item_list udp_listener_type[] = {
 	CONFIG_LIST_TOK("on", UDP_LISTENER_ALL),
 	CONFIG_LIST_TOK("mount", UDP_LISTENER_MOUNT),
 	CONFIG_LIST_TOK("nlm", UDP_LISTENER_NLM),
+	CONFIG_LIST_TOK("rquota", UDP_LISTENER_RQUOTA),
 	CONFIG_LIST_EOL
 };
 
