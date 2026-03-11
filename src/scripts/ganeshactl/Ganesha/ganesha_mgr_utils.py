@@ -618,3 +618,131 @@ class CondLogManager():
             return False, ex
 
         return True, "Done"
+
+    def ShowConditionalLogClientList(self):
+        """Call ShowConditionalLogClientList on org.ganesha.nfsd.log.conditional."""
+        show_method = self.dbusobj.get_dbus_method("ShowConditionalLogClientList",
+                                                    "org.ganesha.nfsd.log.conditional")
+        try:
+            reply = show_method()
+        except dbus.exceptions.DBusException as ex:
+            return False, str(ex), []
+
+        # Reply format: [client1_str, client2_str, ..., status_bool, errormsg_str]
+        # When list is empty: [status_bool, errormsg_str]
+        if len(reply) <= 2:
+            status = reply[0]
+            errormsg = reply[1]
+            clients = []
+        else:
+            clients = list(reply[:-2])
+            status = reply[-2]
+            errormsg = reply[-1]
+
+        return bool(status), errormsg, clients
+
+    def ShowConditionalLogExportList(self):
+        """Call ShowConditionalLogExportList on org.ganesha.nfsd.log.conditional."""
+        show_method = self.dbusobj.get_dbus_method("ShowConditionalLogExportList",
+                                                    "org.ganesha.nfsd.log.conditional")
+        try:
+            reply = show_method()
+        except dbus.exceptions.DBusException as ex:
+            return False, str(ex), []
+
+        # Reply format: [export_id1, export_id2, ..., status_bool, errormsg_str]
+        # When list is empty: [status_bool, errormsg_str]
+        if len(reply) <= 2:
+            status = reply[0]
+            errormsg = reply[1]
+            export_ids = []
+        else:
+            export_ids = [int(x) for x in reply[:-2]]
+            status = reply[-2]
+            errormsg = reply[-1]
+
+        return bool(status), errormsg, export_ids
+
+    def ShowMatchPolicy(self):
+        """Call ShowMatchPolicy on org.ganesha.nfsd.log.conditional."""
+        show_method = self.dbusobj.get_dbus_method("ShowMatchPolicy",
+                                                    "org.ganesha.nfsd.log.conditional")
+        try:
+            reply = show_method()
+        except dbus.exceptions.DBusException as ex:
+            return False, str(ex)
+
+        # Reply format: [status_bool, errormsg_str] (errormsg contains policy name)
+        status = reply[0]
+        errormsg = reply[1]
+        return bool(status), errormsg
+
+    def ChangeMatchPolicy(self, match_policy):
+        """Call ChangeMatchPolicy on org.ganesha.nfsd.log.conditional."""
+        change_method = self.dbusobj.get_dbus_method("ChangeMatchPolicy",
+                                                     "org.ganesha.nfsd.log.conditional")
+        try:
+            reply = change_method(match_policy)
+        except dbus.exceptions.DBusException as ex:
+            return False, str(ex)
+
+        # Reply format: [status_bool, errormsg_str]
+        status = reply[0]
+        errormsg = reply[1]
+        return bool(status), errormsg
+
+    def ClientEnable(self, ipaddr):
+        """Call ClientEnable on org.ganesha.nfsd.log.conditional (IP/CIDR)."""
+        enable_method = self.dbusobj.get_dbus_method("ClientEnable",
+                                                     "org.ganesha.nfsd.log.conditional")
+        try:
+            reply = enable_method(ipaddr)
+        except dbus.exceptions.DBusException as ex:
+            return False, str(ex)
+
+        # Reply format: [status_bool, errormsg_str]
+        status = reply[0]
+        errormsg = reply[1]
+        return bool(status), errormsg
+
+    def ClientDisable(self, ipaddr):
+        """Call ClientDisable on org.ganesha.nfsd.log.conditional (IP/CIDR)."""
+        disable_method = self.dbusobj.get_dbus_method("ClientDisable",
+                                                     "org.ganesha.nfsd.log.conditional")
+        try:
+            reply = disable_method(ipaddr)
+        except dbus.exceptions.DBusException as ex:
+            return False, str(ex)
+
+        # Reply format: [status_bool, errormsg_str]
+        status = reply[0]
+        errormsg = reply[1]
+        return bool(status), errormsg
+
+    def ExportEnable(self, export_id):
+        """Call ExportEnable on org.ganesha.nfsd.log.conditional."""
+        enable_method = self.dbusobj.get_dbus_method("ExportEnable",
+                                                     "org.ganesha.nfsd.log.conditional")
+        try:
+            reply = enable_method(dbus.UInt16(int(export_id)))
+        except dbus.exceptions.DBusException as ex:
+            return False, str(ex)
+
+        # Reply format: [status_bool, errormsg_str]
+        status = reply[0]
+        errormsg = reply[1]
+        return bool(status), errormsg
+
+    def ExportDisable(self, export_id):
+        """Call ExportDisable on org.ganesha.nfsd.log.conditional."""
+        disable_method = self.dbusobj.get_dbus_method("ExportDisable",
+                                                     "org.ganesha.nfsd.log.conditional")
+        try:
+            reply = disable_method(dbus.UInt16(int(export_id)))
+        except dbus.exceptions.DBusException as ex:
+            return False, str(ex)
+
+        # Reply format: [status_bool, errormsg_str]
+        status = reply[0]
+        errormsg = reply[1]
+        return bool(status), errormsg

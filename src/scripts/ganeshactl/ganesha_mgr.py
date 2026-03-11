@@ -405,6 +405,67 @@ class ManageCondLogs():
         for prop in properties:
            print(str(prop))
 
+    def show_conditional_clients(self):
+        print("Show conditional logging clients")
+        status, errormsg, clients = self.condlogmgr.ShowConditionalLogClientList()
+        if status:
+            print("Status: %s" % (errormsg))
+            if len(clients) == 0:
+                print("No conditional logging clients")
+            else:
+                print("Conditional logging clients:")
+                for client in clients:
+                    print("  %s" % (client))
+        else:
+            self.status_message(status, errormsg)
+
+    def show_conditional_exports(self):
+        print("Show conditional logging exports")
+        status, errormsg, export_ids = self.condlogmgr.ShowConditionalLogExportList()
+        if status:
+            print("Status: %s" % (errormsg))
+            if len(export_ids) == 0:
+                print("No conditional logging exports")
+            else:
+                print("Conditional logging exports:")
+                for export_id in export_ids:
+                    print("  %d" % (export_id))
+        else:
+            self.status_message(status, errormsg)
+
+    def show_conditional_match_policy(self):
+        print("Show conditional logging match policy")
+        status, errormsg = self.condlogmgr.ShowMatchPolicy()
+        if status:
+            print("%s" % (errormsg))
+        else:
+            self.status_message(status, errormsg)
+
+    def update_conditional_match_policy(self, policy):
+        print("Update conditional logging match policy to %s" % (policy))
+        status, errormsg = self.condlogmgr.ChangeMatchPolicy(policy)
+        print("%s" % (errormsg))
+
+    def add_conditional_client(self, ipaddr):
+        print("Add conditional logging client %s" % (ipaddr))
+        status, errormsg = self.condlogmgr.ClientEnable(ipaddr)
+        print("%s" % (errormsg))
+
+    def add_conditional_export(self, export_id):
+        print("Add conditional logging export %s" % (export_id))
+        status, errormsg = self.condlogmgr.ExportEnable(export_id)
+        print("%s" % (errormsg))
+
+    def remove_conditional_client(self, ipaddr):
+        print("Remove conditional logging client %s" % (ipaddr))
+        status, errormsg = self.condlogmgr.ClientDisable(ipaddr)
+        print("%s" % (errormsg))
+
+    def remove_conditional_export(self, export_id):
+        print("Remove conditional logging export %s" % (export_id))
+        status, errormsg = self.condlogmgr.ExportDisable(export_id)
+        print("%s" % (errormsg))
+
 # Main
 if __name__ == '__main__':
     exportmgr = ShowExports()
@@ -425,15 +486,23 @@ COMMANDS
          the given expression
          Example:
          add export /etc/ganesha/gpfs.conf "EXPORT(Export_ID=77)"
+      conditional_clients ipaddr: Adds a client to conditional logging (IP/CIDR)
+      conditional_exports export_id: Adds an export to conditional logging
    remove:
       client ipaddr: Removes the client with the given IP
       export export_id: Removes the export with the given id
+      conditional_clients ipaddr: Removes a client from conditional logging (IP/CIDR)
+      conditional_exports export_id: Removes an export from conditional logging
    update:
       export conf expr:
          Updates an export from the given config file that contains
          the given expression
          Example:
          update export /etc/ganesha/gpfs.conf "EXPORT(Export_ID=77)"
+      conditional_match_policy policy:
+         Updates the conditional logging match policy (ANY or ALL)
+         Example:
+         update conditional_match_policy ANY
    display:
       export export_id: Displays the export with the given ID.
          export_id must be positive number
@@ -452,6 +521,9 @@ COMMANDS
       idmapper_users: Displays the idmapper users cache
       idmapper_groups: Displays the idmapper groups cache
       idmapper_uid2grp: Displays the idmapper uid to groups cache
+      conditional_clients: Displays the conditional logging client list
+      conditional_exports: Displays the conditional logging export list
+      conditional_match_policy: Displays the conditional logging match policy
    grace:
       ipaddr: Begins grace for the given IP
    trim:
@@ -479,7 +551,7 @@ COMMANDS
     # add
     elif sys.argv[1] == "add":
         if len(sys.argv) == 2:
-            exit_try_help("add requires client or export option")
+            exit_try_help("add requires client, export, conditional_clients or conditional_exports option")
         if sys.argv[2] == "client":
             if len(sys.argv) < 4:
                 exit_try_help("add client requires an IP")
@@ -488,13 +560,21 @@ COMMANDS
             if len(sys.argv) < 5:
                 exit_try_help("add export requires a config file and an expression")
             exportmgr.addexport(sys.argv[3], sys.argv[4])
+        elif sys.argv[2] == "conditional_clients":
+            if len(sys.argv) < 4:
+                exit_try_help("add conditional_clients requires an IP or CIDR")
+            condlogmgr.add_conditional_client(sys.argv[3])
+        elif sys.argv[2] == "conditional_exports":
+            if len(sys.argv) < 4:
+                exit_try_help("add conditional_exports requires an export ID")
+            condlogmgr.add_conditional_export(sys.argv[3])
         else:
             exit_option_not_supported("add")
 
     # remove
     elif sys.argv[1] == "remove":
         if len(sys.argv) == 2:
-            exit_try_help("remove requires client or export option")
+            exit_try_help("remove requires client, export, conditional_clients or conditional_exports option")
         if sys.argv[2] == "client":
             if len(sys.argv) < 4:
                 exit_try_help("remove client requires an IP")
@@ -503,15 +583,45 @@ COMMANDS
             if len(sys.argv) < 4:
                 exit_try_help("remove export requires an export ID")
             exportmgr.removeexport(sys.argv[3])
+        elif sys.argv[2] == "conditional_clients":
+            if len(sys.argv) < 4:
+                exit_try_help("remove conditional_clients requires an IP or CIDR")
+            client_arg = sys.argv[3]
+            # Refuse to run if shell likely expanded unquoted '*' (multiple args or
+            # single arg that does not look like an IP/CIDR). Do not print the
+            # expanded value or call the backend.
+            if len(sys.argv) > 4:
+                print('The shell expanded "*" to multiple arguments.',
+                      'To remove the match-any client, quote the asterisk:',
+                      '  ganesha_mgr remove conditional_clients \'*\'',
+                      sep='\n')
+                sys.exit(1)
+            if client_arg != '*' and '.' not in client_arg and '/' not in client_arg:
+                print('The argument does not look like an IP or CIDR; the shell may have expanded "*".',
+                      'To remove the match-any client, quote the asterisk:',
+                      '  ganesha_mgr remove conditional_clients \'*\'',
+                      sep='\n')
+                sys.exit(1)
+            condlogmgr.remove_conditional_client(client_arg)
+        elif sys.argv[2] == "conditional_exports":
+            if len(sys.argv) < 4:
+                exit_try_help("remove conditional_exports requires an export ID")
+            condlogmgr.remove_conditional_export(sys.argv[3])
         else:
             exit_option_not_supported("remove")
 
     # update
     elif sys.argv[1] == "update":
-        if len(sys.argv) < 5:
-            exit_try_help("update export requires a config file and an expression")
+        if len(sys.argv) < 3:
+            exit_try_help("update requires export or conditional_match_policy option")
         if sys.argv[2] == "export":
+            if len(sys.argv) < 5:
+                exit_try_help("update export requires a config file and an expression")
             exportmgr.updateexport(sys.argv[3], sys.argv[4])
+        elif sys.argv[2] == "conditional_match_policy":
+            if len(sys.argv) < 4:
+                exit_try_help("update conditional_match_policy requires a policy (e.g. ANY or ALL)")
+            condlogmgr.update_conditional_match_policy(sys.argv[3])
         else:
             exit_option_not_supported("update")
 
@@ -559,6 +669,12 @@ COMMANDS
             cachemgr.showidmapper_groups()
         elif sys.argv[2] == "idmapper_uid2grp":
             cachemgr.showidmapper_uid2grp()
+        elif sys.argv[2] == "conditional_clients":
+            condlogmgr.show_conditional_clients()
+        elif sys.argv[2] == "conditional_exports":
+            condlogmgr.show_conditional_exports()
+        elif sys.argv[2] == "conditional_match_policy":
+            condlogmgr.show_conditional_match_policy()
         else:
             exit_option_not_supported("show")
 
