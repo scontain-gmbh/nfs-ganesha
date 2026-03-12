@@ -1348,6 +1348,7 @@ struct base_client_entry *is_base_client_exact_match(
 	struct base_client_entry *cli;
 	struct glist_head *g;
 	CIDR *cidr = NULL;
+	CIDR cli_cidr;
 
 	/* Try CIDR parse (NETWORK_CLIENT) */
 	cidr = cidr_from_str(client_tok);
@@ -1359,7 +1360,7 @@ struct base_client_entry *is_base_client_exact_match(
 
 		switch (cli->type) {
 		case NETWORK_CLIENT:
-			CIDR cli_cidr = *cli->client.network.cidr;
+			cli_cidr = *cli->client.network.cidr;
 
 			normalize_v4_mapped_cidr(&cli_cidr);
 			if (cidr && cidr_equals(&cli_cidr, cidr))
