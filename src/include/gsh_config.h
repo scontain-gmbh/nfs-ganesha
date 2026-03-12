@@ -719,6 +719,8 @@ typedef struct nfs_version4_parameter {
 
 } nfs_version4_parameter_t;
 
+#define UNSET_TIME_VALIDITY (-1)
+
 typedef struct directory_services_param {
 	/** Domain to use if we aren't using the nfsidmap. Defaults
 	    to NULL and is set with DomainName. */
