@@ -442,7 +442,8 @@ fsal_status_t mdc_get_parent_handle(struct mdcache_fsal_export *export,
 }
 
 /* entry's content_lock must not be held, this function will
-get the content_lock in exclusive mode */
+ * get the content_lock (in read or exclusive mode as needed)
+ */
 fsal_status_t mdc_get_parent(struct mdcache_fsal_export *export,
 			     mdcache_entry_t *entry,
 			     struct gsh_buffdesc *parent_out)
@@ -451,13 +452,15 @@ fsal_status_t mdc_get_parent(struct mdcache_fsal_export *export,
 	struct fsal_obj_handle *root_obj = NULL;
 	fsal_status_t status = { ERR_FSAL_NO_ERROR, 0 };
 
-	PTHREAD_RWLOCK_wrlock(&entry->content_lock);
-
 	if (entry->obj_handle.type != DIRECTORY) {
 		/* Parent pointer only for directories */
-		status.major = ERR_FSAL_INVAL;
-		goto out;
+		return fsalstat(ERR_FSAL_INVAL, 0);
 	}
+
+	/* Try with a read lock first to avoid write contention when
+	 * the parent pointer is already cached and valid.
+	 */
+	PTHREAD_RWLOCK_rdlock(&entry->content_lock);
 
 	/* First check if the entry->obj_handle points to a root object.
 	 * Never lookup for parent of a root object.
@@ -478,6 +481,20 @@ fsal_status_t mdc_get_parent(struct mdcache_fsal_export *export,
 
 	if (entry->fsobj.fsdir.parent.len != 0) {
 		/* Already has a parent pointer */
+		if (entry->fsobj.fsdir.parent_time == 0 ||
+		    mdcache_is_parent_valid(entry)) {
+			goto copy_parent_out;
+		}
+	}
+
+	/* Need to refresh the parent pointer — upgrade to write lock */
+	PTHREAD_RWLOCK_unlock(&entry->content_lock);
+	PTHREAD_RWLOCK_wrlock(&entry->content_lock);
+
+	/* Re-check after acquiring write lock (another thread may have
+	 * refreshed it while we were waiting for the write lock).
+	 */
+	if (entry->fsobj.fsdir.parent.len != 0) {
 		if (entry->fsobj.fsdir.parent_time == 0 ||
 		    mdcache_is_parent_valid(entry)) {
 			goto copy_parent_out;

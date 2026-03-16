@@ -1688,8 +1688,12 @@ fsal_status_t mdcache_create_handle(struct fsal_export *exp_hdl,
 	if (FSAL_IS_ERROR(status))
 		return status;
 
-	/* Make sure this entry has a parent pointer */
-	mdc_get_parent(export, entry, NULL);
+	/* Make sure directory entries have a parent pointer.
+	 * Skip for non-directory entries to avoid unnecessary
+	 * write lock acquisition on content_lock.
+	 */
+	if (entry->obj_handle.type == DIRECTORY)
+		mdc_get_parent(export, entry, NULL);
 
 	if (attrs_out != NULL) {
 		LogAttrlist(COMPONENT_MDCACHE, NIV_FULL_DEBUG, "create_handle ",
