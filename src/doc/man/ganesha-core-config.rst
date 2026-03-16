@@ -62,8 +62,8 @@ NFS_RDMA_Protocol_Versions(enum list, default [4.0])
     Possible values:
         (NONE, 3, v3, NFS3, NFSv3, 4.0, v4.0, NFS4.0, NFSv4.0, 4.1,
         v4.1, NFS4.1, NFSv4.1, 4.2, v4.2, NFS4.2, NFSv4.2, ALL)
-    Supported NFS Version for NFS Over RDMA. By default, NFSv4.0,
-    NFSv4.1 & NFSv4.2 are enabled.
+    Supported NFS Version for NFS Over RDMA. By default, NFSv3,
+    NFSv4.0, NFSv4.1 & NFSv4.2 are enabled.
 
 Monitoring_Addr(IPv4 or IPv6 addr, default 0.0.0.0)
     The address to which to bind for listening the monitoring port. If not
@@ -169,6 +169,7 @@ Blocked_Lock_Poller_Interval(int64, range 0 to 180, default 10)
 Protocols(enum list, default [3,4,9P])
     Possible values:
         3, 4, NFS3, NFS4, V3, V4, NFSv3, NFSv4, 9P
+    Support for NFS Over RDMA: [3 or 4 or 3,4], nfsrdma, rpcrdma
 
     The protocols that Ganesha will listen for.  This is a hard limit, as this
     list determines which sockets are opened.  This list can be restricted per
