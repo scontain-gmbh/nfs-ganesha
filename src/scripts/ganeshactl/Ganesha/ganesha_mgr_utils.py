@@ -528,6 +528,12 @@ class CacheMgr():
 
 LOGGER_PROPS = 'org.ganesha.nfsd.log.component'
 
+def _log_component_prop_name(component):
+    """Return DBus property name for a log component (backend expects COMPONENT_*)."""
+    if component.startswith('COMPONENT_'):
+        return component
+    return 'COMPONENT_' + component
+
 class LogManager():
     '''
     org.ganesha.nfsd.log.component
@@ -563,7 +569,7 @@ class LogManager():
         get_method = self.dbusobj.get_dbus_method("Get",
                                                   self.dbus_interface)
         try:
-            level = get_method(LOGGER_PROPS, prop)
+            level = get_method(LOGGER_PROPS, _log_component_prop_name(prop))
         except dbus.exceptions.DBusException as ex:
             return False, ex, 0
 
@@ -573,7 +579,7 @@ class LogManager():
         set_method = self.dbusobj.get_dbus_method("Set",
                                                   self.dbus_interface)
         try:
-            set_method(LOGGER_PROPS, prop, setval)
+            set_method(LOGGER_PROPS, _log_component_prop_name(prop), setval)
         except dbus.exceptions.DBusException as ex:
             return False, ex
 
@@ -603,7 +609,7 @@ class CondLogManager():
         get_method = self.dbusobj.get_dbus_method("Get",
                                                   self.dbus_interface)
         try:
-            level = get_method(COND_LOGGER_PROPS, prop)
+            level = get_method(COND_LOGGER_PROPS, _log_component_prop_name(prop))
         except dbus.exceptions.DBusException as ex:
             return False, ex, 0
 
@@ -613,7 +619,7 @@ class CondLogManager():
         set_method = self.dbusobj.get_dbus_method("Set",
                                                   self.dbus_interface)
         try:
-            set_method(COND_LOGGER_PROPS, prop, setval)
+            set_method(COND_LOGGER_PROPS, _log_component_prop_name(prop), setval)
         except dbus.exceptions.DBusException as ex:
             return False, ex
 
