@@ -65,6 +65,10 @@ extern __thread struct req_op_context *op_ctx;
 #include "nfs4_acls.h"
 #include "nfs4_fs_locations.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @brief If we don't know how big a buffer we want for a link, use
  * this value.
@@ -472,7 +476,7 @@ static inline void fsal_copy_attrs(struct fsal_attrlist *dest,
 		LogCrit(COMPONENT_FSAL,
 			"Invalid dest pointer, dest: %p, "
 			"src: %p, ac: %p",
-			dest, src, dest->acl);
+			(void *)dest, (void *)src, (void *)dest->acl);
 	}
 
 	/* Copy source to dest, but retain dest->request_mask */
@@ -738,6 +742,10 @@ extern bool close_fast;
 void fsal_init_fds_limit(struct fd_lru_parameter *params);
 fsal_status_t fd_lru_pkginit(struct fd_lru_parameter *params);
 fsal_status_t fd_lru_pkgshutdown(void);
+
+#ifdef __cplusplus
+}
+#endif /* extern "C" */
 
 #endif /* !FSAL_H */
 /** @} */

@@ -46,6 +46,10 @@
 #include <mooshika.h>
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define NB_PREALLOC_HASH_9P 100
 #define NB_PREALLOC_FID_9P 100
 #define PRIME_9P 17
@@ -308,12 +312,17 @@ struct _9p_user_cred {
  * This structure is allocated as needed (xattrwalk/create) and freed
  * on clunk
  */
+
 struct _9p_xattr_desc {
 	char xattr_name[MAXNAMLEN + 1];
 	u64 xattr_size;
 	u64 xattr_offset;
 	enum _9p_xattr_write xattr_write;
+#ifdef __cplusplus
+	char xattr_content[1];
+#else
 	char xattr_content[];
+#endif
 };
 
 struct _9p_fid {
@@ -829,3 +838,7 @@ static inline void _9p_get_fname(char *name, int len, const char *str)
 }
 
 #endif /* _9P_H */
+
+#ifdef __cplusplus
+}
+#endif /* extern "C" */

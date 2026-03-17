@@ -50,6 +50,10 @@
 #include "abstract_mem.h"
 #include "gsh_types.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @brief A pair of buffer descriptors
  *
@@ -163,9 +167,13 @@ typedef struct hash_table {
 					 HashTable */
 	pool_t *node_pool; /*< Pool of RBT nodes */
 	pool_t *data_pool; /*< Pool of buffer pairs */
+#ifdef __cplusplus
+	struct hash_partition partitions[1];
+#else
 	struct hash_partition partitions[]; /*< Parameter.index_size
 						partitions of the hash
 						table. */
+#endif
 } hash_table_t;
 
 /**
@@ -343,5 +351,9 @@ typedef void (*ht_for_each_cb_t)(struct rbt_node *pn, void *arg);
 void hashtable_for_each(struct hash_table *ht, ht_for_each_cb_t callback,
 			void *arg);
 /** @} */
+
+#ifdef __cplusplus
+}
+#endif /* extern "C" */
 
 #endif /* HASHTABLE_H */

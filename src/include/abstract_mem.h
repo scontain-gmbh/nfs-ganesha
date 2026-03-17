@@ -45,6 +45,16 @@
 #include <assert.h>
 #include "log.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifndef UNUSED
+#define UNUSED_ATTR __attribute__((unused))
+#define UNUSED(...) UNUSED_(__VA_ARGS__)
+#define UNUSED_(arg) NOT_USED_##arg UNUSED_ATTR
+#endif
+
 /**
  * @page GeneralAllocator General Allocator Shim
  *
@@ -85,14 +95,15 @@ static inline void *gsh_malloc__(size_t n, const char *file, int line,
 	return p;
 }
 
-#define gsh_malloc(n)                 \
-	({                            \
-		void *p_ = malloc(n); \
-		if (p_ == NULL) {     \
-			abort();      \
-		}                     \
-		p_;                   \
-	})
+static inline void *gsh_malloc(size_t n)
+{
+	void *p_ = malloc(n);
+
+	if (p_ == NULL) {
+		abort();
+	}
+	return p_;
+}
 
 /**
  * @brief Allocate aligned memory
@@ -202,23 +213,25 @@ static inline void *gsh_realloc__(void *p, size_t n, const char *file, int line,
 	return p2;
 }
 
-#define gsh_realloc(p, n)                    \
-	({                                   \
-		void *p2_ = realloc(p, n);   \
-		if (n != 0 && p2_ == NULL) { \
-			abort();             \
-		}                            \
-		p2_;                         \
-	})
+static inline void *gsh_realloc(void *p, size_t n)
+{
+	void *p2_ = realloc(p, n);
 
-#define gsh_strdup(s)                 \
-	({                            \
-		char *p_ = strdup(s); \
-		if (p_ == NULL) {     \
-			abort();      \
-		}                     \
-		p_;                   \
-	})
+	if (n != 0 && p2_ == NULL) {
+		abort();
+	}
+	return p2_;
+}
+
+static inline char *gsh_strdup(const char *s)
+{
+	char *p_ = strdup(s);
+
+	if (p_ == NULL) {
+		abort();
+	}
+	return p_;
+}
 
 #define gsh_strldup(s, l, n)                          \
 	({                                            \
@@ -240,12 +253,13 @@ static inline void *gsh_realloc__(void *p, size_t n, const char *file, int line,
 	})
 #endif
 
-#define gsh_memdup(s, l)                  \
-	({                                \
-		void *p_ = gsh_malloc(l); \
-		memcpy(p_, s, l);         \
-		p_;                       \
-	})
+static inline void *gsh_memdup(const void *s, size_t l)
+{
+	void *p_ = gsh_malloc(l);
+
+	memcpy(p_, s, l);
+	return p_;
+}
 
 /**
  * @brief Free a block of memory
@@ -388,7 +402,7 @@ static inline void pool_destroy(pool_t *pool)
  *                   specific type (and omitting the pool parameter.)
  */
 
-static inline void pool_free(pool_t *pool, void *object)
+static inline void pool_free(pool_t *UNUSED(pool), void *object)
 {
 	gsh_free(object);
 }
@@ -417,5 +431,9 @@ static inline char *gsh_concat_sep(const char *p1, char sep, const char *p2)
 
 	return path;
 }
+
+#ifdef __cplusplus
+}
+#endif /* extern "C" */
 
 #endif /* ABSTRACT_MEM_H */

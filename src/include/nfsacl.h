@@ -20,6 +20,10 @@
 #define NFS_ACL_MASK 0x00FF
 #define NFS_DFACL_MASK 0x1000
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct attr3 {
 	bool_t attributes_follow;
 	union {
@@ -37,8 +41,13 @@ typedef struct posix_acl_entry posix_acl_entry;
 
 struct posix_acl {
 	nfs3_uint32 count;
+#ifdef __cplusplus
+	posix_acl_entry entries[1];
+#else
 	posix_acl_entry entries[0];
+#endif
 };
+
 typedef struct posix_acl posix_acl;
 
 struct getaclargs {
@@ -106,5 +115,9 @@ extern bool_t xdr_getaclres(XDR *, getaclres *);
 extern bool_t xdr_setaclargs(XDR *, setaclargs *);
 extern bool_t xdr_setaclresok(XDR *, setaclresok *);
 extern bool_t xdr_setaclres(XDR *, setaclres *);
+
+#ifdef __cplusplus
+}
+#endif /* extern "C" */
 
 #endif /* !_NFSACL_H_RPCGEN */

@@ -42,6 +42,16 @@
 #include "gsh_types.h"
 #include "log.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifndef UNUSED
+#define UNUSED_ATTR __attribute__((unused))
+#define UNUSED(...) UNUSED_(__VA_ARGS__)
+#define UNUSED_(arg) NOT_USED_##arg UNUSED_ATTR
+#endif
+
 extern pthread_mutexattr_t default_mutex_attr;
 extern pthread_rwlockattr_t default_rwlock_attr;
 
@@ -544,13 +554,14 @@ static inline int PTHREAD_create(pthread_t *thread, pthread_attr_t *attr,
 		rc = pthread_mutex_lock(_mtx);                                \
 		if (rc == 0) {                                                \
 			LogFullDebug(COMPONENT_RW_LOCK,                       \
-				     "Acquired mutex %p (%s) at %s:%d", _mtx, \
+				     "Acquired mutex %p (%s) at %s:%d",       \
+				      (void *)_mtx,                           \
 				     #_mtx, __FILE__, __LINE__);              \
 		} else {                                                      \
 			LogCrit(COMPONENT_RW_LOCK,                            \
 				"Error %d, acquiring mutex %p (%s) "          \
 				"at %s:%d",                                   \
-				rc, _mtx, #_mtx, __FILE__, __LINE__);         \
+				rc, (void *)_mtx, #_mtx, __FILE__, __LINE__); \
 			abort();                                              \
 		}                                                             \
 	} while (0)
@@ -570,21 +581,21 @@ static inline int PTHREAD_mutex_trylock(pthread_mutex_t *mtx,
 			     NIV_FULL_DEBUG))
 			DisplayLogComponentLevel(COMPONENT_RW_LOCK, filename,
 						 line, fun_name, NIV_FULL_DEBUG,
-						 "Acquired mutex %p (%s)", mtx,
-						 mtx_name);
+						 "Acquired mutex %p (%s)",
+						 (void *)mtx, mtx_name);
 	} else if (rc == EBUSY) {
 		if (unlikely(component_log_level[COMPONENT_RW_LOCK] >=
 			     NIV_FULL_DEBUG))
 			DisplayLogComponentLevel(COMPONENT_RW_LOCK, filename,
 						 line, fun_name, NIV_FULL_DEBUG,
-						 "Busy mutex %p (%s)", mtx,
-						 mtx_name);
+						 "Busy mutex %p (%s)",
+						 (void *)mtx, mtx_name);
 	} else {
 		if (likely(component_log_level[COMPONENT_RW_LOCK] >= NIV_CRIT))
 			DisplayLogComponentLevel(
 				COMPONENT_RW_LOCK, filename, line, fun_name,
 				NIV_CRIT, "Error %d, acquiring mutex %p (%s)",
-				rc, mtx, mtx_name);
+				rc, (void *)mtx, mtx_name);
 		abort();
 	}
 
@@ -609,13 +620,14 @@ static inline int PTHREAD_mutex_trylock(pthread_mutex_t *mtx,
 		rc = pthread_mutex_unlock(_mtx);                              \
 		if (rc == 0) {                                                \
 			LogFullDebug(COMPONENT_RW_LOCK,                       \
-				     "Released mutex %p (%s) at %s:%d", _mtx, \
+				     "Released mutex %p (%s) at %s:%d",       \
+				     (void *)_mtx,                            \
 				     #_mtx, __FILE__, __LINE__);              \
 		} else {                                                      \
 			LogCrit(COMPONENT_RW_LOCK,                            \
 				"Error %d, releasing mutex %p (%s) "          \
 				"at %s:%d",                                   \
-				rc, _mtx, #_mtx, __FILE__, __LINE__);         \
+				rc, (void *)_mtx, #_mtx, __FILE__, __LINE__); \
 			abort();                                              \
 		}                                                             \
 	} while (0)
@@ -638,13 +650,15 @@ static inline int PTHREAD_mutex_trylock(pthread_mutex_t *mtx,
 									  \
 		if (rc == 0) {                                            \
 			LogFullDebug(COMPONENT_RW_LOCK,                   \
-				     "Init mutex %p (%s) at %s:%d", _mtx, \
+				     "Init mutex %p (%s) at %s:%d",       \
+				     (void *)_mtx,                        \
 				     #_mtx, __FILE__, __LINE__);          \
 		} else {                                                  \
 			LogCrit(COMPONENT_RW_LOCK,                        \
 				"Error %d, Init mutex %p (%s) "           \
 				"at %s:%d",                               \
-				rc, _mtx, #_mtx, __FILE__, __LINE__);     \
+				rc, (void *)_mtx, #_mtx,                  \
+				__FILE__, __LINE__);                      \
 			abort();                                          \
 		}                                                         \
 	} while (0)
@@ -662,13 +676,14 @@ static inline int PTHREAD_mutex_trylock(pthread_mutex_t *mtx,
 		rc = pthread_mutex_destroy(_mtx);                            \
 		if (rc == 0) {                                               \
 			LogFullDebug(COMPONENT_RW_LOCK,                      \
-				     "Destroy mutex %p (%s) at %s:%d", _mtx, \
+				     "Destroy mutex %p (%s) at %s:%d",       \
+				     (void *) _mtx,                          \
 				     #_mtx, __FILE__, __LINE__);             \
 		} else {                                                     \
 			LogCrit(COMPONENT_RW_LOCK,                           \
 				"Error %d, Destroy mutex %p (%s) "           \
 				"at %s:%d",                                  \
-				rc, _mtx, #_mtx, __FILE__, __LINE__);        \
+				rc, (void *)_mtx, #_mtx, __FILE__, __LINE__);\
 			abort();                                             \
 		}                                                            \
 	} while (0)
@@ -777,13 +792,15 @@ static inline int PTHREAD_mutex_trylock(pthread_mutex_t *mtx,
 		rc = pthread_cond_init(_cond, _attr);                     \
 		if (rc == 0) {                                            \
 			LogFullDebug(COMPONENT_RW_LOCK,                   \
-				     "Init cond %p (%s) at %s:%d", _cond, \
+				     "Init cond %p (%s) at %s:%d",        \
+				     (void *)_cond,                       \
 				     #_cond, __FILE__, __LINE__);         \
 		} else {                                                  \
 			LogCrit(COMPONENT_RW_LOCK,                        \
 				"Error %d, Init cond %p (%s) "            \
 				"at %s:%d",                               \
-				rc, _cond, #_cond, __FILE__, __LINE__);   \
+				rc, (void *)_cond, #_cond, __FILE__,      \
+				__LINE__);                                \
 			abort();                                          \
 		}                                                         \
 	} while (0)
@@ -801,13 +818,15 @@ static inline int PTHREAD_mutex_trylock(pthread_mutex_t *mtx,
 		rc = pthread_cond_destroy(_cond);                            \
 		if (rc == 0) {                                               \
 			LogFullDebug(COMPONENT_RW_LOCK,                      \
-				     "Destroy cond %p (%s) at %s:%d", _cond, \
+				     "Destroy cond %p (%s) at %s:%d",        \
+				      (void *)_cond,                         \
 				     #_cond, __FILE__, __LINE__);            \
 		} else {                                                     \
 			LogCrit(COMPONENT_RW_LOCK,                           \
 				"Error %d, Destroy cond %p (%s) "            \
 				"at %s:%d",                                  \
-				rc, _cond, #_cond, __FILE__, __LINE__);      \
+				rc, (void *)_cond, #_cond, __FILE__,         \
+				__LINE__);                                   \
 			abort();                                             \
 		}                                                            \
 	} while (0)
@@ -842,7 +861,7 @@ static inline int PTHREAD_mutex_trylock(pthread_mutex_t *mtx,
 static inline int PTHREAD_cond_timedwait(pthread_cond_t *cond,
 					 pthread_mutex_t *mtx,
 					 const struct timespec *abstime,
-					 const char *cond_name,
+					 const char *UNUSED(cond_name),
 					 const char *filename,
 					 const char *fun_name, const int line)
 {
@@ -855,8 +874,9 @@ static inline int PTHREAD_cond_timedwait(pthread_cond_t *cond,
 			DisplayLogComponentLevel(
 				COMPONENT_RW_LOCK, filename, line, fun_name,
 				NIV_FULL_DEBUG,
-				"Wait cond %p, abstime: %ld.%09ld", cond,
-				abstime->tv_sec, abstime->tv_nsec);
+				"Wait cond %p, abstime: %ld.%09ld",
+				(void *)cond, abstime->tv_sec,
+				abstime->tv_nsec);
 	} else if (rc == ETIMEDOUT) {
 		if (unlikely(component_log_level[COMPONENT_RW_LOCK] >=
 			     NIV_FULL_DEBUG))
@@ -864,14 +884,16 @@ static inline int PTHREAD_cond_timedwait(pthread_cond_t *cond,
 				COMPONENT_RW_LOCK, filename, line, fun_name,
 				NIV_FULL_DEBUG,
 				"Error %d, Wait cond %p, abstime: %ld.%09ld",
-				rc, cond, abstime->tv_sec, abstime->tv_nsec);
+				rc, (void *)cond, abstime->tv_sec,
+				abstime->tv_nsec);
 	} else {
 		if (likely(component_log_level[COMPONENT_RW_LOCK] >= NIV_CRIT))
 			DisplayLogComponentLevel(
 				COMPONENT_RW_LOCK, filename, line, fun_name,
 				NIV_CRIT,
 				"Error %d, Wait cond %p, abstime: %ld.%09ld",
-				rc, cond, abstime->tv_sec, abstime->tv_nsec);
+				rc, (void *)cond, abstime->tv_sec,
+				abstime->tv_nsec);
 		abort();
 	}
 	return rc;
@@ -1264,5 +1286,9 @@ static inline bool parse_uint16_from_str(const char *token, uint16_t *out)
 	*out = (uint16_t)val;
 	return true;
 }
+
+#ifdef __cplusplus
+}
+#endif /* extern "C" */
 
 #endif /* !COMMON_UTILS_H */

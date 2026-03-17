@@ -26,6 +26,10 @@
 #ifndef __GSH_LTTNG_H__
 #define __GSH_LTTNG_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifdef USE_LTTNG
 
 #define __S1(x) #x
@@ -35,6 +39,12 @@
 #include "gsh_config.h"
 #include "lttng_generator.h"
 #include <lttng/tracepoint.h>
+
+#ifndef UNUSED
+#define UNUSED_ATTR __attribute__((unused))
+#define UNUSED(...) UNUSED_(__VA_ARGS__)
+#define UNUSED_(arg) NOT_USED_##arg UNUSED_ATTR
+#endif
 
 extern __thread struct req_op_context *op_ctx;
 
@@ -84,7 +94,7 @@ extern __thread struct req_op_context *op_ctx;
 
 /* We call the empty function with the variable args to avoid unused variables
  * warning when LTTNG traces are disabled */
-static inline void gsh_empty_function(const char *unused, ...)
+static inline void gsh_empty_function(const char *UNUSED(unused), ...)
 {
 }
 
@@ -121,5 +131,9 @@ static inline void gsh_empty_function(const char *unused, ...)
 #define TP_CINFO_FORMAT "atomic={} before={} after={}"
 #define TP_CINFO_ARGS_EXPAND(cinfo) \
 	(cinfo).atomic, (cinfo).before, (cinfo).after
+
+#ifdef __cplusplus
+}
+#endif /* extern "C" */
 
 #endif /* __GSH_LTTNG_H__ */
