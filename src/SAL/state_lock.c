@@ -3649,7 +3649,10 @@ void state_nfs4_owner_unlock_all(state_owner_t *owner)
 		/* Remove all locks held by this owner on the file */
 		status = state_unlock(obj, state, owner, false, 0, &lock);
 
-		if (!state_unlock_err_ok(status)) {
+		if (state_unlock_err_ok(status)) {
+			/* Delete the state_t */
+			state_del(state);
+		} else {
 			/* Increment the error count and try the next lock,
 			 * with any luck the memory pressure which is causing
 			 * the problem will resolve itself.
@@ -3657,9 +3660,6 @@ void state_nfs4_owner_unlock_all(state_owner_t *owner)
 			LogCrit(COMPONENT_STATE, "state_unlock failed %s",
 				state_err_str(status));
 			errcnt++;
-		} else if (status == STATE_SUCCESS) {
-			/* Delete the state_t */
-			state_del(state);
 		}
 
 		dec_state_t_ref(state);
