@@ -84,6 +84,7 @@ void *config_GetBlockNode(const char *block_name)
 	glist_for_each(glh, &all_blocks) {
 		node = glist_entry(glh, struct config_node, blocks);
 		if (!strcasecmp(node->u.nterm.name, block_name)) {
+			node->found = true;
 			return node;
 		}
 	}
