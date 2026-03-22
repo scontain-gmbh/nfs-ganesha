@@ -440,6 +440,8 @@ static inline void inc_state_t_ref(struct state_t *state)
 
 	LogFullDebug(COMPONENT_STATE, "State %p state_refcount now %" PRIi32,
 		     state, refcount);
+	GSH_AUTO_TRACEPOINT(state, inc_state_t_ref, TRACE_INFO,
+			    "State ({}) incref. Refcount={}", state, refcount);
 }
 
 void dec_nfs4_state_ref(struct state_t *state);

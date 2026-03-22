@@ -44,6 +44,11 @@
 #include "log.h"
 #include "fsal.h"
 
+#include "gsh_lttng/gsh_lttng.h"
+#if defined(USE_LTTNG) && !defined(LTTNG_PARSING)
+#include "gsh_lttng/generated_traces/state.h"
+#endif
+
 /**
  * @brief NLM States
  */
@@ -254,6 +259,9 @@ void dec_nlm_state_ref(state_t *state)
 
 	refcount = atomic_dec_int32_t(&state->state_refcount);
 
+	GSH_AUTO_TRACEPOINT(state, dec_nlm_state_ref, TRACE_INFO,
+			    "State ({}) decref. Refcount={}", state, refcount);
+
 	assert(refcount >= 0);
 
 	if (refcount > 0) {
@@ -355,6 +363,7 @@ int get_nlm_state(enum state_type state_type, struct fsal_obj_handle *state_obj,
 	hash_error_t rc;
 	struct gsh_buffdesc buffkey;
 	struct gsh_buffdesc buffval;
+	int32_t refcount;
 
 	*pstate = NULL;
 	memset(&key, 0, sizeof(key));
@@ -392,7 +401,11 @@ int get_nlm_state(enum state_type state_type, struct fsal_obj_handle *state_obj,
 			break;
 		}
 
-		if (atomic_inc_unless_0_int32_t(&state->state_refcount) == 0) {
+		refcount = atomic_inc_unless_0_int32_t(&state->state_refcount);
+		GSH_AUTO_TRACEPOINT(state, get_nlm_state, TRACE_INFO,
+				    "State ({}) incref. Refcount={}", state,
+				    refcount);
+		if (refcount == 0) {
 			/* The state is in the process of getting
 			 * deleted. Delete from the hashtable and
 			 * pretend as though we didn't find it.

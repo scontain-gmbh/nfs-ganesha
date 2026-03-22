@@ -63,6 +63,11 @@
 #include "nfs_proto_tools.h"
 #include "city.h"
 
+#include "gsh_lttng/gsh_lttng.h"
+#if defined(USE_LTTNG) && !defined(LTTNG_PARSING)
+#include "gsh_lttng/generated_traces/state.h"
+#endif
+
 /**
  * @brief Hash table for stateids.
  */
@@ -498,6 +503,8 @@ void dec_nfs4_state_ref(struct state_t *state)
 
 	refcount = atomic_dec_int32_t(&state->state_refcount);
 
+	GSH_AUTO_TRACEPOINT(state, dec_nfs4_state_ref, TRACE_INFO,
+			    "State ({}) decref. Refcount={}", state, refcount);
 	assert(refcount >= 0);
 
 	if (refcount > 0) {
