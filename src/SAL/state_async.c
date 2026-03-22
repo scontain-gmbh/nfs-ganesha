@@ -78,8 +78,9 @@ static void state_blocked_lock_caller(struct fridgethr_context *ctx)
 				NULL, 0, 0, UNKNOWN_REQUEST);
 		set_op_ctx = true;
 	}
-
+	STATELOCK_lock(lock_entry->sle_obj);
 	process_blocked_lock_upcall(lock_entry);
+	STATELOCK_unlock(lock_entry->sle_obj);
 
 	/* We are done with the lock_entry, release the reference now. */
 	lock_entry_dec_ref(lock_entry);
@@ -133,6 +134,7 @@ static void test_blocking_lock_eligibility(struct fridgethr_context *ctx)
 	state_lock_entry_t *lock_entry = ctx->arg;
 	struct gsh_export *export;
 	struct req_op_context op_context;
+	struct state_block_data_t *sle_block_data = lock_entry->sle_block_data;
 
 	export = lock_entry->sle_export;
 	if (!export_ready(export)) {
@@ -145,7 +147,7 @@ static void test_blocking_lock_eligibility(struct fridgethr_context *ctx)
 	/* Initialize a root context, needed to get a valid export. */
 	init_op_context(&op_context, export, export->fsal_export, NULL, NULL, 0,
 			0, UNKNOWN_REQUEST);
-
+	STATELOCK_lock(lock_entry->sle_obj);
 	state_status_t lock_test_status =
 		state_test(lock_entry->sle_obj, lock_entry->sle_state,
 			   lock_entry->sle_owner, &lock_entry->sle_lock,
@@ -154,9 +156,10 @@ static void test_blocking_lock_eligibility(struct fridgethr_context *ctx)
 		     lock_test_status);
 	if (lock_test_status == STATE_SUCCESS)
 		process_blocked_lock_upcall(lock_entry);
-	lock_entry->sle_block_data->sbd_prot.sbd_v4.snbd_last_poll_time =
-		time(NULL);
-
+	if (sle_block_data)
+		sle_block_data->sbd_prot.sbd_v4.snbd_last_poll_time =
+			time(NULL);
+	STATELOCK_unlock(lock_entry->sle_obj);
 	lock_entry_dec_ref(lock_entry);
 	release_op_context();
 }

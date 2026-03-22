@@ -223,9 +223,10 @@ enum nfs_req_result nfs4_op_lockt(struct nfs_argop4 *op, compound_data_t *data,
 	/* Now we have a lock owner and a stateid.  Go ahead and test
 	 * the lock in SAL (and FSAL).
 	 */
-
+	STATELOCK_lock(data->current_obj);
 	state_status = state_test(data->current_obj, state, lock_owner,
 				  &lock_desc, &conflict_owner, &conflict_desc);
+	STATELOCK_unlock(data->current_obj);
 
 	if (state_status == STATE_LOCK_CONFLICT) {
 		/* A conflicting lock from a different lock_owner,
