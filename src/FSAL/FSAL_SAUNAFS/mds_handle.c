@@ -150,10 +150,10 @@ static nfsstat4 layoutreturn(struct fsal_obj_handle *objectHandle,
  * @retval false: Otherwise
  */
 bool isOffsetChangedByClient(const struct fsal_layoutcommit_arg *arguments,
-			     struct sau_attr_reply previousReply)
+			     struct sau_attr_reply *previousReply)
 {
 	return arguments->new_offset &&
-	       previousReply.attr.st_size < (long)arguments->last_write + 1;
+	       previousReply->attr.st_size < (long)arguments->last_write + 1;
 }
 
 /**
@@ -166,15 +166,15 @@ bool isOffsetChangedByClient(const struct fsal_layoutcommit_arg *arguments,
  * @retval false: Otherwise
  */
 bool hasRecentModificationTime(const struct fsal_layoutcommit_arg *arguments,
-			       struct sau_attr_reply previousReply)
+			       struct sau_attr_reply *previousReply)
 {
 	return arguments->time_changed &&
 	       (arguments->new_time.seconds >
-			previousReply.attr.st_mtim.tv_sec ||
+			previousReply->attr.st_mtim.tv_sec ||
 		(arguments->new_time.seconds ==
-			 previousReply.attr.st_mtim.tv_sec &&
+			 previousReply->attr.st_mtim.tv_sec &&
 		 arguments->new_time.nseconds >
-			 previousReply.attr.st_mtim.tv_nsec));
+			 previousReply->attr.st_mtim.tv_nsec));
 }
 
 /**
@@ -234,14 +234,14 @@ static nfsstat4 layoutcommit(struct fsal_obj_handle *objectHandle,
 
 	memset(&posixAttributes, 0, sizeof(posixAttributes));
 
-	if (isOffsetChangedByClient(arguments, previousReply)) {
+	if (isOffsetChangedByClient(arguments, &previousReply)) {
 		mask |= SAU_SET_ATTR_SIZE;
 		posixAttributes.st_size = (__off_t)arguments->last_write + 1;
 		output->size_supplied = true;
 		output->new_size = arguments->last_write + 1;
 	}
 
-	if (hasRecentModificationTime(arguments, previousReply)) {
+	if (hasRecentModificationTime(arguments, &previousReply)) {
 		posixAttributes.st_mtim.tv_sec = arguments->new_time.seconds;
 		posixAttributes.st_mtim.tv_nsec = arguments->new_time.nseconds;
 		mask |= SAU_SET_ATTR_MTIME;
