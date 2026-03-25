@@ -3060,6 +3060,8 @@ static void queue_deleg_transition_handler(struct fridgethr_context *ctx)
 	char *src = NULL;
 	nfs_client_id_t *clientid = NULL;
 	struct state_deleg *deleg = NULL;
+	bool write_delegated = false;
+	bool read_delegated = false;
 
 	/* Initializing the op_context with export and fsal_export */
 	init_op_context_simple(&op_context, export, export->fsal_export);
@@ -3120,12 +3122,20 @@ static void queue_deleg_transition_handler(struct fridgethr_context *ctx)
 			 * delegation and the corresponding write or read
 			 * delegation was disabled in the config.
 			 */
-			if ((deleg->sd_type == OPEN_DELEGATE_WRITE &&
-			     !(op_ctx->export_perms.options &
-			       EXPORT_OPTION_WRITE_DELEG)) ||
-			    (deleg->sd_type == OPEN_DELEGATE_READ &&
-			     !(op_ctx->export_perms.options &
-			       EXPORT_OPTION_READ_DELEG))) {
+			write_delegated =
+				(deleg->sd_type == OPEN_DELEGATE_WRITE ||
+				 deleg->sd_type ==
+					 OPEN_DELEGATE_WRITE_ATTRS_DELEG);
+
+			read_delegated =
+				(deleg->sd_type == OPEN_DELEGATE_READ ||
+				 deleg->sd_type ==
+					 OPEN_DELEGATE_READ_ATTRS_DELEG);
+
+			if ((write_delegated && !(op_ctx->export_perms.options &
+						  EXPORT_OPTION_WRITE_DELEG)) ||
+			    (read_delegated && !(op_ctx->export_perms.options &
+						 EXPORT_OPTION_READ_DELEG))) {
 				LogFullDebug(
 					COMPONENT_FSAL,
 					"Deleg has been disabled. Recalling");
