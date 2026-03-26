@@ -1465,31 +1465,29 @@ void mdcache_src_dest_lock(mdcache_entry_t *src, mdcache_entry_t *dest)
 	 * A's content_lock (which is held by thread 1).
 	 * This change is to avoid this deadlock.
 	 */
+	/* Order by address to ensure consistent lock ordering */
+	mdcache_entry_t *first = (src < dest) ? src : dest;
+	mdcache_entry_t *second = (src < dest) ? dest : src;
 
-retry_lock:
-	if (src == dest)
+	if (src == dest) {
 		PTHREAD_RWLOCK_wrlock(&src->content_lock);
-	else if (src < dest) {
-		PTHREAD_RWLOCK_wrlock(&src->content_lock);
-		rc = pthread_rwlock_trywrlock(&dest->content_lock);
-		if (rc) {
-			LogDebugAlt(COMPONENT_NFS_READDIR, COMPONENT_MDCACHE,
-				    "retry dest %p lock, src %p", dest, src);
-			PTHREAD_RWLOCK_unlock(&src->content_lock);
-			sleep(1);
-			goto retry_lock;
-		}
-	} else {
-		PTHREAD_RWLOCK_wrlock(&dest->content_lock);
-		rc = pthread_rwlock_trywrlock(&src->content_lock);
-		if (rc) {
-			LogDebugAlt(COMPONENT_NFS_READDIR, COMPONENT_MDCACHE,
-				    "retry src %p lock, dest %p", src, dest);
-			PTHREAD_RWLOCK_unlock(&dest->content_lock);
-			sleep(1);
-			goto retry_lock;
-		}
+		return;
 	}
+
+	do {
+		PTHREAD_RWLOCK_wrlock(&first->content_lock);
+
+		rc = pthread_rwlock_trywrlock(&second->content_lock);
+		if (rc) {
+			LogDebugAlt(COMPONENT_NFS_READDIR, COMPONENT_MDCACHE,
+				    "retry lock: first=%p, second=%p", first,
+				    second);
+
+			PTHREAD_RWLOCK_unlock(&first->content_lock);
+			usleep(10000); /* 10 milliseconds */
+		}
+
+	} while (rc);
 }
 
 /**
