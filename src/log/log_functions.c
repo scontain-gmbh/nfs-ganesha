@@ -1599,6 +1599,7 @@ static log_levels_t default_log_levels[] = {
 	[COMPONENT_NFS_MSK] = NIV_EVENT,
 	[COMPONENT_XPRT] = NIV_EVENT,
 	[COMPONENT_QOS] = NIV_EVENT,
+	[COMPONENT_RECOVERY] = NIV_EVENT,
 };
 
 /* Active set of log levels */
@@ -1652,7 +1653,8 @@ static log_levels_t default_conditional_log_levels[] = {
 	[COMPONENT_DBUS] = NIV_FULL_DEBUG,
 	[COMPONENT_NFS_MSK] = NIV_FULL_DEBUG,
 	[COMPONENT_XPRT] = NIV_FULL_DEBUG,
-	[COMPONENT_QOS] = NIV_FULL_DEBUG
+	[COMPONENT_QOS] = NIV_FULL_DEBUG,
+	[COMPONENT_RECOVERY] = NIV_FULL_DEBUG
 };
 
 /* Active set of conditional log levels */
@@ -1782,6 +1784,9 @@ struct log_component_info LogComponents[COMPONENT_COUNT] = {
 	[COMPONENT_QOS] = {
 		.comp_name = "COMPONENT_QOS",
 		.comp_str = "QOS",},
+	[COMPONENT_RECOVERY] = {
+		.comp_name = "COMPONENT_RECOVERY",
+		.comp_str = "RECOVERY",},
 };
 
 void DisplayLogComponentLevel(log_components_t component, const char *file,
@@ -1947,6 +1952,9 @@ HANDLE_PROP(DBUS);
 HANDLE_PROP(NFS_MSK);
 HANDLE_PROP(XPRT);
 HANDLE_PROP(QOS);
+HANDLE_PROP(RECOVERY);
+
+/* clang-format off */
 
 static struct gsh_dbus_prop *log_props[] = { LOG_PROPERTY_ITEM(ALL),
 					     LOG_PROPERTY_ITEM(LOG),
@@ -1986,7 +1994,10 @@ static struct gsh_dbus_prop *log_props[] = { LOG_PROPERTY_ITEM(ALL),
 					     LOG_PROPERTY_ITEM(NFS_MSK),
 					     LOG_PROPERTY_ITEM(XPRT),
 					     LOG_PROPERTY_ITEM(QOS),
+					     LOG_PROPERTY_ITEM(RECOVERY),
 					     NULL };
+
+/* clang-format on */
 
 struct gsh_dbus_interface log_interface = {
 	.name = "org.ganesha.nfsd.log.component",
@@ -2271,6 +2282,8 @@ static struct config_item component_levels[] = {
 			 int),
 	CONF_INDEX_TOKEN("XPRT", NB_LOG_LEVEL, log_levels, COMPONENT_XPRT, int),
 	CONF_INDEX_TOKEN("QOS", NB_LOG_LEVEL, log_levels, COMPONENT_QOS, int),
+	CONF_INDEX_TOKEN("RECOVERY", NB_LOG_LEVEL, log_levels,
+			 COMPONENT_RECOVERY, int),
 	CONFIG_EOL
 };
 
@@ -2595,6 +2608,8 @@ static struct config_item conditional_params[] = {
 			 int),
 	CONF_INDEX_TOKEN("XPRT", NB_LOG_LEVEL, log_levels, COMPONENT_XPRT, int),
 	CONF_INDEX_TOKEN("QOS", NB_LOG_LEVEL, log_levels, COMPONENT_QOS, int),
+	CONF_INDEX_TOKEN("RECOVERY", NB_LOG_LEVEL, log_levels,
+			 COMPONENT_RECOVERY, int),
 	CONF_ITEM_PROC_MULT("Exports", noop_conf_init, export_id_list_adder,
 			    export_id_list, export_id_glist),
 	CONF_ITEM_PROC_MULT("Clients", noop_conf_init, client_ip_list_adder,

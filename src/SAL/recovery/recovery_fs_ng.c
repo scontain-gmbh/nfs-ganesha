@@ -58,11 +58,11 @@ static void legacy_fs_db_migrate(void)
 			       v4_recov_link);
 
 		if (unlikely(ret >= sizeof(pathbuf))) {
-			LogCrit(COMPONENT_CLIENTID, "Path too long %s.XXXXXX",
+			LogCrit(COMPONENT_RECOVERY, "Path too long %s.XXXXXX",
 				v4_recov_link);
 			return;
 		} else if (unlikely(ret < 0)) {
-			LogCrit(COMPONENT_CLIENTID,
+			LogCrit(COMPONENT_RECOVERY,
 				"Unexpected return from snprintf %d error %s (%d)",
 				ret, strerror(errno), errno);
 			return;
@@ -70,7 +70,7 @@ static void legacy_fs_db_migrate(void)
 
 		dname = mkdtemp(pathbuf);
 		if (!dname) {
-			LogEvent(COMPONENT_CLIENTID,
+			LogEvent(COMPONENT_RECOVERY,
 				 "Failed to create temp file (%s): %s (%d)",
 				 pathbuf, strerror(errno), errno);
 			return;
@@ -79,7 +79,7 @@ static void legacy_fs_db_migrate(void)
 		ret = rename(v4_recov_link, dname);
 		if (ret != 0) {
 			LogEvent(
-				COMPONENT_CLIENTID,
+				COMPONENT_RECOVERY,
 				"Failed to rename v4 recovery dir (%s) to (%s): %s (%d)",
 				v4_recov_link, dname, strerror(errno), errno);
 			return;
@@ -88,7 +88,7 @@ static void legacy_fs_db_migrate(void)
 		ret = symlink(basename(dname), v4_recov_link);
 		if (ret != 0) {
 			LogEvent(
-				COMPONENT_CLIENTID,
+				COMPONENT_RECOVERY,
 				"Failed to set recoverydir symlink at %s: %s (%d)",
 				dname, strerror(errno), errno);
 			return;
@@ -105,7 +105,7 @@ static int fs_ng_create_recov_dir(void)
 	err = mkdir(nfs_param.nfsv4_param.recov_root, 0700);
 	if (err == -1 && errno != EEXIST) {
 		err = errno;
-		LogCrit(COMPONENT_CLIENTID,
+		LogCrit(COMPONENT_RECOVERY,
 			"Failed to create v4 recovery dir (%s): %s (%d)",
 			nfs_param.nfsv4_param.recov_root, strerror(errno),
 			errno);
@@ -117,14 +117,14 @@ static int fs_ng_create_recov_dir(void)
 		       nfs_param.nfsv4_param.recov_dir);
 
 	if (unlikely(err >= sizeof(v4_recov_dir))) {
-		LogCrit(COMPONENT_CLIENTID, "Path too long %s/%s",
+		LogCrit(COMPONENT_RECOVERY, "Path too long %s/%s",
 			nfs_param.nfsv4_param.recov_root,
 			nfs_param.nfsv4_param.recov_dir);
 		return -ENAMETOOLONG;
 	} else if (unlikely(err < 0)) {
 		int error = errno;
 
-		LogCrit(COMPONENT_CLIENTID,
+		LogCrit(COMPONENT_RECOVERY,
 			"Unexpected return from snprintf %d error %s (%d)", err,
 			strerror(error), error);
 		return -error;
@@ -133,7 +133,7 @@ static int fs_ng_create_recov_dir(void)
 	err = mkdir(v4_recov_dir, 0700);
 	if (err == -1 && errno != EEXIST) {
 		err = errno;
-		LogCrit(COMPONENT_CLIENTID,
+		LogCrit(COMPONENT_RECOVERY,
 			"Failed to create v4 recovery dir(%s): %s (%d)",
 			v4_recov_dir, strerror(errno), errno);
 		return -err;
@@ -144,13 +144,13 @@ static int fs_ng_create_recov_dir(void)
 		err = snprintf(host, sizeof(host), "node%d", g_nodeid);
 
 		if (unlikely(err >= sizeof(host))) {
-			LogCrit(COMPONENT_CLIENTID, "node%d too long",
+			LogCrit(COMPONENT_RECOVERY, "node%d too long",
 				g_nodeid);
 			return -EINVAL;
 		} else if (unlikely(err < 0)) {
 			int error = errno;
 
-			LogCrit(COMPONENT_CLIENTID,
+			LogCrit(COMPONENT_RECOVERY,
 				"Unexpected return from snprintf %d error %s (%d)",
 				err, strerror(error), error);
 			return -error;
@@ -159,7 +159,7 @@ static int fs_ng_create_recov_dir(void)
 		err = gethostname(host, sizeof(host));
 		if (err) {
 			err = errno;
-			LogCrit(COMPONENT_CLIENTID,
+			LogCrit(COMPONENT_RECOVERY,
 				"Failed to gethostname: %s (%d)",
 				strerror(errno), errno);
 			return -err;
@@ -171,14 +171,14 @@ static int fs_ng_create_recov_dir(void)
 		       nfs_param.nfsv4_param.recov_dir, host);
 
 	if (unlikely(err >= sizeof(v4_recov_link))) {
-		LogCrit(COMPONENT_CLIENTID, "Path too long %s/%s/%s",
+		LogCrit(COMPONENT_RECOVERY, "Path too long %s/%s/%s",
 			nfs_param.nfsv4_param.recov_root,
 			nfs_param.nfsv4_param.recov_dir, host);
 		return -EINVAL;
 	} else if (unlikely(err < 0)) {
 		int error = errno;
 
-		LogCrit(COMPONENT_CLIENTID,
+		LogCrit(COMPONENT_RECOVERY,
 			"Unexpected return from snprintf %d error %s (%d)", err,
 			strerror(error), error);
 		return -error;
@@ -188,13 +188,13 @@ static int fs_ng_create_recov_dir(void)
 		       v4_recov_link);
 
 	if (unlikely(err >= sizeof(v4_recov_dir))) {
-		LogCrit(COMPONENT_CLIENTID, "Path too long %s.XXXXXX",
+		LogCrit(COMPONENT_RECOVERY, "Path too long %s.XXXXXX",
 			v4_recov_link);
 		return -ENAMETOOLONG;
 	} else if (unlikely(err < 0)) {
 		int error = errno;
 
-		LogCrit(COMPONENT_CLIENTID,
+		LogCrit(COMPONENT_RECOVERY,
 			"Unexpected return from snprintf %d error %s (%d)", err,
 			strerror(error), error);
 		return -error;
@@ -205,7 +205,7 @@ static int fs_ng_create_recov_dir(void)
 	newdir = mkdtemp(v4_recov_dir);
 	if (newdir != v4_recov_dir) {
 		err = errno;
-		LogCrit(COMPONENT_CLIENTID,
+		LogCrit(COMPONENT_RECOVERY,
 			"Failed to create v4 recovery dir(%s): %s (%d)",
 			v4_recov_dir, strerror(errno), errno);
 		return -err;
@@ -213,7 +213,7 @@ static int fs_ng_create_recov_dir(void)
 
 	legacy_fs_db_migrate();
 
-	LogEvent(COMPONENT_CLIENTID,
+	LogEvent(COMPONENT_RECOVERY,
 		 "fs-ng recovery backend initialization complete");
 
 	return 0;
@@ -246,7 +246,7 @@ static int fs_ng_read_recov_clids_impl(const char *parent_path, char *clid_str,
 
 	dp = opendir(parent_path);
 	if (dp == NULL) {
-		LogEvent(COMPONENT_CLIENTID,
+		LogEvent(COMPONENT_RECOVERY,
 			 "Failed to open v4 recovery dir (%s): %s (%d)",
 			 parent_path, strerror(errno), errno);
 		return -1;
@@ -299,7 +299,7 @@ static int fs_ng_read_recov_clids_impl(const char *parent_path, char *clid_str,
 			 * might exist due to program crash.
 			 */
 			if (strlen(build_clid) >= PATH_MAX) {
-				LogEvent(COMPONENT_CLIENTID,
+				LogEvent(COMPONENT_RECOVERY,
 					 "invalid clid format: %s, too long",
 					 build_clid);
 				gsh_free(sub_path);
@@ -308,7 +308,7 @@ static int fs_ng_read_recov_clids_impl(const char *parent_path, char *clid_str,
 			}
 			ptr = strchr(build_clid, '(');
 			if (ptr == NULL) {
-				LogEvent(COMPONENT_CLIENTID,
+				LogEvent(COMPONENT_RECOVERY,
 					 "invalid clid format: %s", build_clid);
 				gsh_free(sub_path);
 				gsh_free(build_clid);
@@ -316,7 +316,7 @@ static int fs_ng_read_recov_clids_impl(const char *parent_path, char *clid_str,
 			}
 			ptr2 = strchr(ptr, ':');
 			if (ptr2 == NULL) {
-				LogEvent(COMPONENT_CLIENTID,
+				LogEvent(COMPONENT_RECOVERY,
 					 "invalid clid format: %s", build_clid);
 				gsh_free(sub_path);
 				gsh_free(build_clid);
@@ -324,7 +324,7 @@ static int fs_ng_read_recov_clids_impl(const char *parent_path, char *clid_str,
 			}
 			len = ptr2 - ptr - 1;
 			if (len >= 9) {
-				LogEvent(COMPONENT_CLIENTID,
+				LogEvent(COMPONENT_RECOVERY,
 					 "invalid clid format: %s", build_clid);
 				gsh_free(sub_path);
 				gsh_free(build_clid);
@@ -335,9 +335,10 @@ static int fs_ng_read_recov_clids_impl(const char *parent_path, char *clid_str,
 			len = strlen(ptr2);
 			if ((len == (cid_len + 2)) && (ptr2[len - 1] == ')')) {
 				new_ent = add_clid_entry(build_clid, true);
-				LogDebug(COMPONENT_CLIENTID,
-					 "added %s to clid list",
-					 new_ent->cl_name);
+				LogDebugAlt(COMPONENT_CLIENTID,
+					    COMPONENT_RECOVERY,
+					    "added %s to clid list",
+					    new_ent->cl_name);
 			}
 		}
 		gsh_free(build_clid);
@@ -357,7 +358,7 @@ static void fs_ng_read_recov_clids_recover(add_clid_entry_hook add_clid_entry,
 	rc = fs_ng_read_recov_clids_impl(v4_recov_link, NULL, add_clid_entry,
 					 add_rfh_entry);
 	if (rc == -1) {
-		LogEvent(COMPONENT_CLIENTID,
+		LogEvent(COMPONENT_RECOVERY,
 			 "Failed to read v4 recovery dir (%s)", v4_recov_link);
 		return;
 	}
@@ -400,30 +401,30 @@ static void fs_ng_read_recov_clids(nfs_grace_start_t *gsp,
 			      nfs_param.nfsv4_param.recov_dir, gsp->nodeid);
 
 		if (unlikely(rc >= sizeof(path))) {
-			LogCrit(COMPONENT_CLIENTID,
+			LogCrit(COMPONENT_RECOVERY,
 				"Path too long %s/%s/node%d",
 				nfs_param.nfsv4_param.recov_root,
 				nfs_param.nfsv4_param.recov_dir, gsp->nodeid);
 		} else if (unlikely(rc < 0)) {
-			LogCrit(COMPONENT_CLIENTID,
+			LogCrit(COMPONENT_RECOVERY,
 				"Unexpected return from snprintf %d error %s (%d)",
 				rc, strerror(errno), errno);
 			return;
 		}
 		break;
 	default:
-		LogWarn(COMPONENT_CLIENTID, "Recovery unknown event: %d",
+		LogWarn(COMPONENT_RECOVERY, "Recovery unknown event: %d",
 			gsp->event);
 		return;
 	}
 
-	LogEvent(COMPONENT_CLIENTID, "Recovery for nodeid %d dir (%s)",
+	LogEvent(COMPONENT_RECOVERY, "Recovery for nodeid %d dir (%s)",
 		 gsp->nodeid, path);
 
 	rc = fs_ng_read_recov_clids_impl(path, NULL, add_clid_entry,
 					 add_rfh_entry);
 	if (rc == -1) {
-		LogEvent(COMPONENT_CLIENTID,
+		LogEvent(COMPONENT_RECOVERY,
 			 "Failed to read v4 recovery dir (%s)", path);
 		return;
 	}
@@ -444,11 +445,11 @@ static void fs_ng_swap_recov_dir(void)
 	ret = snprintf(tmp_link, sizeof(tmp_link), "%s.tmp", v4_recov_link);
 
 	if (unlikely(ret >= sizeof(tmp_link))) {
-		LogCrit(COMPONENT_CLIENTID, "Path too long %s.tmp",
+		LogCrit(COMPONENT_RECOVERY, "Path too long %s.tmp",
 			v4_recov_link);
 		return;
 	} else if (unlikely(ret < 0)) {
-		LogCrit(COMPONENT_CLIENTID,
+		LogCrit(COMPONENT_RECOVERY,
 			"Unexpected return from snprintf %d error %s (%d)", ret,
 			strerror(errno), errno);
 		return;
@@ -457,7 +458,7 @@ static void fs_ng_swap_recov_dir(void)
 	/* unlink old symlink, if any */
 	ret = unlink(tmp_link);
 	if (ret != 0 && errno != ENOENT) {
-		LogEvent(COMPONENT_CLIENTID,
+		LogEvent(COMPONENT_RECOVERY,
 			 "Unable to remove recoverydir symlink: %s (%d)",
 			 strerror(errno), errno);
 		return;
@@ -466,7 +467,7 @@ static void fs_ng_swap_recov_dir(void)
 	/* make a new symlink in a temporary spot */
 	ret = symlink(basename(v4_recov_dir), tmp_link);
 	if (ret != 0) {
-		LogEvent(COMPONENT_CLIENTID,
+		LogEvent(COMPONENT_RECOVERY,
 			 "Unable to create recoverydir symlink: %s (%d)",
 			 strerror(errno), errno);
 		return;
@@ -475,7 +476,7 @@ static void fs_ng_swap_recov_dir(void)
 	/* rename tmp link into place */
 	ret = rename(tmp_link, v4_recov_link);
 	if (ret != 0) {
-		LogEvent(COMPONENT_CLIENTID,
+		LogEvent(COMPONENT_RECOVERY,
 			 "Unable to rename recoverydir symlink: %s (%d)",
 			 strerror(errno), errno);
 		return;

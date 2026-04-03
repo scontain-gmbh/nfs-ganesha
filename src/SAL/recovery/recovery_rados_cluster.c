@@ -55,7 +55,7 @@ static void rados_grace_watchcb(void *arg, uint64_t notify_id, uint64_t handle,
 	ret = rados_notify_ack(rados_recov_io_ctx, rados_kv_param.grace_oid,
 			       notify_id, rados_watch_cookie, NULL, 0);
 	if (ret < 0)
-		LogEvent(COMPONENT_CLIENTID, "rados_notify_ack failed: %d",
+		LogEvent(COMPONENT_RECOVERY, "rados_notify_ack failed: %d",
 			 ret);
 
 	/* Now kick the reaper to check things out */
@@ -83,7 +83,7 @@ static int ip_str_to_int(char *ip_str)
 			&(((struct sockaddr_in6 *)&sp)->sin6_addr.s6_addr[12]);
 		addr = ntohl(*(uint32_t *)ab);
 	} else {
-		LogCrit(COMPONENT_CLIENTID, "Unable to validate the IP : %s",
+		LogCrit(COMPONENT_RECOVERY, "Unable to validate the IP : %s",
 			ip_str);
 	}
 	return addr;
@@ -96,7 +96,7 @@ static int rados_cluster_init(void)
 
 	ret = set_nodeid();
 	if (ret < 0) {
-		LogCrit(COMPONENT_CLIENTID, "Failed to set nodeid: %d", ret);
+		LogCrit(COMPONENT_RECOVERY, "Failed to set nodeid: %d", ret);
 		goto out_free_nodeid;
 	}
 
@@ -107,7 +107,7 @@ static int rados_cluster_init(void)
 			ret = snprintf(object_ipbased, maxlen, "ip_%d",
 				       addr_int);
 			if (unlikely(ret >= maxlen) || unlikely(ret < 0))
-				LogCrit(COMPONENT_CLIENTID,
+				LogCrit(COMPONENT_RECOVERY,
 					"Error while creating object name (IP based)");
 		} else {
 			/* IP address not provided, failback to nodeid based
@@ -120,7 +120,7 @@ static int rados_cluster_init(void)
 			       rados_kv_param.ceph_conf, rados_kv_param.pool,
 			       rados_kv_param.namespace);
 	if (ret < 0) {
-		LogCrit(COMPONENT_CLIENTID,
+		LogCrit(COMPONENT_RECOVERY,
 			"Failed to connect to rados cluster: %d", ret);
 		goto out_shutdown;
 	}
@@ -128,7 +128,7 @@ static int rados_cluster_init(void)
 	ret = rados_grace_member(rados_recov_io_ctx, rados_kv_param.grace_oid,
 				 nodeid);
 	if (ret < 0) {
-		LogCrit(COMPONENT_CLIENTID,
+		LogCrit(COMPONENT_RECOVERY,
 			"Cluster membership check failed: %d", ret);
 		goto out_shutdown;
 	}
@@ -138,12 +138,12 @@ static int rados_cluster_init(void)
 			   &rados_watch_cookie, rados_grace_watchcb, NULL, 30,
 			   NULL);
 	if (ret < 0) {
-		LogCrit(COMPONENT_CLIENTID,
+		LogCrit(COMPONENT_RECOVERY,
 			"Failed to set watch on grace db: %d", ret);
 		goto out_shutdown;
 	}
 
-	LogEvent(COMPONENT_CLIENTID,
+	LogEvent(COMPONENT_RECOVERY,
 		 "rados-cluster recovery backend initialization complete");
 
 	return 0;
@@ -171,18 +171,18 @@ static void rados_cluster_end_grace(void)
 					rados_kv_param.grace_oid, nodeid, &cur,
 					&rec);
 	if (ret)
-		LogEvent(COMPONENT_CLIENTID,
+		LogEvent(COMPONENT_RECOVERY,
 			 "Failed to set grace off for %s: %d", nodeid, ret);
 
 	wop = rados_create_write_op();
 	rados_write_op_remove(wop);
 	if (!takeover) {
-		LogDebug(COMPONENT_CLIENTID, "Recovery object removed: %s",
+		LogDebug(COMPONENT_RECOVERY, "Recovery object removed: %s",
 			 old_oid->gr_val);
 		ret = rados_write_op_operate(wop, rados_recov_io_ctx,
 					     old_oid->gr_val, NULL, 0);
 	} else {
-		LogDebug(COMPONENT_CLIENTID, "Recovery object removed: %s",
+		LogDebug(COMPONENT_RECOVERY, "Recovery object removed: %s",
 			 object_takeover_old);
 		ret = rados_write_op_operate(wop, rados_recov_io_ctx,
 					     object_takeover_old, NULL, 0);
@@ -190,10 +190,10 @@ static void rados_cluster_end_grace(void)
 
 	if (ret) {
 		if (!takeover)
-			LogEvent(COMPONENT_CLIENTID, "Failed to remove %s: %d",
+			LogEvent(COMPONENT_RECOVERY, "Failed to remove %s: %d",
 				 old_oid->gr_val, ret);
 		else
-			LogEvent(COMPONENT_CLIENTID, "Failed to remove %s: %d",
+			LogEvent(COMPONENT_RECOVERY, "Failed to remove %s: %d",
 				 object_takeover_old, ret);
 	}
 
@@ -259,7 +259,7 @@ static void set_recovery_object_for_takeover(nfs_grace_start_t *gsp)
 	switch (gsp->event) {
 	case EVENT_TAKE_IP:
 		if (!nfs_param.nfsv4_param.recovery_backend_ipbased) {
-			LogCrit(COMPONENT_CLIENTID,
+			LogCrit(COMPONENT_RECOVERY,
 				"No takeover, IP based recovery mechanism not enabled.");
 			break;
 		}
@@ -267,35 +267,35 @@ static void set_recovery_object_for_takeover(nfs_grace_start_t *gsp)
 		ret = snprintf(object_takeover, sizeof(object_takeover),
 			       "ip_%d", take_addr);
 		if (unlikely(ret >= sizeof(object_takeover))) {
-			LogCrit(COMPONENT_CLIENTID,
+			LogCrit(COMPONENT_RECOVERY,
 				"object_takeover too long %s_recov",
 				gsp->ipaddr);
 		} else if (unlikely(ret < 0)) {
-			LogCrit(COMPONENT_CLIENTID, "snprintf %d error %s (%d)",
+			LogCrit(COMPONENT_RECOVERY, "snprintf %d error %s (%d)",
 				ret, strerror(errno), errno);
 		} else
 			takeover = true;
 		break;
 	case EVENT_TAKE_NODEID:
 		if (nfs_param.nfsv4_param.recovery_backend_ipbased) {
-			LogCrit(COMPONENT_CLIENTID,
+			LogCrit(COMPONENT_RECOVERY,
 				"No takeover, Nodeid based recovery mechanism not enabled.");
 			break;
 		}
 		ret = snprintf(object_takeover, sizeof(object_takeover),
 			       "node%d", gsp->nodeid);
 		if (unlikely(ret >= sizeof(object_takeover))) {
-			LogCrit(COMPONENT_CLIENTID,
+			LogCrit(COMPONENT_RECOVERY,
 				"Recovery object name too long: node%d",
 				gsp->nodeid);
 		} else if (unlikely(ret < 0)) {
-			LogCrit(COMPONENT_CLIENTID, "snprintf %d error %s (%d)",
+			LogCrit(COMPONENT_RECOVERY, "snprintf %d error %s (%d)",
 				ret, strerror(errno), errno);
 		} else
 			takeover = true;
 		break;
 	default:
-		LogWarn(COMPONENT_CLIENTID,
+		LogWarn(COMPONENT_RECOVERY,
 			"Recovery unknown/unsupported event %d", gsp->event);
 		return;
 	}
@@ -321,7 +321,7 @@ static void rados_cluster_read_clids(nfs_grace_start_t *gsp,
 	if (takeover && gsp && (gsp->event == EVENT_TAKE_NODEID)) {
 		ret = nfs_recovery_fsal_reclaim_client(object_takeover);
 		if (ret)
-			LogCrit(COMPONENT_CLIENTID,
+			LogCrit(COMPONENT_RECOVERY,
 				"Ceph client reclaim failed: nodeid %s",
 				object_takeover);
 	}
@@ -330,7 +330,7 @@ static void rados_cluster_read_clids(nfs_grace_start_t *gsp,
 	ret = rados_grace_join(rados_recov_io_ctx, rados_kv_param.grace_oid,
 			       nodeid, &cur, &rec, true);
 	if (ret) {
-		LogEvent(COMPONENT_CLIENTID, "Failed to join grace period: %d",
+		LogEvent(COMPONENT_RECOVERY, "Failed to join grace period: %d",
 			 ret);
 		return;
 	}
@@ -361,7 +361,7 @@ static void rados_cluster_read_clids(nfs_grace_start_t *gsp,
 	else
 		(void)snprintf(recov_oid->gr_val, new_len, "rec-%16.16lx:%s",
 			       cur, nodeid);
-	LogDebug(COMPONENT_CLIENTID, "New recovery object %s",
+	LogDebug(COMPONENT_RECOVERY, "New recovery object %s",
 		 recov_oid->gr_val);
 	gsh_refstr_get(recov_oid);
 	rcu_set_pointer(&rados_recov_oid, recov_oid);
@@ -374,7 +374,7 @@ static void rados_cluster_read_clids(nfs_grace_start_t *gsp,
 	gsh_refstr_put(recov_oid);
 	rados_release_write_op(wop);
 	if (ret < 0) {
-		LogEvent(COMPONENT_CLIENTID, "Failed to create recovery db");
+		LogEvent(COMPONENT_RECOVERY, "Failed to create recovery db");
 		return;
 	};
 
@@ -387,7 +387,7 @@ static void rados_cluster_read_clids(nfs_grace_start_t *gsp,
 		else
 			(void)snprintf(old_oid->gr_val, old_len,
 				       "rec-%16.16lx:%s", rec, nodeid);
-		LogDebug(COMPONENT_CLIENTID,
+		LogDebug(COMPONENT_RECOVERY,
 			 "Recovery object for reclaim use %s", old_oid->gr_val);
 		rcu_set_pointer(&rados_recov_old_oid, old_oid);
 		ret = rados_kv_traverse(rados_ng_pop_clid_entry, &args,
@@ -395,14 +395,14 @@ static void rados_cluster_read_clids(nfs_grace_start_t *gsp,
 	} else {
 		(void)snprintf(object_takeover_old, old_len, "rec-%16.16lx:%s",
 			       rec, object_takeover);
-		LogDebug(COMPONENT_CLIENTID,
+		LogDebug(COMPONENT_RECOVERY,
 			 "Recovery object for reclaim use %s",
 			 object_takeover_old);
 		ret = rados_kv_traverse(rados_ng_pop_clid_entry, &args,
 					object_takeover_old);
 	}
 	if (ret < 0)
-		LogEvent(COMPONENT_CLIENTID,
+		LogEvent(COMPONENT_RECOVERY,
 			 "Failed to traverse recovery db: %d", ret);
 }
 
@@ -413,7 +413,7 @@ static bool rados_cluster_try_lift_grace(void)
 	ret = rados_grace_lift(rados_recov_io_ctx, rados_kv_param.grace_oid,
 			       nodeid, &cur, &rec);
 	if (ret) {
-		LogEvent(COMPONENT_CLIENTID, "Attempt to lift grace failed: %d",
+		LogEvent(COMPONENT_RECOVERY, "Attempt to lift grace failed: %d",
 			 ret);
 		return false;
 	}
@@ -447,7 +447,7 @@ static void rados_set_client_cb(struct rbt_node *pn, void *arg)
 
 	/* FIXME: resize arrays in this case? */
 	if (kvp->num >= kvp->slots) {
-		LogEvent(COMPONENT_CLIENTID, "too many clients to copy!");
+		LogEvent(COMPONENT_RECOVERY, "too many clients to copy!");
 		return;
 	}
 
@@ -486,7 +486,7 @@ static void rados_cluster_maybe_start_grace(void)
 	ret = rados_grace_epochs(rados_recov_io_ctx, rados_kv_param.grace_oid,
 				 &cur, &rec);
 	if (ret) {
-		LogEvent(COMPONENT_CLIENTID, "rados_grace_epochs failed: %d",
+		LogEvent(COMPONENT_RECOVERY, "rados_grace_epochs failed: %d",
 			 ret);
 		return;
 	}
@@ -551,7 +551,7 @@ static void rados_cluster_maybe_start_grace(void)
 				     NULL, 0);
 	gsh_refstr_put(recov_oid);
 	if (ret)
-		LogEvent(COMPONENT_CLIENTID,
+		LogEvent(COMPONENT_RECOVERY,
 			 "rados_write_op_operate failed: %d", ret);
 
 	rados_release_write_op(wop);
@@ -580,12 +580,12 @@ static void rados_cluster_shutdown(void)
 	ret = rados_grace_join(rados_recov_io_ctx, rados_kv_param.grace_oid,
 			       nodeid, &cur, &rec, true);
 	if (ret)
-		LogEvent(COMPONENT_CLIENTID,
+		LogEvent(COMPONENT_RECOVERY,
 			 "Failed to start grace period on shutdown: %d", ret);
 
 	ret = rados_unwatch2(rados_recov_io_ctx, rados_watch_cookie);
 	if (ret)
-		LogEvent(COMPONENT_CLIENTID, "Failed to unwatch grace db: %d",
+		LogEvent(COMPONENT_RECOVERY, "Failed to unwatch grace db: %d",
 			 ret);
 
 	rados_kv_shutdown();
@@ -601,7 +601,7 @@ static void rados_cluster_set_enforcing(void)
 				       rados_kv_param.grace_oid, nodeid, &cur,
 				       &rec);
 	if (ret)
-		LogEvent(COMPONENT_CLIENTID,
+		LogEvent(COMPONENT_RECOVERY,
 			 "Failed to set enforcing for %s: %d", nodeid, ret);
 }
 
@@ -611,7 +611,7 @@ static bool rados_cluster_grace_enforcing(void)
 
 	ret = rados_grace_enforcing_check(rados_recov_io_ctx,
 					  rados_kv_param.grace_oid, nodeid);
-	LogEvent(COMPONENT_CLIENTID, "%s: ret=%d", __func__, ret);
+	LogEvent(COMPONENT_RECOVERY, "%s: ret=%d", __func__, ret);
 	return (ret == 0);
 }
 
@@ -620,7 +620,7 @@ static bool rados_cluster_is_member(void)
 	int ret = rados_grace_member(rados_recov_io_ctx,
 				     rados_kv_param.grace_oid, nodeid);
 	if (ret) {
-		LogEvent(COMPONENT_CLIENTID,
+		LogEvent(COMPONENT_RECOVERY,
 			 "%s: %s is no longer a cluster member (ret=%d)",
 			 __func__, nodeid, ret);
 		return false;
