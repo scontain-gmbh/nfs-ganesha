@@ -3151,6 +3151,10 @@ static void queue_deleg_transition_handler(struct fridgethr_context *ctx)
 		}
 
 		PTHREAD_MUTEX_unlock(&state->state_mutex);
+		/* Release object ref */
+		obj->obj_ops->put_ref(obj);
+		/* Release the owner */
+		dec_state_owner_ref(owner);
 	}
 }
 
