@@ -110,7 +110,8 @@ static bool my_getgrouplist_alloc(char *user, gid_t gid,
 {
 	const int max_groups_membership =
 		nfs_param.directory_services_param.max_groups_membership;
-	int ngroups = MIN(1000, max_groups_membership);
+	const int initial_ngroups = MIN(1000, max_groups_membership);
+	int ngroups = initial_ngroups;
 	gid_t *groups = NULL;
 	struct timespec s_time, e_time;
 	bool stats = nfs_param.core_param.enable_AUTHSTATS;
@@ -118,18 +119,18 @@ static bool my_getgrouplist_alloc(char *user, gid_t gid,
 
 	/* We call getgrouplist() with ngroups set to 1000 first. This should
 	 * reduce the number of getgrouplist() calls made to 1, for most cases.
-	 * However, getgrouplist() return -1 if the actual number of groups the
-	 * user is in, is more than 1000 (very rare) and ngroups will be set to
-	 * the actual number of groups the user is in. We can then make a second
-	 * query to fetch all the groups when ngroups is greater than 1000.
 	 *
-	 * The manpage doesn't say anything about errno value, it was usually
-	 * zero but was set to 34 (ERANGE) under some environments. ngroups was
-	 * set correctly no matter what the errno value is!
-	 * We assume that ngroups is correctly set, no matter what the
-	 * errno value is. The man page says, "The ngroups argument
-	 * is a value-result argument: on  return  it always contains
-	 * the  number  of  groups found for user."
+	 * pwnam_wrappers__getgrouplist() return values:
+	 * =>  0 - Success, the user beolngs to N groups
+	 * <= -1 - Failure (errno can be set to describe the failure)
+	 *
+	 * errno:
+	 * - ERANGE:    Insufficient buffer space supplied
+	 * - ENOENT:    no user with the given name found
+	 * - ETIMEDOUT: request timed out
+	 *
+	 * When the buffer is too small, ngroups *may* hint for the actual
+	 *  number of groups the user is in.
 	 */
 	groups = gsh_malloc(ngroups * sizeof(gid_t));
 
@@ -143,17 +144,24 @@ static bool my_getgrouplist_alloc(char *user, gid_t gid,
 			    "getgrouplist returned {}, ngroups={} ", ret,
 			    ngroups);
 
-	if (ret != 0) {
+	if (ret == -1 && errno == ERANGE) {
+		/* Buffer too small - retry with correct size */
 		LogEvent(COMPONENT_IDMAPPER,
-			 "getgrouplist for user: %s failed, errno: %d, retrying", user, ret);
-		GSH_AUTO_TRACEPOINT(uid2grp, getgrouplist_failed, TRACE_INFO,
-				    "getgrouplist for user: {} failed, errno: {}, retrying",
-				    TP_STR(user), ret);
+			 "getgrouplist for user: %s needs retry, ngroups: %d",
+			 user, ngroups);
+		GSH_AUTO_TRACEPOINT(
+			uid2grp, getgrouplist_retry, TRACE_INFO,
+			"getgrouplist for user: {} needs retry, ngroups: {}",
+			TP_STR(user), ngroups);
 
 		gsh_free(groups);
 
-		/* Try with the actual ngroups if user is part of more than 1000
-		 * groups. */
+		/* If ngroups changed, try with the new value that it was set to
+		 * as it may hint to the actual ngroups the user is member of,
+		 * otherwise try with max_groups_membership.
+		 */
+		if (ngroups == initial_ngroups)
+			ngroups = max_groups_membership;
 		if (ngroups > max_groups_membership) {
 			ngroups = max_groups_membership;
 			idmapper_monitoring__max_groups_exceeded_inc();
@@ -167,15 +175,18 @@ static bool my_getgrouplist_alloc(char *user, gid_t gid,
 			IDMAPPING_USERNAME_TO_GROUPLIST, IDMAPPING_PWUTILS,
 			ret == 0, &s_time, &e_time);
 
-		if (ret != 0) {
+		if (ret == -1) {
+			int local_errno = errno;
+
 			LogWarn(COMPONENT_IDMAPPER,
-				"getgrouplist for user:%s failed, ngroups: %d, errno: %d",
-				user, ngroups, ret);
+				"getgrouplist retry for user:%s failed, ret: %d, ngroups: %d, errno: %s (%d)",
+				user, ret, ngroups, strerror(local_errno),
+				local_errno);
 			GSH_AUTO_TRACEPOINT(
 				uid2grp, getgrouplist_retry_failed,
 				TRACE_WARNING,
-				"getgrouplist for user:{} failed, ngroups: {}, errno: {}",
-				TP_STR(user), ngroups, ret);
+				"getgrouplist retry for user:{} failed, ret: {}, ngroups: {}, errno: {}",
+				TP_STR(user), ret, ngroups, local_errno);
 			gsh_free(groups);
 			return false;
 		}
@@ -184,6 +195,19 @@ static bool my_getgrouplist_alloc(char *user, gid_t gid,
 			gc_stats_update(&s_time, &e_time);
 			stats = false;
 		}
+	} else if (ret == -1) {
+		int local_errno = errno;
+
+		/* Error from SSSD (ENOENT, ETIMEDOUT, etc.) */
+		LogWarn(COMPONENT_IDMAPPER,
+			"getgrouplist for user: %s failed with error: %d, errno: %s (%d)",
+			user, ret, strerror(local_errno), local_errno);
+		GSH_AUTO_TRACEPOINT(
+			uid2grp, getgrouplist_failed, TRACE_WARNING,
+			"getgrouplist for user: {} failed with error: {}",
+			TP_STR(user), ret);
+		gsh_free(groups);
+		return false;
 	}
 
 	idmapper_monitoring__user_groups(ngroups);

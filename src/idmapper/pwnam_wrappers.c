@@ -35,8 +35,28 @@
 #include "sss_nss_idmap.h"
 #include "log.h"
 
+static int getgrouplist_wrapper(const char *user, gid_t group, gid_t *groups,
+				int *ngroups)
+{
+	int res = getgrouplist(user, group, groups, ngroups);
+	/* getgrouplist returns -1 for buffer too small */
+	if (res == -1)
+		errno = ERANGE;
+	return res;
+}
+
+/*
+ * Expected return value for getgrouplist_func is:
+ * =>  0 - Success, the user beolngs to N groups
+ * <= -1 - Failure (errno can be set to describe the failure)
+ *
+ * errno:
+ * - ERANGE:    Insufficient buffer space supplied
+ * - ENOENT:    no user with the given name found
+ * - ETIMEDOUT: request timed out
+ */
 int (*getgrouplist_func)(const char *, __gid_t, __gid_t *,
-			 int *) = getgrouplist;
+			 int *) = getgrouplist_wrapper;
 
 int (*getpwnam_r_func)(const char *, struct passwd *, char *, size_t,
 		       struct passwd **) = getpwnam_r;
@@ -54,7 +74,7 @@ int pwnam_wrappers__set_implementation(pwnam_implementation_t implementation)
 {
 	switch (implementation) {
 	case PWNAM_IMPLEMENTATION__NSSWITCH:
-		getgrouplist_func = getgrouplist;
+		getgrouplist_func = getgrouplist_wrapper;
 		getpwnam_r_func = getpwnam_r;
 		getpwuid_r_func = getpwuid_r;
 		getgrnam_r_func = getgrnam_r;

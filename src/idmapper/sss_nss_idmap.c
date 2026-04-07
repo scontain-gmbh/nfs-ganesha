@@ -140,8 +140,13 @@ int sss_nss_idmap__getgrouplist(const char *name, gid_t group, gid_t *groups,
 		LogFatal(COMPONENT_IDMAPPER,
 			 "Attempted to call sss_nss_idmap__getgrouplist without successful "
 			 "init");
-	return sss_nss_getgrouplist_timeout(name, group, groups, ngroups,
-					    sssd_flags, sssd_timeout);
+	int res = sss_nss_getgrouplist_timeout(name, group, groups, ngroups,
+					       sssd_flags, sssd_timeout);
+	if (res != 0) {
+		errno = res;
+		return -1;
+	} else
+		return *ngroups;
 }
 
 int sss_nss_idmap__init(void)
