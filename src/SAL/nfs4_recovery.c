@@ -294,8 +294,10 @@ int nfs_start_grace(nfs_grace_start_t *gsp)
 		was_grace = cur & GRACE_STATUS_ACTIVE;
 
 		/* If we're already in a grace period then we're done */
-		if (was_grace)
+		if (was_grace) {
+			LogDebug(COMPONENT_RECOVERY, "Already in grace");
 			break;
+		}
 
 		/*
 		 * Are there outstanding
@@ -343,12 +345,13 @@ int nfs_start_grace(nfs_grace_start_t *gsp)
 			(int)nfs_param.nfsv4_param.lease_lifetime);
 	}
 
-	LogEvent(COMPONENT_RECOVERY, "NFS Server Now IN GRACE, duration %d",
-		 (int)nfs_param.nfsv4_param.grace_period);
-
-	/* Set enforcing flag here */
-	if (!was_grace)
+	if (!was_grace) {
+		LogEvent(COMPONENT_RECOVERY,
+			 "NFS Server Now IN GRACE, duration %d",
+			 (int)nfs_param.nfsv4_param.grace_period);
+		/* Set enforcing flag here */
 		nfs4_set_enforcing();
+	}
 
 	/*
 	 * If we're just starting the grace period, then load the
@@ -402,8 +405,6 @@ int nfs_start_grace(nfs_grace_start_t *gsp)
 			}
 		}
 	}
-	LogEvent(COMPONENT_RECOVERY,
-		 "grace reload client info completed from backend");
 out:
 	PTHREAD_MUTEX_unlock(&grace_mutex);
 	return ret;
@@ -826,6 +827,7 @@ static void nfs4_recovery_load_clids(nfs_grace_start_t *gsp)
 
 	recovery_backend->recovery_read_clids(gsp, nfs4_add_clid_entry,
 					      nfs4_add_rfh_entry);
+	LogEvent(COMPONENT_RECOVERY, "Load client info completed from backend");
 }
 
 #ifdef USE_RADOS_RECOV
