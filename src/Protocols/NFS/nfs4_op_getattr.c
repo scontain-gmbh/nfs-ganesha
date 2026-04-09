@@ -138,8 +138,12 @@ enum nfs_req_result nfs4_op_getattr(struct nfs_argop4 *op,
 		 * different client. Use clientid comparison instead of
 		 * gsh_client to correctly distinguish between clients.
 		 */
+		const uint64_t *req_clientid =
+			(op_ctx != NULL) ? op_ctx->clientid : NULL;
+
 		if (is_write_delegated(obj, &deleg_client) && deleg_client &&
-		    (deleg_client->cid_clientid != *op_ctx->clientid)) {
+		    (req_clientid == NULL ||
+		     deleg_client->cid_clientid != *req_clientid)) {
 			LogFullDebug(COMPONENT_STATE,
 				     "Different clients - sending CB_GETATTR");
 			res_GETATTR4->status =
