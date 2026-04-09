@@ -162,6 +162,14 @@ void *GPFSFSAL_UP_Thread(void *Arg)
 			continue;
 		}
 
+		/* We wanted to terminate this thread in case of THREAD_STOP */
+		if (reason == THREAD_STOP) {
+			LogDebug(COMPONENT_FSAL_UP,
+				 "Terminating the GPFS up call thread for %d",
+				 gpfs_fs->root_fd);
+			goto out;
+		}
+
 		retry = 0;
 
 		/* flags is int, but only the least significant 2 bytes
@@ -411,13 +419,6 @@ void *GPFSFSAL_UP_Thread(void *Arg)
 				}
 			}
 		} break;
-
-		case THREAD_STOP: /* We wanted to terminate this thread */
-			LogDebug(COMPONENT_FSAL_UP,
-				 "Terminating the GPFS up call thread for %d",
-				 gpfs_fs->root_fd);
-			release_op_context();
-			goto out;
 
 		case INODE_INVALIDATE:
 			LogMidDebug(
