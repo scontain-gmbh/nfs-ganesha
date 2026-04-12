@@ -29,6 +29,7 @@
 #include "config.h"
 
 #include <pthread.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <unistd.h>
@@ -112,6 +113,21 @@
 
 pthread_rwlock_t log_rwlock;
 pthread_rwlock_t cond_log_rwlock;
+pthread_rwlock_t log_rotate_rwlock;
+struct timespec last_rotation_time;
+
+/* For log rotation */
+struct log_rotate_limits {
+	uint32_t size_kb; /* Size in KB to rotate the log file. */
+	uint32_t time_sec; /* Time in seconds to rotate the log file. */
+};
+
+static struct log_rotate_limits log_rotate_limits_default = {
+	.size_kb = 0, /* Do not rotate based on size. */
+	.time_sec = 0, /* Do not rotate based on time. */
+};
+
+static struct log_rotate_limits *log_rotate_limits = &log_rotate_limits_default;
 
 /* Variables to control log fields */
 
@@ -1132,6 +1148,8 @@ void init_logging(const char *log_path, const int debug_level)
 	/* Finish initialization of and register log facilities. */
 	PTHREAD_RWLOCK_init(&log_rwlock, NULL);
 	PTHREAD_RWLOCK_init(&cond_log_rwlock, NULL);
+	PTHREAD_RWLOCK_init(&log_rotate_rwlock, NULL);
+	now_mono(&last_rotation_time);
 #ifdef _DONT_HAVE_LOCALTIME_R
 	PTHREAD_MUTEX_init(&mutex_localtime, NULL);
 #endif
@@ -1234,6 +1252,61 @@ static int log_to_syslog(log_header_t headers, void *private,
 	return 0;
 }
 
+static bool should_rotate(int fd)
+{
+	struct stat st;
+	struct timespec ts;
+
+	if (log_rotate_limits->size_kb != 0) {
+		if (fstat(fd, &st) != 0) {
+			fprintf(stderr, "Error: couldn't fstat log file %s\n",
+				strerror(errno));
+			return false; /* fstat failed */
+		}
+		if (st.st_size > (uint64_t)log_rotate_limits->size_kb * 1024)
+			return true;
+	}
+	if (log_rotate_limits->time_sec != 0) {
+		now_mono(&ts);
+		if (ts.tv_sec - last_rotation_time.tv_sec >=
+		    log_rotate_limits->time_sec)
+			return true;
+	}
+	return false;
+}
+
+static void rotate_if_should(int fd, char *path)
+{
+	char old_path[MAXPATHLEN];
+
+	if (!should_rotate(fd))
+		return;
+
+	PTHREAD_RWLOCK_wrlock(&log_rotate_rwlock);
+	/* We need to open file under lock to avoid race where other thread
+	 already rotated it. */
+	const int current_fd = open(path, O_RDONLY, log_mask);
+
+	if (current_fd == -1)
+		goto out;
+	if (!should_rotate(current_fd)) {
+		close(current_fd);
+		goto out;
+	}
+	close(current_fd);
+	snprintf(old_path, sizeof(old_path), "%s.old", path);
+	if (rename(path, old_path) != 0) {
+		fprintf(stderr,
+			"Error: couldn't rename log file %s to %s: %s\n", path,
+			old_path, strerror(errno));
+		/* Continue logging to the current file */
+	} else {
+		now_mono(&last_rotation_time);
+	}
+out:
+	PTHREAD_RWLOCK_unlock(&log_rotate_rwlock);
+}
+
 static int log_to_file(log_header_t headers, void *private, log_levels_t level,
 		       struct display_buffer *buffer, char *compstr,
 		       char *message)
@@ -1262,7 +1335,7 @@ static int log_to_file(log_header_t headers, void *private, log_levels_t level,
 
 			goto error;
 		}
-
+		rotate_if_should(fd, path);
 		rc = close(fd);
 
 		if (rc == 0)
@@ -2042,6 +2115,7 @@ struct conditional_config {
 struct logger_config {
 	struct glist_head facility_list;
 	struct logfields *logfields;
+	struct log_rotate_limits *log_rotate_limits;
 	log_levels_t *comp_log_level;
 	log_levels_t default_log_level;
 	uint32_t rpc_debug_flags;
@@ -2668,6 +2742,39 @@ static int conditional_commit(void *node, void *link_mem, void *self_struct,
 	return 0;
 }
 
+static struct config_item rotate_options[] = {
+	CONF_ITEM_UI32("Size_KB", 0, UINT32_MAX, 0, log_rotate_limits, size_kb),
+	CONF_ITEM_UI32("Time_Sec", 0, UINT32_MAX, 0, log_rotate_limits,
+		       time_sec),
+	CONFIG_EOL
+};
+
+static void *rotate_init(void *link_mem, void *self_struct)
+{
+	assert(link_mem != NULL || self_struct != NULL);
+
+	if (link_mem == NULL)
+		return NULL;
+	if (self_struct == NULL)
+		return gsh_calloc(1, sizeof(struct log_rotate_limits));
+	else {
+		gsh_free(self_struct);
+		return NULL;
+	}
+}
+
+static int rotate_commit(void *node, void *link_mem, void *self_struct,
+			 struct config_error_type *err_type)
+{
+	struct log_rotate_limits *cfg = self_struct;
+	struct log_rotate_limits **cfg_ptr = link_mem;
+	struct logger_config *logger;
+
+	logger = container_of(cfg_ptr, struct logger_config, log_rotate_limits);
+	logger->log_rotate_limits = cfg;
+	return 0;
+}
+
 static void *log_conf_init(void *link_mem, void *self_struct)
 {
 	struct logger_config *logger = self_struct;
@@ -2703,6 +2810,11 @@ static void *log_conf_init(void *link_mem, void *self_struct)
 			(void)format_init(&logger->logfields,
 					  logger->logfields);
 			logger->logfields = NULL;
+		}
+		if (logger->log_rotate_limits != NULL) {
+			(void)rotate_init(&logger->log_rotate_limits,
+					  logger->log_rotate_limits);
+			logger->log_rotate_limits = NULL;
 		}
 	}
 	return NULL;
@@ -2902,6 +3014,13 @@ done:
 	}
 
 	if (errcnt == 0) {
+		if (logger->log_rotate_limits) {
+			if (log_rotate_limits != &log_rotate_limits_default) {
+				gsh_free(log_rotate_limits);
+			}
+			log_rotate_limits = logger->log_rotate_limits;
+		}
+
 		if (logger->logfields != NULL) {
 			LogEvent(COMPONENT_CONFIG,
 				 "Changing definition of log fields");
@@ -2951,6 +3070,8 @@ done:
 				gsh_free(lf->user_time_fmt);
 			gsh_free(lf);
 		}
+		if (logger->log_rotate_limits != NULL)
+			gsh_free(logger->log_rotate_limits);
 	}
 
 	if (logger->comp_log_level != NULL)
@@ -2958,6 +3079,7 @@ done:
 
 	logger->logfields = NULL;
 	logger->comp_log_level = NULL;
+	logger->log_rotate_limits = NULL;
 
 	return errcnt;
 }
@@ -2974,6 +3096,8 @@ static struct config_item logging_params[] = {
 			logger_config, logfields),
 	CONF_ITEM_BLOCK("Components", component_levels, component_init,
 			component_commit, logger_config, comp_log_level),
+	CONF_ITEM_BLOCK("Rotate", rotate_options, rotate_init, rotate_commit,
+			logger_config, log_rotate_limits),
 	CONF_ITEM_BOOL("Display_UTC_Timestamp", false, logger_config,
 		       disp_utc_timestamp),
 	CONF_ITEM_TOKEN("Match_Policy", COND_LOG_MATCH_ANY,
