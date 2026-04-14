@@ -1468,6 +1468,28 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 						&hdl, &attrs);
 
 			if (FSAL_IS_ERROR(status)) {
+				if (status.major == ERR_FSAL_NOENT) {
+					/*
+					 * The retrieved directory
+					 * entry can't be looked up.
+					 * Either we just lost a race
+					 * (i.e. it was deleted after
+					 * vfs_readents() returned) or
+					 * the directory entry
+					 * contains a dangling inode
+					 * reference (i.e. corrupt
+					 * directory entry).  Log a
+					 * warning and skip this
+					 * entry.
+					 */
+					LogDebug(
+						COMPONENT_FSAL,
+						"Directory entry %s is dangling",
+						dentryp->vd_name);
+					status = fsalstat(ERR_FSAL_NO_ERROR, 0);
+					goto skip;
+				}
+
 				goto done;
 			}
 
