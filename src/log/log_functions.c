@@ -1659,7 +1659,8 @@ static log_levels_t default_conditional_log_levels[] = {
 	[COMPONENT_NFS_MSK] = NIV_FULL_DEBUG,
 	[COMPONENT_XPRT] = NIV_FULL_DEBUG,
 	[COMPONENT_QOS] = NIV_FULL_DEBUG,
-	[COMPONENT_RECOVERY] = NIV_FULL_DEBUG
+	[COMPONENT_RECOVERY] = NIV_FULL_DEBUG,
+	[COMPONENT_RDMA] = NIV_FULL_DEBUG
 };
 
 /* Active set of conditional log levels */
