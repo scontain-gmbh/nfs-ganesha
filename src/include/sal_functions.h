@@ -44,6 +44,11 @@
 #include "fsal.h"
 #include "gsh_recovery.h"
 
+#include "gsh_lttng/gsh_lttng.h"
+#if defined(USE_LTTNG) && !defined(LTTNG_PARSING)
+#include "gsh_lttng/generated_traces/state.h"
+#endif
+
 extern struct glist_head fsal_list;
 
 /**
