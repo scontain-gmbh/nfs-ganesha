@@ -2679,7 +2679,10 @@ void ceph_deleg_cb(Fh *fh, void *vhdl)
 				    .len = sizeof(hdl->key.hhdl) };
 	struct gsh_export *exp = get_gsh_export(hdl->key.export_id);
 
-	LogDebug(COMPONENT_FSAL, "Recalling delegations on %p", hdl);
+	LogDebug(COMPONENT_FSAL,
+		 "Ceph delegation callback: hdl=%p obj=%p fileid=%" PRIu64
+		 " export_id=%" PRIu16,
+		 hdl, obj_hdl, obj_hdl->fileid, hdl->key.export_id);
 
 	fsal_status = up_async_delegrecall(general_fridge, hdl->up_ops, &key,
 					   NULL, NULL);
