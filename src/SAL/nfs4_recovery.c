@@ -108,6 +108,11 @@ static struct nfs4_recovery_backend *recovery_backend =
 	&default_recovery_backend;
 int32_t reclaim_completes; /* atomic */
 
+static void fs_no_recovery_backend_init(struct nfs4_recovery_backend **backend)
+{
+	*backend = &default_recovery_backend;
+}
+
 static void nfs4_recovery_load_clids(nfs_grace_start_t *gsp);
 static void nfs_release_nlm_state(char *release_ip, sockaddr_t *release_addr);
 static void nfs_release_v4_clients(char *ip, sockaddr_t *ip_saddr);
@@ -885,6 +890,8 @@ const char *recovery_backend_str(enum recovery_backend recovery_backend)
 		return "rados_ng";
 	case RECOVERY_BACKEND_RADOS_CLUSTER:
 		return "rados_cluster";
+	case RECOVERY_BACKEND_NONE:
+		return "none";
 	}
 
 	return "Unknown recovery backend";
@@ -908,6 +915,9 @@ int nfs4_recovery_init(void)
 		break;
 	case RECOVERY_BACKEND_FS_NG:
 		fs_ng_backend_init(&recovery_backend);
+		break;
+	case RECOVERY_BACKEND_NONE:
+		fs_no_recovery_backend_init(&recovery_backend);
 		break;
 #ifdef USE_RADOS_RECOV
 	case RECOVERY_BACKEND_RADOS_KV:
@@ -1207,6 +1217,7 @@ int load_recovery_param_from_conf(config_file_t parse_tree,
 	switch (nfs_param.nfsv4_param.recovery_backend) {
 	case RECOVERY_BACKEND_FS:
 	case RECOVERY_BACKEND_FS_NG:
+	case RECOVERY_BACKEND_NONE:
 		return 0;
 
 	case RECOVERY_BACKEND_RADOS_KV:

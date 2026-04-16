@@ -548,6 +548,7 @@ RecoveryBackend(enum, default "fs")
     - rados_kv : rados key-value
     - rados_ng : rados key-value (better resiliency)
     - rados_cluster: clustered rados backend (active/active)
+    - none: Don't use any recovery backend
 
 RecoveryBackendIPBased(bool, default false)
     Whether recovery backend to be used is based on the IP hosted by that
