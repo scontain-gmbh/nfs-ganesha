@@ -204,7 +204,8 @@ NFS_CORE_PARAM {}
 
 	mount_path_pseudo(bool, default false)
 
-	Enable_UDP(list, valid values [False, True, Mount, NLM, RQuota], default True)
+	Enable_UDP(list, valid values [False, True, Mount, NLM, RQuota],
+		   default True)
 
 	Dbus_Name_Prefix(string, default NULL)
 
@@ -228,7 +229,8 @@ NFS_CORE_PARAM {}
 
 	Enable_Connection_Manager(bool, default false)
 
-	Connection_Manager_Timeout_sec(uint32, range 0 to UINT32_MAX, default 2*60)
+	Connection_Manager_Timeout_sec(uint32, range 0 to UINT32_MAX,
+				       default 2*60)
 
 	Allow_Set_Io_Flusher_Fail(bool, default false)
 
@@ -324,19 +326,23 @@ DIRECTORY_SERVICES {}
 
 	Idmapped_Group_Time_Validity(int64, range -1 to INT64_MAX, default -1)
 
-	Root_Kerberos_Principal(enum list, values [none,nfs,root,host,all], default [all])
+	Root_Kerberos_Principal(enum list, values [none,nfs,root,host,all],
+				default [all])
 
 	Cache_Users_Max_Count(uint32, range 0 to INT32_MAX, default INT32_MAX)
 
 	Cache_Groups_Max_Count(uint32, range 0 to INT32_MAX, default INT32_MAX)
 
-	Cache_User_Groups_Max_Count(uint32, range 0 to INT32_MAX, default INT32_MAX)
+	Cache_User_Groups_Max_Count(uint32, range 0 to INT32_MAX,
+				    default INT32_MAX)
 
 	Negative_Cache_Time_Validity(int64, range 0 to INT64_MAX, default 300)
 
-	Negative_Cache_Users_Max_Count(uint32, range 0 to INT32_MAX, default 50000)
+	Negative_Cache_Users_Max_Count(uint32, range 0 to INT32_MAX,
+				       default 50000)
 
-	Negative_Cache_Groups_Max_Count(uint32, range 0 to INT32_MAX, default 50000)
+	Negative_Cache_Groups_Max_Count(uint32, range 0 to INT32_MAX,
+					default 50000)
 
 	Cache_Reaping_Interval(int64, range 0 to 3650*86400, default 0)
 
@@ -409,12 +415,14 @@ EXPORT_DEFAULTS { CLIENT  {} }
 
 	* Take all the "export permissions" options from EXPORT_DEFAULTS.
 
-	* Any options not set by the client or export, taken from the EXPORT_DEFAULTS block.
-	  Order of options taken are 1.Client block 2. Export entry 3. Export_Defaults.
+	* Any options not set by the client or export, taken from the
+	  EXPORT_DEFAULTS block. Order of options taken are 1.Client block 2.
+	  Export entry 3. Export_Defaults.
 
 	* The client lists are dynamically updateable.
 
-	HA_Proxy_Protocol(enum list, values [with_ha_proxy, without_ha_proxy, any], default [any])
+	HA_Proxy_Protocol(enum list, values [with_ha_proxy, without_ha_proxy,
+					     any], default [any])
 
 	Clients(client list, empty)
 
@@ -563,10 +571,10 @@ EXPORT { FSAL {} }
 
 	glfs_log(path, default "/tmp/gfapi.log")
 
-        up_poll_usec(uint64, range 1 to 60*1000*1000, default 10)
+	up_poll_usec(uint64, range 1 to 60*1000*1000, default 10)
 
-        * up_poll_usec: The time interval (in micro-seconds) between any
-          two consecutive upcall polls. By default set to 10us.
+	* up_poll_usec: The time interval (in micro-seconds) between any
+	  two consecutive upcall polls. By default set to 10us.
 
 	enable_upcall(bool, default true)
 
@@ -604,17 +612,18 @@ EXPORT { FSAL {} }
 
 	NFS_Service(uint32, range 0 to UINT32_MAX, default 100003)
 
-	/*NFS_SendSize must be greater than maxwrite+SEND_RECV_HEADER_SPACE .*/
-	/*NFS_RecvSize must be greater than maxread+SEND_RECV_HEADER_SPACE .*/
-	/*MAX_READ_WRITE_SIZE == 1 MB*/
-	/*SEND_RECV_HEADER_SPACE == 512 Bytes*/
-	/*FSAL_MAXIOSIZE = 64 MB*/
+	* NFS_SendSize must be greater than maxwrite+SEND_RECV_HEADER_SPACE
+	* NFS_RecvSize must be greater than maxread+SEND_RECV_HEADER_SPACE
+	* MAX_READ_WRITE_SIZE == 1 MB
+	* SEND_RECV_HEADER_SPACE == 512 Bytes
+	* FSAL_MAXIOSIZE = 64 MB
+
 	NFS_SendSize(uint64, range 512 + SEND_RECV_HEADER_SPACE
-					to FSAL_MAXIOSIZE,
+				to FSAL_MAXIOSIZE,
 		     default MAX_READ_WRITE_SIZE + SEND_RECV_HEADER_SPACE)
 
 	NFS_RecvSize(uint64, range 512 + SEND_RECV_HEADER_SPACE
-					to FSAL_MAXIOSIZE,
+				to FSAL_MAXIOSIZE,
 		     default MAX_READ_WRITE_SIZE + SEND_RECV_HEADER_SPACE)
 
 	NFS_Port(uint16, range 0 to UINT16_MAX, default 2049)
@@ -748,7 +757,8 @@ PSEUDOFS { CLIENT  {} }
 
 	PrivilegedPort(bool, default false)
 
-	HA_Proxy_Protocol(enum list, values [with_ha_proxy, without_ha_proxy, any], default [any])
+	HA_Proxy_Protocol(enum list, values [with_ha_proxy, without_ha_proxy,
+					     any], default [any])
 
 	Clients(client list, empty)
 
@@ -867,7 +877,8 @@ LOG { COMPONENTS {} }
 
 	WARN: TIRPC_DEBUG_FLAG_ERROR | TIRPC_DEBUG_FLAG_WARN
 
-	EVENT or INFO: TIRPC_DEBUG_FLAG_ERROR | TIRPC_DEBUG_FLAG_WARN | TIRPC_DEBUG_FLAG_EVENT
+	EVENT or INFO: TIRPC_DEBUG_FLAG_ERROR | TIRPC_DEBUG_FLAG_WARN |
+		       TIRPC_DEBUG_FLAG_EVENT
 
 	DEBUG or MID_DEBUG: RPC_Debug_Flags
 
@@ -940,26 +951,26 @@ LOG { ROTATE {} }
 
 	time_sec(uint32_t, default 0)
 
-	* Rotate the log file when the time in seconds exceeds this value, if zero,
-	  do not rotate based on time.
+	* Rotate the log file when the time in seconds exceeds this value, if
+	  zero, do not rotate based on time.
 
 LOG { CONDITIONAL {} }
 ---------------------
 
-    Clients(client list, empty)
+	Clients(client list, empty)
 
-    * Client list entries can take on one of the following forms. This
-      parameter may be repeated to extend the list.
+	* Client list entries can take on one of the following forms. This
+	  parameter may be repeated to extend the list.
 
-        x.x.x.x/y       IPv4 network address, IPv6 addresses are also allowed
-                        but the format is too complex to show here
-        IP address      Match a single client
+	x.x.x.x/y       IPv4 network address, IPv6 addresses are also allowed
+	                but the format is too complex to show here
+	IP address      Match a single client
 
-    Exports(Export list, empty)
+	Exports(Export list, empty)
 
-    * Export list entries can take list of Export_IDs.
+	* Export list entries can take list of Export_IDs.
 
-    COMPONENT = LEVEL;
+	COMPONENT = LEVEL;
 
 	The components are: ALL, LOG, MEMLEAKS, FSAL, NFSPROTO,
 			    NFS_V4, EXPORT, FILEHANDLE, DISPATCH, MDCACHE,
@@ -1258,77 +1269,76 @@ RADOS_URLS {}
 QOS_DEFAULT_CONFIG {}
 ---------------------
 
-    enable_qos(bool, default false)
+	enable_qos(bool, default false)
 
-    enable_tokens(bool, default false)
+	enable_tokens(bool, default false)
 
-    enable_bw_control(bool, default false)
+	enable_bw_control(bool, default false)
 
-    enable_iops_control(bool, default false)
+	enable_iops_control(bool, default false)
 
-    enable_ds_control(bool, default false)
+	enable_ds_control(bool, default false)
 
-    combined_rw_bw_control(bool, default false)
+	combined_rw_bw_control(bool, default false)
 
-    combined_rw_token_control(bool, default true)
+	combined_rw_token_control(bool, default true)
 
-    combined_rw_iops_control(bool, default true)
+	combined_rw_iops_control(bool, default true)
 
-    qos_type(enum, values ["PE", "PC", "PEPC"], default "PEPC")
+	qos_type(enum, values ["PE", "PC", "PEPC"], default "PEPC")
 
-    /*More info on default, range can be found in src/include/nfs_qos.h*/
+	/*More info on default, range can be found in src/include/nfs_qos.h*/
 
-    max_export_combined_bw(uint64, range 1048576 to 107374182400,
+	max_export_combined_bw(uint64, range 1048576 to 107374182400,
+			       default 2147483648)
+
+	max_client_combined_bw(uint64, range 1048576 to 107374182400,
+			       default 2147483648)
+
+	max_export_write_bw(uint64, range 1048576 to 107374182400,
+			    default 2147483648)
+
+	max_export_read_bw(uint64, range 1048576 to 107374182400,
 			   default 2147483648)
 
-    max_client_combined_bw(uint64, range 1048576 to 107374182400,
-                           default 2147483648)
+	max_client_write_bw(uint64, range 1048576 to 107374182400,
+			    default 2147483648)
 
-    max_export_write_bw(uint64, range 1048576 to 107374182400,
-                        default 2147483648)
+	max_client_read_bw(uint64, range 1048576 to 107374182400,
+			   default 2147483648)
 
-    max_export_read_bw(uint64, range 1048576 to 107374182400,
-                       default 2147483648)
+	max_export_iops(uint64, range 10 to 409600, default 8192)
 
-    max_client_write_bw(uint64, range 1048576 to 107374182400,
-                        default 2147483648)
+	max_client_iops(uint64, range 10 to 409600, default 8192)
 
-    max_client_read_bw(uint64, range 1048576 to 107374182400,
-                       default 2147483648)
+	max_export_write_iops(uint64, range 10 to 409600, default 8192)
 
-    max_export_iops(uint64, range 10 to 409600, default 8192)
+	max_export_read_iops(uint64, range 10 to 409600, default 8192)
 
-    max_client_iops(uint64, range 10 to 409600, default 8192)
+	max_client_write_iops(uint64, range 10 to 409600, default 8192)
 
-    max_export_write_iops(uint64, range 10 to 409600, default 8192)
+	max_client_read_iops(uint64, range 10 to 409600, default 8192)
 
-    max_export_read_iops(uint64, range 10 to 409600, default 8192)
+	max_export_write_tokens(uint64, range 3774873600 to UINT64_MAX,
+				default 90596966400)
 
-    max_client_write_iops(uint64, range 10 to 409600, default 8192)
+	max_export_read_tokens(uint64, range 3774873600 to UINT64_MAX,
+			       default 90596966400)
 
-    max_client_read_iops(uint64, range 10 to 409600, default 8192)
+	max_client_write_tokens(uint64, range 3774873600 to UINT64_MAX,
+				default 90596966400)
 
-    max_export_write_tokens(uint64, range 3774873600 to UINT64_MAX,
-			    default 90596966400)
+	max_client_read_tokens(uint64, range 3774873600 to UINT64_MAX,
+			       default 90596966400)
 
-    max_export_read_tokens(uint64, range 3774873600 to UINT64_MAX,
-			   default 90596966400)
+	export_write_tokens_renew_time(uint64, range 3600 to UINT64_MAX,
+				       default 86400)
 
-    max_client_write_tokens(uint64, range 3774873600 to UINT64_MAX,
-			    default 90596966400)
+	export_read_tokens_renew_time(uint64, range 3600 to UINT64_MAX,
+				      default 86400)
 
-    max_client_read_tokens(uint64, range 3774873600 to UINT64_MAX,
-			   default 90596966400)
+	client_write_tokens_renew_time(uint64, range 3600 to UINT64_MAX,
+				       default 86400)
 
-    export_write_tokens_renew_time(uint64, range 3600 to UINT64_MAX,
-				   default 86400)
-
-    export_read_tokens_renew_time(uint64, range 3600 to UINT64_MAX,
-				  default 86400)
-
-    client_write_tokens_renew_time(uint64, range 3600 to UINT64_MAX,
-				   default 86400)
-
-    client_read_tokens_renew_time(uint64, range 3600 to UINT64_MAX,
-				  default 86400)
-
+	client_read_tokens_renew_time(uint64, range 3600 to UINT64_MAX,
+				      default 86400)
