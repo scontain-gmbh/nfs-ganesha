@@ -34,6 +34,7 @@
  */
 
 #include "config.h"
+#include <ctype.h>
 #include <unistd.h> /* for using gethostname */
 #include <stdlib.h> /* for using exit */
 #include <strings.h>
@@ -43,6 +44,7 @@
 #include <grp.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <errno.h>
 #ifdef USE_NFSIDMAP
 #include <nfsidmap.h>
 #include "nfs_exports.h"
@@ -696,6 +698,56 @@ bool xdr_encode_nfs4_group(XDR *xdrs, gid_t gid)
 }
 
 /**
+ * @brief Safely convert a string to a uint32_t ID.
+ *
+ * @param[in]  s            The string to convert.
+ * @param[out] out_number   The resulting 32-bit number.
+ *
+ * @return true on success, false if the string is not a valid 32-bit numeric ID
+ * or overflows.
+ *
+ * According to RFC 5661, Section 5.9, to provide a greater degree of
+ * compatibility with NFSv3, the numeric owners and groups can be represented
+ * as strings that consist of deciman number values with no leading zeros,
+ * unless the number is 0, of 32 bits or less.
+ * https://datatracker.ietf.org/doc/html/rfc5661#section-5.9
+ *
+ */
+static bool string_to_numeric_uid_gid(const char *s, uint32_t *out_number)
+{
+	char *endptr = NULL;
+	unsigned long res;
+
+	if (s == NULL || *s == '\0')
+		return false;
+
+	/* Constraint: No leading zeros (unless just "0") */
+	if (s[0] == '0' && s[1] != '\0')
+		return false;
+
+	/* Constraint: Numeric only (strtoul allows + and - by default) */
+	if (!isdigit((unsigned char)s[0]))
+		return false;
+
+	errno = 0;
+	res = strtoul(s, &endptr, 10);
+
+	if (errno == ERANGE || res > UINT32_MAX) {
+		LogWarn(COMPONENT_IDMAPPER, "ID %s exceeds 32-bit range", s);
+		GSH_AUTO_TRACEPOINT(idmapper, id_overflow, TRACE_WARNING,
+				    "ID {} exceeds 32-bit range",
+				    TP_BYTE_ARR_TRUNCATED(s, strlen(s)));
+		return false;
+	}
+
+	if (endptr == s || *endptr != '\0')
+		return false;
+
+	*out_number = (uint32_t)res;
+	return true;
+}
+
+/**
  * @brief Handle unqualified names
  *
  * @param[in]  name C string of name
@@ -705,16 +757,13 @@ bool xdr_encode_nfs4_group(XDR *xdrs, gid_t gid)
  *
  * @return true on success, false on just phoning it in.
  */
-
 static bool atless2id(char *name, size_t len, uint32_t *id, const uint32_t anon)
 {
 	if ((len == 6) && (!memcmp(name, "nobody", 6))) {
 		*id = anon;
 		return true;
 	} else if (nfs_param.nfsv4_param.allow_numeric_owners) {
-		char *end = NULL;
-		*id = strtol(name, &end, 10);
-		if (!(end && *end != '\0'))
+		if (string_to_numeric_uid_gid(name, id))
 			return true;
 	}
 
@@ -945,14 +994,12 @@ static bool pwentname2id(char *name, uint32_t *id, bool group, gid_t *gid,
 			return false;
 		}
 #ifndef USE_NFSIDMAP
-		char *end = NULL;
-		gid_t gid;
+		uint32_t val;
 
-		gid = strtol(name, &end, 10);
-		if (end && *end != '\0')
+		if (!string_to_numeric_uid_gid(name, &val))
 			return false;
 
-		*id = gid;
+		*id = val;
 		return true;
 #endif
 	} else {
@@ -967,14 +1014,12 @@ static bool pwentname2id(char *name, uint32_t *id, bool group, gid_t *gid,
 			return false;
 		}
 #ifndef USE_NFSIDMAP
-		char *end = NULL;
-		uid_t uid;
+		uint32_t val;
 
-		uid = strtol(name, &end, 10);
-		if (end && *end != '\0')
+		if (!string_to_numeric_uid_gid(name, &val))
 			return false;
 
-		*id = uid;
+		*id = val;
 		*got_gid = false;
 		return true;
 #endif
@@ -1061,6 +1106,12 @@ static bool name2id(const struct gsh_buffdesc *name, uint32_t *id, bool group,
 	bool got_gid = false;
 	bool looked_up = false;
 
+	if (!idmapping_enabled) {
+		/* If idmapping isn't enabled we accept numeric ids only */
+		/* Something we can mutate and count on as terminated */
+		return atless2id(name->addr, name->len, id, anon);
+	}
+
 	PTHREAD_RWLOCK_rdlock(group ? &idmapper_group_lock
 				    : &idmapper_user_lock);
 	if (group)
@@ -1090,9 +1141,7 @@ static bool name2id(const struct gsh_buffdesc *name, uint32_t *id, bool group,
 
 	/* Something we can mutate and count on as terminated */
 	namebuff = alloca(name->len + 1);
-
-	memcpy(namebuff, name->addr, name->len);
-	*(namebuff + name->len) = '\0';
+	memcpy(namebuff, name->addr, name->len + 1);
 	at = memchr(namebuff, '@', name->len);
 
 	if (at == NULL) {
