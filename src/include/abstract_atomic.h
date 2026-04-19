@@ -66,6 +66,8 @@
  * The following is provided for int32_t
  *
  * int32_t atomic_inc_unless_0_int32_t(int32_t *var)
+ * int32_t atomic_relaxed_add_int32_t(int32_t *augend, int32_t addend)
+ * int32_t atomic_relaxed_inc_int32_t(int32_t *var)
  *
  * The following bit mask operations are provided for
  * uint64_t, uint32_t, uint_16t, and uint8_t:
@@ -1845,6 +1847,37 @@ static inline int32_t atomic_inc_unless_0_int32_t(int32_t *var)
 						      __ATOMIC_SEQ_CST);
 	} while (!changed);
 	return newv;
+}
+
+/**
+ * @brief Atomically add to an int32_t with relaxed ordering.
+ *
+ * This function atomically adds to the supplied value with relaxed ordering.
+ *
+ * @param[in,out] augend Number to be added to
+ * @param[in]     addend Number to add
+ *
+ * @return The value after addition.
+ *
+ */
+static inline int32_t atomic_relaxed_add_int32_t(int32_t *augend,
+						 int32_t addend)
+{
+	return __atomic_add_fetch(augend, addend, __ATOMIC_RELAXED);
+}
+
+/**
+ * @brief Atomically increment an int32_t with relaxed ordering.
+ *
+ * This function atomically adds 1 to the supplied value with relaxed ordering.
+ *
+ * @param[in,out] var Pointer to the variable to modify
+ *
+ * @return The value after increment.
+ */
+static inline int32_t atomic_relaxed_inc_int32_t(int32_t *var)
+{
+	return atomic_relaxed_add_int32_t(var, 1);
 }
 
 /**
