@@ -3136,7 +3136,7 @@ again:
 	     dirent = glist_next_entry(&chunk->dirents, mdcache_dir_entry_t,
 				       chunk_list, &dirent->chunk_list)) {
 		fsal_status_t status;
-		enum fsal_dir_result cb_result;
+		enum fsal_dir_result cb_result = DIR_CONTINUE;
 		mdcache_entry_t *entry = NULL;
 		struct fsal_attrlist attrs;
 
@@ -3304,7 +3304,6 @@ again:
 							     &attrs);
 		if (FSAL_IS_ERROR(status)) {
 			mdcache_lru_unref_chunk(chunk);
-			PTHREAD_RWLOCK_unlock(&directory->content_lock);
 
 			LogFullDebugAlt(COMPONENT_NFS_READDIR,
 					COMPONENT_MDCACHE,
@@ -3312,6 +3311,19 @@ again:
 					fsal_err_txt(status));
 
 			mdcache_lru_unref(entry, LRU_ACTIVE_REF);
+			/*
+			 * If the entry is still hanging around but the file
+			 * has been deleted, we don't want to abort going
+			 * through the directory entries.  Just skip the
+			 * dodgy entry.
+			 */
+			if (status.major == ERR_FSAL_STALE) {
+				status = fsalstat(ERR_FSAL_NO_ERROR, 0);
+				LogFullDebug(COMPONENT_MDCACHE,
+					     "Skip stale entry & status reset");
+				goto skip;
+			}
+			PTHREAD_RWLOCK_unlock(&directory->content_lock);
 			return status;
 		}
 
@@ -3324,6 +3336,7 @@ again:
 		cb_result = cb(dirent->name, &entry->obj_handle, &attrs,
 			       dir_state, dirent->ck);
 
+skip:
 		fsal_release_attrs(&attrs);
 
 		if (whence_is_name) {
