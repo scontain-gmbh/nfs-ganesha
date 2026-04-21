@@ -173,7 +173,7 @@ extern log_levels_t default_log_level;
 extern log_levels_t *conditional_component_log_level;
 extern cond_log_match_policies_t cond_log_match_policy;
 
-extern struct log_component_info LogComponents[COMPONENT_COUNT];
+extern struct log_component_info LogComponents[];
 
 extern bool is_op_context_conditional_flag_set(void);
 

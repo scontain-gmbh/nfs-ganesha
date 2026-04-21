@@ -58,6 +58,7 @@
 #include "gsh_rpc.h"
 #include "common_utils.h"
 #include "abstract_mem.h"
+#include "log_common.h"
 
 #ifdef USE_DBUS
 #include "gsh_dbus.h"
@@ -74,6 +75,12 @@
 #define LOG_LEVEL_ARG { .name = "log_level", .type = "s", .direction = "in" }
 #define MATCH_POLICY_ARG \
 	{ .name = "match_policy", .type = "s", .direction = "in" }
+
+#define CT_ASSERT_CONCAT(a, b) a##b
+#define CT_ASSERT_CONCAT2(a, b) CT_ASSERT_CONCAT(a, b)
+#define CT_ASSERT(cond, msg) \
+	typedef char CT_ASSERT_CONCAT2(static_assert_failed_, __LINE__) \
+		[(cond) ? 1 : -1] __attribute__((unused))
 
 /* clang-format on */
 
@@ -1748,6 +1755,11 @@ static log_levels_t default_conditional_log_levels[] = {
 	[COMPONENT_RDMA] = NIV_FULL_DEBUG
 };
 
+CT_ASSERT(sizeof(default_conditional_log_levels) /
+			  sizeof(default_conditional_log_levels[0]) ==
+		  COMPONENT_COUNT,
+	  "default_conditional_log_levels must contain all log components");
+
 /* Active set of conditional log levels */
 log_levels_t *conditional_component_log_level = default_conditional_log_levels;
 
@@ -1760,7 +1772,7 @@ cond_log_match_policies_t cond_log_match_policy;
  */
 log_levels_t default_log_level = NB_LOG_LEVEL;
 
-struct log_component_info LogComponents[COMPONENT_COUNT] = {
+struct log_component_info LogComponents[] = {
 	[COMPONENT_ALL] = {
 		.comp_name = "COMPONENT_ALL",
 		.comp_str = "",},
@@ -1882,6 +1894,9 @@ struct log_component_info LogComponents[COMPONENT_COUNT] = {
 		.comp_name = "COMPONENT_RDMA",
 		.comp_str = "RDMA",},
 };
+
+CT_ASSERT(sizeof(LogComponents) / sizeof(LogComponents[0]) == COMPONENT_COUNT,
+	  "LogComponents must contain all log components");
 
 void DisplayLogComponentLevel(log_components_t component, const char *file,
 			      int line, const char *function,
