@@ -110,8 +110,9 @@ TEST_F(HandleToWireEmptyLatencyTest, SIMPLE)
 	fh_desc.len = BYTES;
 	fh_desc.addr = (void *)malloc(BYTES);
 
-	status = test_file->obj_ops->handle_to_wire(
-		test_file, FSAL_DIGEST_NFSV4, &fh_desc);
+	status = test_file->obj_ops->handle_to_wire(test_file,
+						    FSAL_DIGEST_NFSV4,
+						    &fh_desc);
 	EXPECT_EQ(status.major, 0);
 
 	free(fh_desc.addr);
@@ -148,8 +149,9 @@ TEST_F(HandleToWireEmptyLatencyTest, LOOP)
 	now(&s_time);
 
 	for (int i = 0; i < LOOP_COUNT; ++i) {
-		status = test_file->obj_ops->handle_to_wire(
-			test_file, FSAL_DIGEST_NFSV4, &fh_desc);
+		status = test_file->obj_ops->handle_to_wire(test_file,
+							    FSAL_DIGEST_NFSV4,
+							    &fh_desc);
 		EXPECT_EQ(status.major, 0);
 	}
 
@@ -177,8 +179,9 @@ TEST_F(HandleToWireEmptyLatencyTest, LOOP_BYPASS)
 	now(&s_time);
 
 	for (int i = 0; i < LOOP_COUNT; ++i) {
-		status = sub_hdl->obj_ops->handle_to_wire(
-			sub_hdl, FSAL_DIGEST_NFSV4, &fh_desc);
+		status = sub_hdl->obj_ops->handle_to_wire(sub_hdl,
+							  FSAL_DIGEST_NFSV4,
+							  &fh_desc);
 		ASSERT_EQ(status.major, 0);
 	}
 

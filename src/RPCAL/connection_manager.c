@@ -883,7 +883,8 @@ void connection_manager__connection_finished(const SVCXPRT *xprt)
 
 	PTHREAD_RWLOCK_rdlock(&callback_lock);
 	callback_context.deregister_connection(
-		callback_context.user_context, &connection->xprt->xp_remote_network_id,
+		callback_context.user_context,
+		&connection->xprt->xp_remote_network_id,
 		get_client_address(client),
 		get_client_address_for_debugging(client));
 	PTHREAD_RWLOCK_unlock(&callback_lock);

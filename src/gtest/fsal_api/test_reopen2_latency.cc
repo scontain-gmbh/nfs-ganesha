@@ -164,12 +164,14 @@ TEST_F(Reopen2EmptyLatencyTest, LOOP)
 
 	for (int i = 0; i < LOOP_COUNT; ++i) {
 		if (i % 2 == 0) {
-			status = test_file->obj_ops->reopen2(
-				test_file, test_file_state, FSAL_O_READ);
+			status = test_file->obj_ops->reopen2(test_file,
+							     test_file_state,
+							     FSAL_O_READ);
 			ASSERT_EQ(status.major, 0);
 		} else {
-			status = test_file->obj_ops->reopen2(
-				test_file, test_file_state, FSAL_O_WRITE);
+			status = test_file->obj_ops->reopen2(test_file,
+							     test_file_state,
+							     FSAL_O_WRITE);
 			ASSERT_EQ(status.major, 0);
 		}
 	}
@@ -193,12 +195,14 @@ TEST_F(Reopen2EmptyLatencyTest, LOOP_BYPASS)
 
 	for (int i = 0; i < LOOP_COUNT; ++i) {
 		if (i % 2 == 0) {
-			status = sub_hdl->obj_ops->reopen2(
-				sub_hdl, test_file_state, FSAL_O_READ);
+			status = sub_hdl->obj_ops->reopen2(sub_hdl,
+							   test_file_state,
+							   FSAL_O_READ);
 			ASSERT_EQ(status.major, 0);
 		} else {
-			status = sub_hdl->obj_ops->reopen2(
-				sub_hdl, test_file_state, FSAL_O_WRITE);
+			status = sub_hdl->obj_ops->reopen2(sub_hdl,
+							   test_file_state,
+							   FSAL_O_WRITE);
 			ASSERT_EQ(status.major, 0);
 		}
 	}

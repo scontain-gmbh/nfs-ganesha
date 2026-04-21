@@ -60,4 +60,4 @@ int sss_nss_idmap__getgrouplist(const char *name, gid_t group, gid_t *groups,
 				int *ngroups);
 
 #endif /* SSS_NSS_IDMAP_H */
-	/** @} */
+/** @} */

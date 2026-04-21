@@ -886,7 +886,8 @@ void qos_free_mem(void *gsh_ptr, qos_class_type_t class_type)
 			QOS_PRINT_CLIENT("trying to free from all exports",
 					 ((struct gsh_client *)gsh_ptr));
 			foreach_gsh_export(pepc_per_export_free_mem_iter, false,
-					   client);
+					   client)
+				;
 		}
 		break;
 	default:
@@ -2093,13 +2094,16 @@ static inline void refresh_qos_token(void)
 			 g_qos_config->qos_type);
 		break;
 	case QOS_PER_EXPORT_ENABLED:
-		foreach_gsh_export(ps_token_control_iter, false, &op_type);
+		foreach_gsh_export(ps_token_control_iter, false, &op_type)
+			;
 		break;
 	case QOS_PER_CLIENT_ENABLED:
-		foreach_gsh_client(pc_token_control_iter, &op_type);
+		foreach_gsh_client(pc_token_control_iter, &op_type)
+			;
 		break;
 	case QOS_PEREXPORT_PERCLIENT_ENABLED:
-		foreach_gsh_export(pepc_token_control_iter, false, &op_type);
+		foreach_gsh_export(pepc_token_control_iter, false, &op_type)
+			;
 		break;
 	default:
 		LogDebug(COMPONENT_QOS, " Something really wrong: %d",
@@ -2787,13 +2791,16 @@ static inline void resume_io(qos_op_type_t op_type)
 			 g_qos_config->qos_type);
 		break;
 	case QOS_PER_EXPORT_ENABLED:
-		foreach_gsh_export(ps_io_control_iter, false, &op_type);
+		foreach_gsh_export(ps_io_control_iter, false, &op_type)
+			;
 		break;
 	case QOS_PER_CLIENT_ENABLED:
-		foreach_gsh_client(pc_io_control_iter, &op_type);
+		foreach_gsh_client(pc_io_control_iter, &op_type)
+			;
 		break;
 	case QOS_PEREXPORT_PERCLIENT_ENABLED:
-		foreach_gsh_export(pepc_io_control_iter, false, &op_type);
+		foreach_gsh_export(pepc_io_control_iter, false, &op_type)
+			;
 		break;
 	default:
 		LogDebug(COMPONENT_QOS, " Something really wrong: %d",
@@ -2949,10 +2956,12 @@ static inline void stop_qos_io(void)
 		break;
 	case QOS_PEREXPORT_PERCLIENT_ENABLED:
 	case QOS_PER_EXPORT_ENABLED:
-		foreach_gsh_export(pe_stop_iter, false, NULL);
+		foreach_gsh_export(pe_stop_iter, false, NULL)
+			;
 		break;
 	case QOS_PER_CLIENT_ENABLED:
-		foreach_gsh_client(pc_stop_iter, NULL);
+		foreach_gsh_client(pc_stop_iter, NULL)
+			;
 		break;
 	}
 }

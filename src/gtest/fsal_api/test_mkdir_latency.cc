@@ -181,8 +181,9 @@ TEST_F(MkdirEmptyLatencyTest, LOOP)
 	for (int i = 0; i < LOOP_COUNT; ++i) {
 		sprintf(fname, "d-%08x", i);
 
-		status = test_root->obj_ops->mkdir(
-			test_root, fname, &attrs, &obj, NULL, nullptr, nullptr);
+		status = test_root->obj_ops->mkdir(test_root, fname, &attrs,
+						   &obj, NULL, nullptr,
+						   nullptr);
 		EXPECT_EQ(status.major, 0);
 		obj->obj_ops->put_ref(obj);
 	}
@@ -245,8 +246,9 @@ TEST_F(MkdirFullLatencyTest, BIG)
 	for (int i = 0; i < LOOP_COUNT; ++i) {
 		sprintf(fname, "d-%08x", i);
 
-		status = test_root->obj_ops->mkdir(
-			test_root, fname, &attrs, &obj, NULL, nullptr, nullptr);
+		status = test_root->obj_ops->mkdir(test_root, fname, &attrs,
+						   &obj, NULL, nullptr,
+						   nullptr);
 		ASSERT_EQ(status.major, 0) << " failed to mkdir " << fname;
 		obj->obj_ops->put_ref(obj);
 	}
@@ -281,9 +283,10 @@ TEST_F(MkdirFullLatencyTest, BIG_BYPASS)
 	for (int i = 0; i < LOOP_COUNT; ++i) {
 		sprintf(fname, "d-%08x", i);
 
-		gtws_subcall(status = sub_hdl->obj_ops->mkdir(
-				     sub_hdl, fname, &attrs, &obj, NULL,
-				     nullptr, nullptr));
+		gtws_subcall(status = sub_hdl->obj_ops->mkdir(sub_hdl, fname,
+							      &attrs, &obj,
+							      NULL, nullptr,
+							      nullptr));
 		ASSERT_EQ(status.major, 0) << " failed to mkdir " << fname;
 		obj->obj_ops->put_ref(obj);
 	}

@@ -110,8 +110,9 @@ TEST_F(Lockop2EmptyLatencyTest, SIMPLE)
 	request_lock.lock_sle_type = FSAL_POSIX_LOCK;
 	request_lock.lock_reclaim = true;
 
-	status = test_file->obj_ops->lock_op2(
-		test_file, NULL, NULL, FSAL_OP_LOCK, &request_lock, NULL);
+	status = test_file->obj_ops->lock_op2(test_file, NULL, NULL,
+					      FSAL_OP_LOCK, &request_lock,
+					      NULL);
 	EXPECT_EQ(status.major, 0);
 }
 
@@ -175,8 +176,9 @@ TEST_F(Lockop2EmptyLatencyTest, LOOP_BYPASS)
 	now(&s_time);
 
 	for (int i = 0; i < LOOP_COUNT; ++i) {
-		status = sub_hdl->obj_ops->lock_op2(
-			sub_hdl, NULL, NULL, FSAL_OP_LOCK, &request_lock, NULL);
+		status = sub_hdl->obj_ops->lock_op2(sub_hdl, NULL, NULL,
+						    FSAL_OP_LOCK, &request_lock,
+						    NULL);
 		ASSERT_EQ(status.major, 0);
 	}
 

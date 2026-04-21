@@ -48,7 +48,6 @@ int main(int argc, char **argv)
 		exit(EINVAL);
 	}
 
-
 	/* free and reload the file */
 	config_Free(config);
 

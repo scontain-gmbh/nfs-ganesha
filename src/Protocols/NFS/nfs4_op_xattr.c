@@ -308,8 +308,7 @@ enum nfs_req_result nfs4_op_listxattr(struct nfs_argop4 *op,
 	 * Adjust the minimum maxcount to the value without xattr, which
 	 * includes only nfs_cookie4 + names count + eof.
 	 */
-	if (arg_LISTXATTR4->lxa_maxcount <
-	    (overhead + sizeof(uint32_t))) {
+	if (arg_LISTXATTR4->lxa_maxcount < (overhead + sizeof(uint32_t))) {
 		res_LISTXATTR4->status = NFS4ERR_TOOSMALL;
 		return NFS_REQ_ERROR;
 	}

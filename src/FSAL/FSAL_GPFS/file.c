@@ -563,7 +563,7 @@ fsal_status_t gpfs_open2(struct fsal_obj_handle *obj_hdl, struct state_t *state,
 	 * If yes, then give error ERR_FSAL_SYMLINK.
 	 */
 	if ((state != NULL || createmode == FSAL_UNCHECKED) &&
-		attrs_out != NULL && attrs_out->type != REGULAR_FILE) {
+	    attrs_out != NULL && attrs_out->type != REGULAR_FILE) {
 		LogDebug(COMPONENT_FSAL, "Trying to open a non-regular file");
 		if (attrs_out->type == DIRECTORY) {
 			/* Trying to open2 a directory */
