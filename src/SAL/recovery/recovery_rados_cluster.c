@@ -334,6 +334,8 @@ static void rados_cluster_read_clids(nfs_grace_start_t *gsp,
 			 ret);
 		return;
 	}
+	LogDebug(COMPONENT_RECOVERY, "After joining grace, cur=%ld, rec=%ld",
+		 cur, rec);
 
 	/*
 	 * Recovery db names are like "rec-cccccccccccccccc:hostname" OR

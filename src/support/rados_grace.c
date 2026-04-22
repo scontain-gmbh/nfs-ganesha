@@ -357,7 +357,8 @@ int rados_grace_join_bulk(rados_ioctx_t io_ctx, const char *oid, int nodes,
 	char **vals = NULL;
 	size_t *lens = NULL;
 	bool *match = NULL;
-	uint64_t cur, rec, ver;
+	uint64_t cur, rec, ver, prev_cur;
+	bool failed_to_write = false;
 
 	/* flag bytes */
 	flags = malloc(nodes);
@@ -469,8 +470,12 @@ int rados_grace_join_bulk(rados_ioctx_t io_ctx, const char *oid, int nodes,
 		if (rec == 0) {
 			uint64_t tc, tr;
 
-			rec = cur;
-			++cur;
+			if (!failed_to_write) {
+				prev_cur = cur;
+				rec = cur;
+				++cur;
+			} else
+				rec = prev_cur;
 			tc = htole64(cur);
 			tr = htole64(rec);
 			memcpy(buf, (char *)&tc, sizeof(tc));
@@ -484,9 +489,12 @@ int rados_grace_join_bulk(rados_ioctx_t io_ctx, const char *oid, int nodes,
 
 		ret = rados_write_op_operate(wop, io_ctx, oid, NULL, 0);
 		rados_release_write_op(wop);
-		if (ret >= 0)
+		if (ret >= 0) {
+			failed_to_write = false;
 			rados_grace_notify(io_ctx, oid);
-	} while (ret == -ERANGE);
+		} else
+			failed_to_write = true;
+	} while (ret == -ERANGE || failed_to_write);
 
 	if (!ret) {
 		*pcur = cur;
