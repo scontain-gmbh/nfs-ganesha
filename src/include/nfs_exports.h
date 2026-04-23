@@ -162,22 +162,20 @@ struct exportlist_client_entry {
 /* @todo BUGAZOMEU : Mettre au carre les flags des flavors */
 
 #define EXPORT_OPTION_AUTH_NONE \
-	0x00001000 /*< Auth None authentication
-						   supported  */
+	0x00001000 /*< Auth None authentication supported  */
+
 #define EXPORT_OPTION_AUTH_UNIX \
-	0x00002000 /*< Auth Unix authentication
-						   supported  */
+	0x00002000 /*< Auth Unix authentication supported  */
 
 #define EXPORT_OPTION_RPCSEC_GSS_NONE \
-	0x00004000 /*< RPCSEC_GSS_NONE
-							    supported */
+	0x00004000 /*< RPCSEC_GSS_NONE supported */
+
 #define EXPORT_OPTION_RPCSEC_GSS_INTG \
-	0x00008000 /*< RPCSEC_GSS
-							    INTEGRITY supported
-							 */
+	0x00008000 /*< RPCSEC_GSS INTEGRITY supported */
+
 #define EXPORT_OPTION_RPCSEC_GSS_PRIV \
-	0x00010000 /*< RPCSEC_GSS PRIVACY
-							    supported	    */
+	0x00010000 /*< RPCSEC_GSS PRIVACY supported */
+
 #define EXPORT_OPTION_AUTH_TYPES                                         \
 	(EXPORT_OPTION_AUTH_NONE | EXPORT_OPTION_AUTH_UNIX |             \
 	 EXPORT_OPTION_RPCSEC_GSS_NONE | EXPORT_OPTION_RPCSEC_GSS_INTG | \
