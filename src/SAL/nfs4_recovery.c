@@ -44,11 +44,14 @@
 #include "client_mgr.h"
 #include "fsal.h"
 
-/* The grace_mutex protects current_grace, clid_list, and clid_count */
+/* The grace_mutex protects current_grace, clid_list, clid_count, and
+ * handling_zero_clients flag */
 static pthread_mutex_t grace_mutex;
 static struct timespec current_grace; /* current grace period timeout */
 static int clid_count; /* number of active clients */
 static struct glist_head clid_list = GLIST_HEAD_INIT(clid_list); /* clients */
+/* Flag indicating that Ganesha need to handle 0 clients during grace */
+static bool handling_zero_clients = true;
 
 /*
  * Low two bits of grace_status word are flags. One for whether we're currently
@@ -579,6 +582,25 @@ void nfs_try_lift_grace(void)
 #endif
 		in_grace = (rc_count != clid_count);
 
+	if (clid_count == 0) {
+		LogDebug(COMPONENT_RECOVERY, "0 clients");
+		if (handling_zero_clients) {
+			/* Handle special condition of 0 clients connected to
+			 * this Ganesha. Need to avoid situation of immediatley
+			 * ending the grace for this Ganesha.
+			 * By making in_grace=true, this Ganesha will remain
+			 * in grace for at max 10 sec, i.e. next invocation of
+			 * reaper.
+			 * End of grace on the restarted node will end grace for
+			 * this Ganesha as well.
+			 */
+			in_grace = true;
+			handling_zero_clients = false;
+			LogDebug(COMPONENT_RECOVERY, "Extending the grace");
+		} else
+			LogDebug(COMPONENT_RECOVERY, "Ending the grace");
+	}
+
 	/* Otherwise, wait for the timeout */
 	if (in_grace) {
 		struct timespec timeout, now;
@@ -641,8 +663,10 @@ void nfs_try_lift_grace(void)
 			     recovery_backend->try_lift_grace()))
 				nfs_lift_grace_locked();
 		} else if (!recovery_backend->try_lift_grace ||
-			   recovery_backend->try_lift_grace())
+			   recovery_backend->try_lift_grace()) {
 			nfs_lift_grace_locked();
+			handling_zero_clients = true;
+		}
 	}
 	PTHREAD_MUTEX_unlock(&grace_mutex);
 }
