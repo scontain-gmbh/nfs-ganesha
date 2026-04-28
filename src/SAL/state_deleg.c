@@ -345,6 +345,9 @@ bool should_we_grant_deleg(struct state_hdl *ostate, nfs_client_id_t *client,
 	    (!owner->so_owner.so_nfs4_owner.so_confirmed &&
 	     claim == CLAIM_NULL) ||
 	    claim == CLAIM_DELEGATE_CUR) {
+		LogFullDebug(
+			COMPONENT_STATE,
+			"Not granting delegation: failed initial capability/claim checks");
 		resok->delegation.open_delegation4_u.od_whynone.ond_why =
 			WND4_NOT_SUPP_FTYPE;
 		return false;
@@ -356,6 +359,11 @@ bool should_we_grant_deleg(struct state_hdl *ostate, nfs_client_id_t *client,
 		switch (claim) {
 		case CLAIM_PREVIOUS:
 			*prerecall = true;
+			if (args->claim.open_claim4_u.delegate_type ==
+			    OPEN_DELEGATE_NONE)
+				LogFullDebug(
+					COMPONENT_STATE,
+					"Not granting delegation: callback channel down and CLAIM_PREVIOUS has OPEN_DELEGATE_NONE");
 			return args->claim.open_claim4_u.delegate_type ==
 					       OPEN_DELEGATE_NONE
 				       ? false
@@ -364,6 +372,10 @@ bool should_we_grant_deleg(struct state_hdl *ostate, nfs_client_id_t *client,
 			*prerecall = true;
 			return true;
 		default:
+			LogFullDebug(
+				COMPONENT_STATE,
+				"Not granting delegation: callback channel down and claim=%u is not reclaim-compatible",
+				(unsigned int)claim);
 			resok->delegation.open_delegation4_u.od_whynone.ond_why =
 				WND4_RESOURCE;
 			return false;
@@ -372,6 +384,11 @@ bool should_we_grant_deleg(struct state_hdl *ostate, nfs_client_id_t *client,
 		*prerecall = false;
 		switch (claim) {
 		case CLAIM_PREVIOUS:
+			if (args->claim.open_claim4_u.delegate_type ==
+			    OPEN_DELEGATE_NONE)
+				LogFullDebug(
+					COMPONENT_STATE,
+					"Not granting delegation: CLAIM_PREVIOUS has OPEN_DELEGATE_NONE");
 			return args->claim.open_claim4_u.delegate_type ==
 					       OPEN_DELEGATE_NONE
 				       ? false
@@ -390,6 +407,10 @@ bool should_we_grant_deleg(struct state_hdl *ostate, nfs_client_id_t *client,
 	 */
 	if (file_stats->fds_last_recall != 0 &&
 	    time(NULL) - file_stats->fds_last_recall < RECALL2DELEG_TIME) {
+		LogFullDebug(
+			COMPONENT_STATE,
+			"Not granting delegation: recent recall for file (last_recall=%ld, threshold=%d)",
+			(long)file_stats->fds_last_recall, RECALL2DELEG_TIME);
 		resok->delegation.open_delegation4_u.od_whynone.ond_why =
 			WND4_CONTENTION;
 		return false;
@@ -397,6 +418,10 @@ bool should_we_grant_deleg(struct state_hdl *ostate, nfs_client_id_t *client,
 
 	/* Check if this is a misbehaving or unreliable client */
 	if (client->num_revokes > 2) { /* more than 2 revokes */
+		LogFullDebug(COMPONENT_STATE,
+			     "Client has too many revokes (num_revokes=%" PRIu32
+			     ")",
+			     client->num_revokes);
 		resok->delegation.open_delegation4_u.od_whynone.ond_why =
 			WND4_RESOURCE;
 		return false;
@@ -420,6 +445,11 @@ bool should_we_grant_deleg(struct state_hdl *ostate, nfs_client_id_t *client,
 	     file_stats->fds_num_write_opens > 0) ||
 	    (args->share_access & OPEN4_SHARE_ACCESS_WRITE &&
 	     file_stats->fds_num_write_opens > 1)) {
+		LogFullDebug(COMPONENT_STATE,
+			     "Conflicting write opens (share_access=0x%" PRIx32
+			     ", write_opens=%" PRIu32 ")",
+			     args->share_access,
+			     file_stats->fds_num_write_opens);
 		resok->delegation.open_delegation4_u.od_whynone.ond_why =
 			WND4_CONTENTION;
 		return false;
@@ -1114,27 +1144,52 @@ bool deleg_supported(struct fsal_obj_handle *obj,
 		     struct fsal_export *fsal_export,
 		     struct export_perms *export_perms, uint32_t share_access)
 {
-	if (!nfs_param.nfsv4_param.allow_delegations)
+	if (!nfs_param.nfsv4_param.allow_delegations) {
+		LogFullDebug(
+			COMPONENT_STATE,
+			"Delegation not supported: delegations disabled by server config");
 		return false;
-	if (obj->type != REGULAR_FILE)
+	}
+	if (obj->type != REGULAR_FILE) {
+		LogFullDebug(
+			COMPONENT_STATE,
+			"Delegation not supported: object type %s is not regular file",
+			object_file_type_to_str(obj->type));
 		return false;
+	}
 
 	/* In a read-write case, we handle write delegation. So we should
 	 * check for OPEN4_SHARE_ACCESS_WRITE bit first!
 	 */
 	if (share_access & OPEN4_SHARE_ACCESS_WRITE) {
 		if (!fsal_export->exp_ops.fs_supports(fsal_export,
-						      fso_delegations_w))
+						      fso_delegations_w)) {
+			LogFullDebug(
+				COMPONENT_STATE,
+				"Delegation not supported: FSAL export lacks write delegation support");
 			return false;
-		if (!(export_perms->options & EXPORT_OPTION_WRITE_DELEG))
+		}
+		if (!(export_perms->options & EXPORT_OPTION_WRITE_DELEG)) {
+			LogFullDebug(
+				COMPONENT_STATE,
+				"Delegation not supported: export permissions disable write delegations");
 			return false;
+		}
 	} else {
 		assert(share_access & OPEN4_SHARE_ACCESS_READ);
 		if (!fsal_export->exp_ops.fs_supports(fsal_export,
-						      fso_delegations_r))
+						      fso_delegations_r)) {
+			LogFullDebug(
+				COMPONENT_STATE,
+				"Delegation not supported: FSAL export lacks read delegation support");
 			return false;
-		if (!(export_perms->options & EXPORT_OPTION_READ_DELEG))
+		}
+		if (!(export_perms->options & EXPORT_OPTION_READ_DELEG)) {
+			LogFullDebug(
+				COMPONENT_STATE,
+				"Delegation not supported: export permissions disable read delegations");
 			return false;
+		}
 	}
 
 	return true;
