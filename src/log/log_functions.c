@@ -1699,6 +1699,10 @@ static log_levels_t default_log_levels[] = {
 	[COMPONENT_RDMA] = NIV_EVENT,
 };
 
+CT_ASSERT(sizeof(default_log_levels) / sizeof(default_log_levels[0]) ==
+		  COMPONENT_COUNT,
+	  "default_log_levels must contain all log components");
+
 /* Active set of log levels */
 log_levels_t *component_log_level = default_log_levels;
 
