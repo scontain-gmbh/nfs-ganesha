@@ -30,6 +30,10 @@
 #include "FSAL/fsal_commonlib.h"
 #include "../../vfs_methods.h"
 
+#ifdef USE_FSAL_VFS_INODE_HANDLES
+#include "nfs_proto_tools.h"
+#endif
+
 /* We can at most support 40 byte handles, which are the largest known.
  * We also expect handles to be at least 4 bytes.
  */
@@ -167,6 +171,288 @@ int display_vfs_handle(struct display_buffer *dspbuf,
 	} while (0)
 /* clang-format on */
 
+#if USE_FSAL_VFS_INODE_HANDLES
+int vfs_map_name_to_handle_at(int fd, struct fsal_filesystem *fs,
+			      const char *path, vfs_file_handle_t *fh,
+			      int flags)
+{
+	struct stat st;
+	int rc;
+	int32_t i32;
+
+	LogDebug(COMPONENT_FSAL,
+		 "vfs_map_name_to_handle_at: fd=%d, path='%s', flags=0x%x", fd,
+		 path ? path : "(empty)", flags);
+
+	// Get file stat using fstatat
+	if (flags & AT_EMPTY_PATH) {
+		rc = fstat(fd, &st);
+	} else {
+		rc = fstatat(fd, path, &st, AT_SYMLINK_NOFOLLOW);
+	}
+
+	if (rc < 0) {
+		int err = errno;
+		LogDebug(COMPONENT_FSAL, "Error %s (%d)", strerror(err), err);
+		errno = err;
+		return rc;
+	}
+
+	LogDebug(COMPONENT_FSAL, "  st_dev=%lu, st_ino=%lu",
+		 (unsigned long)st.st_dev, (unsigned long)st.st_ino);
+
+	/* Init flags with fsid type */
+	fh->handle_data[0] = fs->fsid_type;
+	fh->handle_len = 1;
+
+	/* Pack fsid into wire handle */
+	rc = encode_fsid(fh->handle_data + 1, sizeof_fsid(fs->fsid_type),
+			 &fs->fsid, fs->fsid_type);
+
+	if (rc < 0) {
+		errno = EINVAL;
+		return rc;
+	}
+
+	fh->handle_len += rc;
+
+	/* Pack handle type - use a synthetic type for inode-based handles */
+	fh->handle_data[fh->handle_len] = 0xFF; /* Synthetic type marker */
+	fh->handle_len++;
+	fh->handle_data[0] |= HANDLE_TYPE_8;
+
+	/* Pack inode-based "handle" - use st_dev + st_ino as the opaque handle */
+	// Store device
+	if (fh->handle_len + sizeof(st.st_dev) + sizeof(st.st_ino) >
+	    VFS_HANDLE_LEN) {
+		errno = EOVERFLOW;
+		return -1;
+	}
+
+	memcpy(fh->handle_data + fh->handle_len, &st.st_dev, sizeof(st.st_dev));
+	fh->handle_len += sizeof(st.st_dev);
+
+	// Store inode
+	memcpy(fh->handle_data + fh->handle_len, &st.st_ino, sizeof(st.st_ino));
+	fh->handle_len += sizeof(st.st_ino);
+
+	LogDebug(COMPONENT_FSAL,
+		 "Created inode-based handle: dev=%lu, ino=%lu, len=%d",
+		 (unsigned long)st.st_dev, (unsigned long)st.st_ino,
+		 fh->handle_len);
+
+	return 0;
+}
+
+static int search_tree_recursive(const char *dir_path, dev_t target_dev,
+				 ino_t target_ino, int openflags, int depth)
+{
+	DIR *dir;
+	struct dirent *entry;
+	struct stat st;
+	char path_buf[PATH_MAX];
+	int fd = -1;
+
+	if (!dir_path || depth > 10) {
+		errno = depth > 10 ? ELOOP : EINVAL;
+		return -1;
+	}
+
+	// Check directory itself first - use ABSOLUTE path for open
+	if (stat(dir_path, &st) == 0) {
+		if (st.st_dev == target_dev && st.st_ino == target_ino) {
+			LogDebug(COMPONENT_FSAL,
+				 "Found match at depth %d: '%s'", depth,
+				 dir_path);
+
+			// CRITICAL: Open with the ABSOLUTE path we have
+			fd = open(dir_path, openflags);
+
+			if (fd < 0) {
+				LogDebug(COMPONENT_FSAL,
+					 "open('%s') failed: %s", dir_path,
+					 strerror(errno));
+			} else {
+				LogDebug(COMPONENT_FSAL,
+					 "Successfully opened '%s' as fd %d",
+					 dir_path, fd);
+			}
+			return fd;
+		}
+	}
+
+	dir = opendir(dir_path);
+	if (!dir) {
+		return -1;
+	}
+
+	while ((entry = readdir(dir)) != NULL) {
+		if (strcmp(entry->d_name, ".") == 0 ||
+		    strcmp(entry->d_name, "..") == 0) {
+			continue;
+		}
+
+		// Build ABSOLUTE path
+		int ret;
+		if (dir_path[strlen(dir_path) - 1] == '/') {
+			ret = snprintf(path_buf, sizeof(path_buf), "%s%s",
+				       dir_path, entry->d_name);
+		} else {
+			ret = snprintf(path_buf, sizeof(path_buf), "%s/%s",
+				       dir_path, entry->d_name);
+		}
+
+		if (ret >= sizeof(path_buf)) {
+			continue;
+		}
+
+		if (lstat(path_buf, &st) < 0) {
+			continue;
+		}
+
+		// Check match - open with ABSOLUTE path
+		if (st.st_dev == target_dev && st.st_ino == target_ino) {
+			LogDebug(COMPONENT_FSAL,
+				 "Found match at depth %d: '%s'", depth,
+				 path_buf);
+
+			// CRITICAL: path_buf contains the ABSOLUTE path
+			fd = open(path_buf, openflags);
+
+			if (fd < 0) {
+				LogDebug(COMPONENT_FSAL,
+					 "open('%s') failed: %s", path_buf,
+					 strerror(errno));
+			} else {
+				LogDebug(COMPONENT_FSAL,
+					 "Successfully opened '%s' as fd %d",
+					 path_buf, fd);
+			}
+
+			closedir(dir);
+			return fd;
+		}
+
+		// Recurse - path_buf is already absolute
+		if (S_ISDIR(st.st_mode)) {
+			fd = search_tree_recursive(path_buf, target_dev,
+						   target_ino, openflags,
+						   depth + 1);
+			if (fd >= 0) {
+				closedir(dir);
+				return fd;
+			}
+		}
+	}
+
+	closedir(dir);
+	errno = ESTALE;
+	return -1;
+}
+
+int vfs_open_by_handle(struct fsal_filesystem *fs, vfs_file_handle_t *fh,
+		       int openflags, fsal_errors_t *fsal_error)
+{
+	uint8_t handle_cursor = sizeof_fsid(fs->fsid_type) + 1;
+	dev_t target_dev;
+	ino_t target_ino;
+	int fd = -1;
+
+	LogFullDebug(COMPONENT_FSAL,
+		     "vfs_open_by_handle: fs=%s, root_fd=%d, openflags=0x%x",
+		     fs->path, root_fd(fs), openflags);
+	LogVFSHandle(fh);
+
+	// Verify handle type
+	if ((fh->handle_data[0] & HANDLE_TYPE_MASK) != HANDLE_TYPE_8) {
+		LogDebug(COMPONENT_FSAL,
+			 "Invalid handle type for inode-based handle");
+		errno = EINVAL;
+		fd = -1;
+		goto out;
+	}
+
+	// Skip synthetic type marker
+	uint8_t handle_type = fh->handle_data[handle_cursor];
+	handle_cursor++;
+
+	if (handle_type != 0xFF) {
+		LogDebug(COMPONENT_FSAL,
+			 "Not an inode-based handle (type=0x%02x)",
+			 handle_type);
+		errno = EINVAL;
+		fd = -1;
+		goto out;
+	}
+
+	// Extract device and inode
+	if (fh->handle_len < handle_cursor + sizeof(dev_t) + sizeof(ino_t)) {
+		LogDebug(COMPONENT_FSAL, "Handle too short");
+		errno = EINVAL;
+		fd = -1;
+		goto out;
+	}
+
+	memcpy(&target_dev, fh->handle_data + handle_cursor,
+	       sizeof(target_dev));
+	handle_cursor += sizeof(target_dev);
+	memcpy(&target_ino, fh->handle_data + handle_cursor,
+	       sizeof(target_ino));
+
+	LogFullDebug(COMPONENT_FSAL, "vfs_fs = %s root_fd = %d", fs->path,
+		     root_fd(fs));
+
+	// Get the export path directly from op_ctx
+	const char *export_path = op_ctx_export_path(op_ctx);
+
+	if (!export_path || export_path[0] == '\0') {
+		LogWarn(COMPONENT_FSAL, "Invalid export path");
+		fd = -1;
+		errno = EINVAL;
+		goto out;
+	}
+
+	LogDebug(COMPONENT_FSAL,
+		 "Searching from export path: '%s' for dev=%lu ino=%lu",
+		 export_path, (unsigned long)target_dev,
+		 (unsigned long)target_ino);
+
+	// Search and open with ABSOLUTE path
+	fd = search_tree_recursive(export_path, target_dev, target_ino,
+				   openflags, 0);
+	if (fd < 0) {
+		LogDebug(COMPONENT_FSAL, "search_tree_recursive failed: %s",
+			 strerror(errno));
+	} else {
+		// CRITICAL: Log what path was actually opened
+		char opened_path[PATH_MAX];
+		char link_path[64];
+		snprintf(link_path, sizeof(link_path), "/proc/self/fd/%d", fd);
+		ssize_t len = readlink(link_path, opened_path,
+				       sizeof(opened_path) - 1);
+		if (len > 0) {
+			opened_path[len] = '\0';
+			LogDebug(COMPONENT_FSAL,
+				 "Opened absolute path: '%s' as fd %d",
+				 opened_path, fd);
+		}
+	}
+out:
+	if (fd < 0) {
+		fd = -errno;
+		if (fd == -ENOENT)
+			fd = -ESTALE;
+		*fsal_error = posix2fsal_error(-fd);
+		LogDebug(COMPONENT_FSAL, "Failed with %s openflags 0x%08x",
+			 strerror(-fd), openflags);
+	} else {
+		LogFullDebug(COMPONENT_FSAL, "Opened fd %d", fd);
+	}
+
+	return fd;
+}
+
+#else
 int vfs_map_name_to_handle_at(int fd, struct fsal_filesystem *fs,
 			      const char *path, vfs_file_handle_t *fh,
 			      int flags)
@@ -303,6 +589,8 @@ out:
 
 	return fd;
 }
+
+#endif
 
 int vfs_fd_to_handle(int fd, struct fsal_filesystem *fs, vfs_file_handle_t *fh)
 {

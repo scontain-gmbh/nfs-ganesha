@@ -1158,6 +1158,9 @@ set(_USE_NLM ${USE_NLM})
 set(_USE_RQUOTA ${USE_RQUOTA})
 set(_USE_CB_SIMULATOR ${USE_CB_SIMULATOR})
 
+set(USE_FSAL_VFS_INODE_HANDLES ${USE_FSAL_VFS_INODE_HANDLES})
+
+
 ########### add a "make dist" and a "make rpm"  ###############
 
 set( PKG_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}.tar.gz")
@@ -1393,6 +1396,7 @@ message(STATUS "-------------------------------------------------------")
 message(STATUS "USE_FSAL_PROXY_V4 = ${USE_FSAL_PROXY_V4}")
 message(STATUS "USE_FSAL_PROXY_V3 = ${USE_FSAL_PROXY_V3}")
 message(STATUS "USE_FSAL_VFS = ${USE_FSAL_VFS}")
+message(STATUS "USE_FSAL_VFS_INODE_HANDLES = ${USE_FSAL_VFS_INODE_HANDLES}")
 message(STATUS "USE_FSAL_LUSTRE = ${USE_FSAL_LUSTRE}")
 message(STATUS "USE_FSAL_LIZARDFS = ${USE_FSAL_LIZARDFS}")
 message(STATUS "USE_FSAL_KVSFS = ${USE_FSAL_KVSFS}")
