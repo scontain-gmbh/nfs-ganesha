@@ -172,7 +172,7 @@ extern log_levels_t original_log_level;
 extern log_levels_t default_log_level;
 extern log_levels_t *conditional_component_log_level;
 extern cond_log_match_policies_t cond_log_match_policy;
-
+extern bool conditional_logging_configured;
 extern struct log_component_info LogComponents[];
 
 extern bool is_op_context_conditional_flag_set(void);
@@ -182,7 +182,8 @@ static inline bool isLevel(log_components_t comp, log_levels_t lvl)
 	if (lvl == NIV_NULL)
 		return true;
 
-	if (is_op_context_conditional_flag_set()) {
+	if (unlikely(conditional_logging_configured) &&
+	    is_op_context_conditional_flag_set()) {
 		log_levels_t *cond_comp_log = conditional_component_log_level;
 
 		return (lvl == NIV_FULL_DEBUG)

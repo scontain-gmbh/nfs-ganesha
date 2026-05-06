@@ -26,6 +26,7 @@
   compound_data_Free;
   component_log_level;
   conditional_component_log_level;
+  conditional_logging_configured;
   config_error_no_error;
   config_errs_to_log;
   config_Free;
