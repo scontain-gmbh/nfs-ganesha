@@ -616,8 +616,13 @@ static bool rados_cluster_grace_enforcing(void)
 
 	ret = rados_grace_enforcing_check(rados_recov_io_ctx,
 					  rados_kv_param.grace_oid, nodeid);
-	LogEvent(COMPONENT_RECOVERY, "%s: Grace enforcing check failed, ret=%d",
-		 __func__, ret);
+	if (ret)
+		LogEvent(COMPONENT_RECOVERY,
+			 "%s: Grace enforcing check failed, ret=%d", __func__,
+			 ret);
+	else
+		LogDebug(COMPONENT_RECOVERY,
+			 "%s: Grace enforcing check succeeds", __func__);
 	return (ret == 0);
 }
 
