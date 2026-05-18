@@ -110,8 +110,8 @@ BANG         "\!"
 DOT          "\."
 AT           "@"
 
-IPV4CIDR         \/[1-9][0-9]{0,1}
-IPV6CIDR         \/[1-9][0-9]{0,2}
+IPV4CIDR         \/(0|[1-9][0-9]{0,1})
+IPV6CIDR         \/(0|[1-9][0-9]{0,2})
 V4OCTET      [0-9]{1,3}
 IPV4ADDR     {V4OCTET}{DOT}{V4OCTET}{DOT}{V4OCTET}{DOT}{V4OCTET}
 H16          [0-9A-Fa-f]{1,4}

@@ -630,6 +630,9 @@ int cidr_contains_ip(CIDR *cidr, sockaddr_t *ipaddr)
 		int cidr_addr = ntohl(cidr_v4->sin_addr.s_addr);
 		int ipaddr_addr = ntohl(ipaddr_v4->sin_addr.s_addr);
 
+		if (mask == 0)
+			return 0;
+
 		int b = cidr_addr >> (32 - mask);
 		int s = ipaddr_addr >> (32 - mask);
 
