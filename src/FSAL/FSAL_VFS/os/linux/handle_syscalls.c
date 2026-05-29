@@ -412,31 +412,8 @@ int vfs_open_by_handle(struct fsal_filesystem *fs, vfs_file_handle_t *fh,
 		goto out;
 	}
 
-	LogDebug(COMPONENT_FSAL,
-		 "Searching from export path: '%s' for dev=%lu ino=%lu",
-		 export_path, (unsigned long)target_dev,
-		 (unsigned long)target_ino);
-
-	// Search and open with ABSOLUTE path
 	fd = search_tree_recursive(export_path, target_dev, target_ino,
 				   openflags, 0);
-	if (fd < 0) {
-		LogDebug(COMPONENT_FSAL, "search_tree_recursive failed: %s",
-			 strerror(errno));
-	} else {
-		// CRITICAL: Log what path was actually opened
-		char opened_path[PATH_MAX];
-		char link_path[64];
-		snprintf(link_path, sizeof(link_path), "/proc/self/fd/%d", fd);
-		ssize_t len = readlink(link_path, opened_path,
-				       sizeof(opened_path) - 1);
-		if (len > 0) {
-			opened_path[len] = '\0';
-			LogDebug(COMPONENT_FSAL,
-				 "Opened absolute path: '%s' as fd %d",
-				 opened_path, fd);
-		}
-	}
 out:
 	if (fd < 0) {
 		fd = -errno;

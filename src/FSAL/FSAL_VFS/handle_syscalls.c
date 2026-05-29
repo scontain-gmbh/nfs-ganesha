@@ -42,6 +42,7 @@
 #include "fsal_convert.h"
 #include "FSAL/fsal_commonlib.h"
 #include "FSAL/fsal_localfs.h"
+#include "nfs_proto_tools.h"
 #include "vfs_methods.h"
 #include <os/subr.h>
 
@@ -80,12 +81,39 @@ int vfs_readlink(struct vfs_fsal_obj_handle *myself, fsal_errors_t *fsal_error)
 	/* Make room for NUL termination */
 	myself->u.symlink.link_content = gsh_malloc(st.st_size + 1);
 
+#if USE_FSAL_VFS_INODE_HANDLES
+	// Get the export path directly from op_ctx
+	const char *export_path = op_ctx_export_path(op_ctx);
+
+	if (!export_path || export_path[0] == '\0') {
+		LogWarn(COMPONENT_FSAL, "Invalid export path");
+		fd = -1;
+		errno = EINVAL;
+		goto error;
+	}
+
+	char opened_path[PATH_MAX];
+	char link_path[64];
+	snprintf(link_path, sizeof(link_path), "/proc/self/fd/%d", fd);
+	ssize_t len = readlink(link_path, opened_path, sizeof(opened_path) - 1);
+	if (len > 0) {
+		opened_path[len] = '\0';
+		LogDebug(COMPONENT_FSAL,
+			 "Opened readlink absolute path: '%s' as fd %d",
+			 opened_path, fd);
+	}
+	retlink = vfs_readlink_by_handle(myself->handle, AT_FDCWD, opened_path,
+					 myself->u.symlink.link_content,
+					 myself->u.symlink.link_size);
+#else
 	/* readlink fills the buffer up to specified size, not NUL terminated,
 	 * return is the number of bytes read.
-	 */
+	*/
 	retlink = vfs_readlink_by_handle(myself->handle, fd, "",
 					 myself->u.symlink.link_content,
-					 st.st_size);
+					 myself->u.symlink.link_size);
+#endif
+
 	if (retlink < 0)
 		goto error;
 
