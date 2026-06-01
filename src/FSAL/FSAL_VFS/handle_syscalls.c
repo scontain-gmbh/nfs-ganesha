@@ -82,36 +82,44 @@ int vfs_readlink(struct vfs_fsal_obj_handle *myself, fsal_errors_t *fsal_error)
 	myself->u.symlink.link_content = gsh_malloc(st.st_size + 1);
 
 #if USE_FSAL_VFS_INODE_HANDLES
-	// Get the export path directly from op_ctx
+	char full_path[PATH_MAX];
+	dev_t target_dev;
+	ino_t target_ino;
+	if (vfs_inode_handle_decode(myself->handle, &target_dev, &target_ino) <
+	    0) {
+		*fsal_error = posix2fsal_error(EINVAL);
+		return -EINVAL;
+	}
+
 	const char *export_path = op_ctx_export_path(op_ctx);
-
 	if (!export_path || export_path[0] == '\0') {
-		LogWarn(COMPONENT_FSAL, "Invalid export path");
-		fd = -1;
-		errno = EINVAL;
-		goto error;
+		LogWarn(COMPONENT_FSAL, "vfs_readlink: empty export path");
+		*fsal_error = ERR_FSAL_SERVERFAULT;
+		return -EINVAL;
 	}
 
-	char opened_path[PATH_MAX];
-	char link_path[64];
-	snprintf(link_path, sizeof(link_path), "/proc/self/fd/%d", fd);
-	ssize_t len = readlink(link_path, opened_path, sizeof(opened_path) - 1);
-	if (len > 0) {
-		opened_path[len] = '\0';
-		LogDebug(COMPONENT_FSAL,
-			 "Opened readlink absolute path: '%s' as fd %d",
-			 opened_path, fd);
+	if (vfs_find_path_by_inode(export_path, target_dev, target_ino,
+				   full_path) < 0) {
+		retval = -errno;
+		LogDebug(
+			COMPONENT_FSAL,
+			"vfs_readlink: inode search failed (dev=%lu ino=%lu): %s",
+			(unsigned long)target_dev, (unsigned long)target_ino,
+			strerror(errno));
+		*fsal_error = posix2fsal_error(errno);
+		return retval;
 	}
-	retlink = vfs_readlink_by_handle(myself->handle, AT_FDCWD, opened_path,
+
+	retlink = vfs_readlink_by_handle(myself->handle, AT_FDCWD, full_path,
 					 myself->u.symlink.link_content,
-					 myself->u.symlink.link_size);
+					 st.st_size);
 #else
 	/* readlink fills the buffer up to specified size, not NUL terminated,
 	 * return is the number of bytes read.
 	*/
 	retlink = vfs_readlink_by_handle(myself->handle, fd, "",
 					 myself->u.symlink.link_content,
-					 myself->u.symlink.link_size);
+					 st.st_size);
 #endif
 
 	if (retlink < 0)

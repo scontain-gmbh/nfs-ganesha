@@ -244,6 +244,13 @@ struct vfs_fsal_obj_handle *alloc_handle(int dirfd, vfs_file_handle_t *fh,
 					 vfs_file_handle_t *dir_fh,
 					 const char *path,
 					 struct fsal_export *exp_hdl);
+#ifdef USE_FSAL_VFS_INODE_HANDLES
+int vfs_find_path_by_inode(const char *export_path, dev_t target_dev,
+			   ino_t target_ino, char path_out[PATH_MAX]);
+
+int vfs_inode_handle_decode(const vfs_file_handle_t *fh, dev_t *dev_out,
+			    ino_t *ino_out);
+#endif
 
 void free_vfs_fsal_obj_handle(struct vfs_fsal_obj_handle **hdl);
 
